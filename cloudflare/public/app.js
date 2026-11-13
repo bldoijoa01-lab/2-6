@@ -781,8 +781,10 @@
       det]);
   }
   function secureNote(synced) {
-    if (!synced) return h('div', { class: 'note-sm', text: '내 점수는 이 기기에만 저장돼요. 다시 로그인하면 암호화 저장·동기화(선생님 공유 포함)가 켜져요.' });
-    return secureBanner(false);
+    // 열쇠 유무와 상관없이 항상 같은 안내 카드를 보여 줌 (열쇠가 없으면 안내 한 줄만 추가)
+    var card = secureBanner(true);
+    if (!synced) card.insertBefore(h('div', { class: 'sb-warn', text: '이 기기는 아직 다른 기기와의 동기화가 꺼져 있어요. 로그아웃 후 다시 로그인하면 켜져요.' }), card.lastChild);
+    return card;
   }
   // 로그인 직후 한 번 크게 알려 주기
   function showSecureModal() {

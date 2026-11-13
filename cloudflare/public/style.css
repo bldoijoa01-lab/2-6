@@ -586,3 +586,5 @@ body.teacher #tab-naesin{display:none !important}
 
 .blk-done{margin-top:12px; display:flex; flex-direction:column; gap:10px}
 .blk-done .btn.out{margin-top:0}
+
+.sb-warn{margin:6px 0 2px; font-size:12px; color:var(--sub); line-height:1.45}
