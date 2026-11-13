@@ -425,3 +425,6 @@ body{transition:background-color .45s ease}
 .up-t{font-size:16px; font-weight:700; letter-spacing:-.02em; line-height:1.4}
 .up-s{font-size:13.5px; color:var(--sub); line-height:1.5; margin-top:2px}
 @media (prefers-reduced-motion:reduce){ button,.tab,.seg-b,.el-chip,.card{transition:none !important} ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none !important} }
+
+.notice-card{margin-bottom:14px}
+.notice-b{background:var(--blue-t); border-color:color-mix(in srgb,var(--blue) 28%,transparent)}

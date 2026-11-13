@@ -109,6 +109,13 @@
     return out;
   }
 
+  function noticesCard() {
+    var ns = DATA.notices || []; if (!ns.length) return null;
+    return h('div', { class: 'card notice-card' }, [head('NOTICE', '공지'), h('div', { class: 'card-b' }, ns.map(function (n) {
+      return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: n.title }), n.text ? h('div', { class: 'ev-sub', text: n.text }) : null].concat(evExtras(n)))]);
+    }))]);
+  }
+
   // ---------- 홈 ----------
   function goTab(name) { selectTab(name); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   function renderHome() {
@@ -140,6 +147,11 @@
       DATA.special.length ? DATA.special[0].label.split(' ')[0] + ' 시작' : '원반에서 응시', function () { goTab('exam'); setTimeout(function () { jumpTo('sec-special'); }, 60); }));
     grid.push(stat('예정 일정', upcoming.length + '개', others[0] ? '다음: ' + others[0].title : '예정 없음', function () { goTab('today'); }));
     grid.push(stat('등급컷 아카이브', '등급컷 보기', '과목별 컷 · 내 예상 등급', function () { goTab('grade'); }));
+    (DATA.notices || []).forEach(function (n) {
+      var nb = h('button', { class: 'nudge notice-b', type: 'button' }, [h('b', { text: '📢 ' + n.title }), h('small', { text: (n.text || '') + ' →' })]);
+      nb.addEventListener('click', function () { goTab('today'); });
+      p.appendChild(nb);
+    });
     if (myElectives().length < 5) {
       var nudge = h('button', { class: 'nudge', type: 'button' }, [h('b', { text: '📝 선택과목을 먼저 골라 주세요' }), h('small', { text: '고르면 등급컷과 기말 목표 계산기가 열려요 →' })]);
       nudge.addEventListener('click', function () { goTab('me'); });
@@ -659,6 +671,7 @@
       });
       seg.appendChild(b);
     });
+    var nc = noticesCard(); if (nc) p.appendChild(nc);
     p.appendChild(seg); p.appendChild(listCard); p.appendChild(calCard);
   }
 
