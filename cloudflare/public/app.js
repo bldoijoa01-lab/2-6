@@ -57,7 +57,66 @@
     });
   })();
 
-  // ---------- 오늘 ----------
+  // ---------- 홈 ----------
+  function goTab(name) { selectTab(name); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  function renderHome() {
+    var p = document.getElementById('panel-home'); clear(p);
+    var me = DATA.me, mv = DATA.move;
+    var upcoming = DATA.events.filter(function (e) { return diffDays(e.end || e.date, TODAY) >= 0; })
+      .sort(function (a, b) { return toUTC(a.date) - toUTC(b.date); });
+    var exam = upcoming.filter(function (e) { return /기말/.test(e.title); })[0];
+    var others = upcoming.filter(function (e) { return e !== exam; });
+
+    function stat(label, big, sub, onClick, cls) {
+      var el = h('button', { class: 'stat ' + (cls || ''), type: 'button' }, [
+        h('div', { class: 'stat-l', text: label }), h('div', { class: 'stat-big', text: big }), h('div', { class: 'stat-s', text: sub })]);
+      el.addEventListener('click', onClick); return el;
+    }
+    // 인사
+    p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: me.name + '님, 안녕 👋' }),
+      h('div', { class: 'greet-s', text: me.n + '번 · ' + DATA.className })]));
+
+    var grid = [];
+    if (exam) {
+      var dd = diffDays(exam.date, TODAY), end = diffDays(exam.end || exam.date, TODAY);
+      var big = dd > 0 ? 'D-' + dd : (end >= 0 ? (dd === 0 ? 'D-DAY' : '진행 중') : '');
+      grid.push(stat('기말고사', big, fmt(exam.date) + (exam.end ? ' ~ ' + fmt(exam.end) : ''), function () { goTab('exam'); }, 'hot'));
+    }
+    var moveTxt = me.n <= mv.frontCount ? mv.otherRoom + '로 이동' : '우리 교실 그대로';
+    grid.push(stat('내 원반', moveTxt, me.n + '번 · ' + (me.n <= mv.frontCount ? '앞번호 ' + mv.frontCount + '명 이동' : mv.ownRoom + ' 응시'), function () { goTab('exam'); setTimeout(function () { jumpTo('sec-move'); }, 60); }));
+    grid.push(stat('특별실 응시', DATA.special.length ? DATA.special.length + '과목' : '없음',
+      DATA.special.length ? DATA.special[0].label.split(' ')[0] + ' 시작' : '원반에서 응시', function () { goTab('exam'); setTimeout(function () { jumpTo('sec-special'); }, 60); }));
+    grid.push(stat('예정 일정', upcoming.length + '개', others[0] ? '다음: ' + others[0].title : '예정 없음', function () { goTab('today'); }));
+    p.appendChild(h('div', { class: 'stats' }, grid));
+
+    // 다음 일정 미리보기
+    var rows = others.slice(0, 3).map(function (e) {
+      var d = diffDays(e.date, TODAY), when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
+      return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: e.title }), h('div', { class: 'ev-sub' }, [h('b', { text: when })])]), ddayBadge(e)]);
+    });
+    var more = h('button', { class: 'linkbtn', type: 'button', text: '일정 전체 보기 →' });
+    more.addEventListener('click', function () { goTab('today'); });
+    p.appendChild(h('div', { class: 'card' }, [head('UP NEXT', '다가오는 일정'), h('div', { class: 'card-b' }, rows.concat(rows.length ? [more] : [h('div', { class: 'empty', text: '예정된 일정이 없어요. 평화 ✌️' })]))]));
+  }
+
+  // ---------- 기말고사 (시간표 + 이동교실 + 유의사항 한 곳에) ----------
+  function jumpTo(id) { var el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+  function renderExamJump() {
+    var p = document.getElementById('panel-exam');
+    var items = [['sec-table', '시간표'], ['sec-move', '이동교실'], ['sec-special', '특별실'], ['sec-caution', '유의사항']];
+    p.appendChild(h('div', { class: 'jump' }, items.map(function (it) {
+      var b = h('button', { class: 'jump-b', type: 'button', text: it[1] });
+      b.addEventListener('click', function () { jumpTo(it[0]); }); return b;
+    })));
+  }
+  function tagExamCards() {
+    var map = { 'EXAM TIMETABLE': 'sec-table', 'MOVING ROOM': 'sec-move', 'SPECIAL ROOM': 'sec-special', 'NOTICE': 'sec-caution' };
+    Array.prototype.forEach.call(document.querySelectorAll('#panel-exam .card'), function (c) {
+      var e = c.querySelector('.eyebrow'); if (e && map[e.textContent]) c.id = map[e.textContent];
+    });
+  }
+
+  // ---------- 일정 ----------
   function ddayBadge(ev) {
     var d = diffDays(ev.date, TODAY);
     var end = ev.end ? diffDays(ev.end, TODAY) : d;
@@ -109,7 +168,7 @@
 
   // ---------- 기말 시간표 ----------
   function renderTable() {
-    var p = document.getElementById('panel-table'); clear(p);
+    var p = document.getElementById('panel-exam');
     var ex = DATA.exam;
     var thead = h('tr', null, [h('th', { text: '' })].concat(ex.days.map(function (d) {
       return h('th', { class: diffDays(d.date, TODAY) === 0 ? 'today' : '', text: d.label });
@@ -139,7 +198,7 @@
 
   // ---------- 이동교실 (로그인한 계정 기준 자동 판별) ----------
   function renderMove() {
-    var p = document.getElementById('panel-move'); clear(p);
+    var p = document.getElementById('panel-exam');
     var mv = DATA.move, me = DATA.me, n = me.n;
 
     var numOut = h('div', { class: 'result' });
@@ -176,7 +235,7 @@
 
   // ---------- 유의사항 ----------
   function renderCaution() {
-    var p = document.getElementById('panel-caution'); clear(p);
+    var p = document.getElementById('panel-exam');
     p.appendChild(h('div', { class: 'card' }, [head('NOTICE', '시험 유의사항'), h('div', { class: 'card-b' },
       DATA.cautions.map(function (c) {
         return h('div', { class: 'cau' }, [h('div', null, [h('div', { class: 'cau-t', text: c.t }), h('div', { class: 'cau-s', text: c.s })])]);
@@ -191,9 +250,12 @@
     var d = new Date(TODAY);
     document.getElementById('todayLabel').textContent = (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + DOW[d.getUTCDay()] + ')';
     document.getElementById('updated').textContent = DATA.className + ' 알림장 · 마지막 업데이트 ' + fmt(DATA.updated);
-    renderToday(); renderTable(); renderMove(); renderCaution();
+    clear(document.getElementById('panel-exam'));
+    renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
+    tagExamCards();
     var start = (location.hash || '').replace('#', '');
-    selectTab(['today', 'table', 'move', 'caution'].indexOf(start) >= 0 ? start : 'today');
+    start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
+    selectTab(['home', 'today', 'exam'].indexOf(start) >= 0 ? start : 'home');
   }
 
   // ---------- 로그인 (서버: 이름+번호) ----------

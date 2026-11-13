@@ -186,7 +186,7 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 .login-sub{color:var(--sub); font-size:14.5px; line-height:1.55}
 
 /* 잠금: 로그인 카드만 */
-body.locked .top, body.locked .hero, body.locked .foot, body.locked #panel-table, body.locked #panel-move, body.locked #panel-caution{display:none !important}
+body.locked .top, body.locked .hero, body.locked .foot, body.locked #panel-home, body.locked #panel-exam{display:none !important}
 body.locked .wrap{min-height:100vh; display:flex; flex-direction:column; justify-content:center; max-width:420px}
 body.locked #panel-today .card{margin:0}
 body.locked #panel-today .card-b{padding:30px 28px 30px}
@@ -194,3 +194,29 @@ body.locked #panel-today .card-b{padding:30px 28px 30px}
 @media (max-width:639px){ .scroll-hint{display:block} .tt{min-width:600px} }
 @media (min-width:640px){ .tt{min-width:0} }
 @media (prefers-reduced-motion:reduce){ *{transition:none !important} }
+
+/* 홈 */
+.greet{padding:4px 4px 16px}
+.greet-hi{font-size:26px; font-weight:800; letter-spacing:-.035em}
+.greet-s{color:var(--sub); font-size:14.5px; margin-top:2px}
+.stats{display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:20px}
+.stat{appearance:none; text-align:left; font:inherit; color:var(--ink); cursor:pointer; padding:16px 18px; border-radius:24px; background:var(--glass); border:1px solid var(--glass-line);
+  box-shadow:var(--shadow); -webkit-backdrop-filter:blur(22px) saturate(170%); backdrop-filter:blur(22px) saturate(170%); transition:transform .12s}
+.stat:active{transform:scale(.98)}
+.stat-l{font-size:12.5px; font-weight:700; color:var(--mute); letter-spacing:.04em}
+.stat-big{margin-top:6px; font-size:24px; font-weight:800; letter-spacing:-.04em; line-height:1.2; word-break:keep-all}
+.stat-s{margin-top:4px; font-size:13px; color:var(--sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap}
+.stat.hot{grid-column:1 / -1; color:#fff; background:linear-gradient(135deg,rgba(240,88,122,.92),rgba(245,160,74,.92)); border-color:rgba(255,255,255,.4)}
+.stat.hot .stat-l,.stat.hot .stat-s{color:rgba(255,255,255,.88)}
+.stat.hot .stat-big{font-size:42px}
+.linkbtn{align-self:flex-end; border:0; background:transparent; color:var(--blue); font:inherit; font-size:14px; font-weight:700; cursor:pointer; padding:4px 0}
+.stat:last-child:nth-child(even){grid-column:1 / -1}
+@media (min-width:720px){ .stats{grid-template-columns:repeat(4,1fr)} .stat.hot,.stat:last-child:nth-child(even){grid-column:auto} }
+
+/* 기말고사 점프 바 */
+.jump{display:flex; gap:8px; overflow-x:auto; padding:0 0 14px; scrollbar-width:none; position:sticky; top:104px; z-index:5}
+.jump::-webkit-scrollbar{display:none}
+.jump-b{flex:0 0 auto; padding:7px 15px; border-radius:999px; border:1px solid var(--glass-line); background:var(--glass-2); color:var(--ink); font:inherit; font-size:13.5px; font-weight:600; cursor:pointer;
+  -webkit-backdrop-filter:blur(16px); backdrop-filter:blur(16px)}
+#panel-exam .card{scroll-margin-top:150px}
+@media (min-width:720px){ .jump{top:72px} #panel-exam .card{scroll-margin-top:120px} }
