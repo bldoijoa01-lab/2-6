@@ -12,6 +12,10 @@
   })();
 
   // ---------- helpers ----------
+  function logoSvg() {   // 알림장 로고 (index.html 의 #lg-mark 심볼 재사용)
+    var NS = 'http://www.w3.org/2000/svg', s = document.createElementNS(NS, 'svg'), u = document.createElementNS(NS, 'use');
+    s.setAttribute('class', 'logo'); s.setAttribute('viewBox', '0 0 64 64'); s.setAttribute('aria-hidden', 'true'); u.setAttribute('href', '#lg-mark'); s.appendChild(u); return s;
+  }
   function h(tag, attrs, children) {
     var el = document.createElement(tag);
     if (attrs) for (var k in attrs) {
@@ -811,7 +815,7 @@
     var bars = h('div', { class: 'cn-bars' }); TUT_STEPS.forEach(function () { bars.appendChild(h('i', null, [h('b')])); });
     var num = h('div', { class: 'cn-num' }), skip = h('button', { class: 'cn-skip', type: 'button', text: '건너뛰기' });
     var stage = h('div', { class: 'cn-stage' });
-    var brand = h('div', { class: 'cn-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '2-6 알림장' })]);
+    var brand = h('div', { class: 'cn-brand' }, [logoSvg(), h('b', { text: '2-6 알림장' })]);
     var back = h('button', { class: 'cn-arrow', type: 'button', 'aria-label': '이전', text: '‹' }), next = h('button', { class: 'cn-next', type: 'button', text: '다음' });
     var card = h('div', { class: 'cn' }, [bars, h('div', { class: 'cn-top' }, [num, skip]), stage, h('div', { class: 'cn-foot' }, [brand, h('div', { class: 'cn-nav' }, [back, next])])]);
     var wrap = h('div', { class: 'modal cn-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': '사용 안내' }, [card]);
@@ -2425,7 +2429,7 @@
     }
     btn.addEventListener('click', go);
     pwIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
-    card([h('div', { class: 'login-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '2-6 알림장' })]), h('div', { class: 'login-sub', text: '우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), nameIn, numIn, pwIn, btn, err]);
+    card([h('div', { class: 'login-brand' }, [logoSvg(), h('b', { text: '2-6 알림장' })]), h('div', { class: 'login-sub', text: '우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), nameIn, numIn, pwIn, btn, err]);
   }
 
   function showSetup(setupToken, num) {
@@ -2444,7 +2448,7 @@
     }
     btn.addEventListener('click', go);
     p2.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
-    card([h('div', { class: 'login-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '비밀번호 설정' })]), h('div', { class: 'login-sub', text: '반 코드 확인 완료! 나만의 비밀번호를 정하세요. 다음부터는 이 비밀번호로 입장해요. (잊어버리면 담당자에게 초기화 요청)' }), p1, p2, h('div', { class: 'note-sm', text: '4자리 숫자도 가능해요. 다만 짧을수록 남이 맞히기 쉽고, 내 점수 암호도 약해져요. 6자 이상을 권장해요.' }), btn, err]);
+    card([h('div', { class: 'login-brand' }, [logoSvg(), h('b', { text: '비밀번호 설정' })]), h('div', { class: 'login-sub', text: '반 코드 확인 완료! 나만의 비밀번호를 정하세요. 다음부터는 이 비밀번호로 입장해요. (잊어버리면 담당자에게 초기화 요청)' }), p1, p2, h('div', { class: 'note-sm', text: '4자리 숫자도 가능해요. 다만 짧을수록 남이 맞히기 쉽고, 내 점수 암호도 약해져요. 6자 이상을 권장해요.' }), btn, err]);
   }
 
   function loadData() {

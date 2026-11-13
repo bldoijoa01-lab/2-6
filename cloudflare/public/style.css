@@ -77,8 +77,7 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
   background:var(--glass); border:1px solid var(--glass-line); border-radius:22px; box-shadow:var(--shadow); transform:translateZ(0)}
 .brand{display:flex; align-items:center; gap:10px; font-size:16px; margin-right:auto}
 .brand b{font-weight:700}
-.logo{display:inline-flex; align-items:center; justify-content:center; width:32px; height:32px; border-radius:11px; color:#fff; font-weight:800; font-size:15px;
-  background:linear-gradient(135deg,#6EA0FF,#6A5AE0); box-shadow:0 6px 16px rgba(90,100,230,.4), inset 0 1px 0 rgba(255,255,255,.5)}
+.logo{display:inline-block; flex:none; width:32px; height:32px; filter:drop-shadow(0 5px 10px rgba(90,100,230,.38))}
 .tabs{position:relative; isolation:isolate; display:flex; gap:4px; overflow-x:auto; scrollbar-width:none; order:3; width:100%}
 .tabs::-webkit-scrollbar{display:none}
 .tab{position:relative; z-index:1; flex:0 0 auto; padding:7px 15px; border:0; border-radius:999px; background:transparent; color:var(--sub); font:inherit; font-size:14.5px; font-weight:600; cursor:pointer; white-space:nowrap}
@@ -675,7 +674,7 @@ body.preview .top{top:42px}
 .cn-stage.in .cn-water{animation:waterIn .65s var(--ease) both}
 @keyframes waterIn{from{opacity:0; transform:translate3d(0,8px,0)} to{opacity:.1; transform:translate3d(0,0,0)}}
 .cn-foot{display:flex; align-items:center; justify-content:space-between; padding-top:8px}
-.cn-brand{display:flex; align-items:center; gap:8px; font-size:13px} .cn-brand .logo{width:24px; height:24px; border-radius:8px; font-size:12px; box-shadow:none}
+.cn-brand{display:flex; align-items:center; gap:8px; font-size:13px} .cn-brand .logo{width:24px; height:24px; filter:none}
 .cn-nav{display:flex; align-items:center; gap:8px}
 .cn-arrow{width:40px; height:40px; border-radius:50%; border:0; background:rgba(255,255,255,.6); color:inherit; font-size:24px; line-height:1; cursor:pointer} .cn.final .cn-arrow{background:rgba(255,255,255,.22)}
 .cn-next{height:40px; padding:0 20px; border:0; border-radius:999px; background:#1A2040; color:#fff; font:inherit; font-size:14px; font-weight:800; cursor:pointer} .cn.final .cn-next{background:#fff; color:#5B4BE0}
@@ -704,7 +703,7 @@ body.preview .top{top:42px}
 
 #splash{position:fixed; inset:0; z-index:100; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; pointer-events:none;
   background:linear-gradient(135deg,var(--bg1),var(--bg2) 55%,var(--bg3)); animation:splashOut .5s var(--ease) 1.0s forwards; will-change:opacity}
-#splash .logo{width:64px; height:64px; border-radius:22px; font-size:30px; animation:pop .68s var(--spring) both}
+#splash .logo{width:68px; height:68px; animation:pop .68s var(--spring) both}
 #splash b{margin-top:14px; font-size:24px; font-weight:800; letter-spacing:-.04em; animation:rise .56s var(--ease) .22s both}
 #splash small{color:var(--sub); font-size:14px; animation:rise .56s var(--ease) .34s both}
 

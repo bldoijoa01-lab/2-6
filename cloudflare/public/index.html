@@ -28,11 +28,19 @@
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="locked">
-<div id="splash" aria-hidden="true"><span class="logo">6</span><b>2-6 알림장</b><small>2학년 6반</small></div>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false"><defs>
+<linearGradient id="lg-bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#4C7DFF"/><stop offset=".55" stop-color="#7B5CF0"/><stop offset="1" stop-color="#E85AA0"/></linearGradient>
+<linearGradient id="lg-tx" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#3B6CF5"/><stop offset="1" stop-color="#8A4FE0"/></linearGradient>
+<radialGradient id="lg-hi" cx=".25" cy=".1" r=".9"><stop offset="0" stop-color="#fff" stop-opacity=".38"/><stop offset=".6" stop-color="#fff" stop-opacity="0"/></radialGradient>
+<symbol id="lg-mark" viewBox="0 0 64 64"><rect width="64" height="64" rx="15" fill="url(#lg-bg)"/><rect width="64" height="64" rx="15" fill="url(#lg-hi)"/>
+<path d="M18 13h28a9 9 0 0 1 9 9v17a9 9 0 0 1-9 9H33.5L23 56.5V48h-5a9 9 0 0 1-9-9V22a9 9 0 0 1 9-9z" fill="#fff" fill-opacity=".97"/>
+<text x="32" y="40" text-anchor="middle" font-family="PretendardL,Pretendard,system-ui,sans-serif" font-weight="800" font-size="27" fill="url(#lg-tx)">6</text>
+<circle cx="51.5" cy="14.5" r="7.2" fill="#FF5C8A" stroke="#fff" stroke-width="2.4"/></symbol></defs></svg>
+<div id="splash" aria-hidden="true"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><use href="#lg-mark"/></svg><b>2-6 알림장</b><small>2학년 6반</small></div>
 <div id="previewBar" class="preview-bar" hidden><span id="previewWho"></span><button id="previewExit" type="button">교사 화면으로 돌아가기</button></div>
 <header class="top">
   <div class="top-in">
-    <div class="brand"><span class="logo">6</span><b>2-6 알림장</b></div>
+    <div class="brand"><svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><use href="#lg-mark"/></svg><b>2-6 알림장</b></div>
     <nav class="tabs" role="tablist" aria-label="메뉴">
       <button class="tab tab-t" role="tab" id="tab-teacher" aria-controls="panel-teacher" aria-selected="false" data-tab="teacher">교사 도구</button>
       <button class="tab" role="tab" id="tab-home" aria-controls="panel-home" aria-selected="true" data-tab="home">홈</button>
