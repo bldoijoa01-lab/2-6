@@ -3,6 +3,8 @@
 // Secret: SESSION_SECRET
 import ASSETS from './assets.js';
 import FONT from './pretendard.woff2';
+import OG from './og.jpg';
+import ICON from './icon.png';
 const enc = new TextEncoder();
 const TTL = 60 * 60 * 24 * 30;
 const CUTS_URL = 'https://bldoijoa01-lab.github.io/gradecut/cuts.json'; // 등급컷 아카이브 저장소가 원본 (여기서 직접 가져옴)
@@ -121,6 +123,11 @@ export default {
       if (!body) return json({ error: 'unavailable' }, 503);
       return new Response(body, { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
     }
+    // 카카오톡·메신저 링크 미리보기용 이미지/아이콘 (로그인 없이 공개)
+    if (url.pathname === '/og.jpg')
+      return new Response(OG, { headers: { 'content-type': 'image/jpeg', 'cache-control': 'public, max-age=86400' } });
+    if (url.pathname === '/icon.png' || url.pathname === '/apple-touch-icon.png' || url.pathname === '/favicon.ico')
+      return new Response(ICON, { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' } });
     if (url.pathname === '/fonts/pretendard-1.woff2')
       return new Response(FONT, { headers: { 'content-type': 'font/woff2', 'cache-control': 'public, max-age=31536000, immutable' } });
     if (url.pathname.startsWith('/api/')) return json({ error: 'not_found' }, 404);

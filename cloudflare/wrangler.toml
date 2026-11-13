@@ -10,5 +10,5 @@ workers_dev = true
 
 [[rules]]
 type = "Data"
-globs = ["**/*.woff2"]
+globs = ["**/*.woff2", "**/*.jpg", "**/*.png"]
 fallthrough = true
