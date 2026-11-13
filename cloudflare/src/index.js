@@ -117,6 +117,29 @@ export default {
       }
       return json({ error: 'method' }, 405);
     }
+    if (url.pathname === '/api/teacherkeys' && request.method === 'GET') {
+      // 교사 공개키 목록 (학생이 성적 사본을 선생님 전용으로 암호화할 때 씀. 공개키라 노출돼도 안전)
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      if (!await verifyToken(env, auth, 'full')) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), keys = [];
+      for (const t of roster.filter((x) => x.role === 'teacher')) {
+        const rec = JSON.parse(await env.CLASS_KV.get('tkey:' + t.n) || 'null');
+        if (rec && rec.pub) keys.push({ n: t.n, pub: rec.pub });
+      }
+      return json({ keys });
+    }
+    if (url.pathname === '/api/share' && request.method === 'PUT') {
+      // 학생의 점수·내신·선택과목 사본: 학생 기기에서 교사 공개키로 암호화한 것만 저장 (서버는 못 읽음)
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const text = await request.text();
+      if (text.length > 40000) return json({ error: 'too_big' }, 413);
+      let b; try { b = JSON.parse(text); } catch { return json({ error: 'bad' }, 400); }
+      if (typeof b.iv !== 'string' || typeof b.data !== 'string' || !b.keys || typeof b.keys !== 'object') return json({ error: 'bad' }, 400);
+      await env.CLASS_KV.put('share:' + tok.w, JSON.stringify({ iv: b.iv, data: b.data, keys: b.keys, at: Date.now() }));
+      return json({ ok: true });
+    }
     if (url.pathname.startsWith('/api/teacher/')) {
       // 교사 전용: 학생 현황 · 비밀번호 초기화 · 일정/공지 관리
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
@@ -129,9 +152,22 @@ export default {
       if (sub === 'students' && request.method === 'GET') {
         const keys = await env.CLASS_KV.list({ prefix: 'pw:' });
         const active = new Set(keys.keys.map((k) => parseInt(k.name.slice(3), 10)));
-        return json({ students: roster.filter((x) => x.role !== 'teacher').map((x) => ({ n: x.n, name: x.name, active: active.has(x.n) })) });
+        const sh = await env.CLASS_KV.list({ prefix: 'share:' }), shared = new Set(sh.keys.map((k) => parseInt(k.name.slice(6), 10)));
+        return json({ students: roster.filter((x) => x.role !== 'teacher').map((x) => ({ n: x.n, name: x.name, active: active.has(x.n), shared: shared.has(x.n) })) });
       }
       let b = {}; if (request.method === 'POST') { try { b = await request.json(); } catch { return json({ error: 'bad' }, 400); } }
+      if (sub === 'mykey' && request.method === 'GET') return json(JSON.parse(await env.CLASS_KV.get('tkey:' + me.n) || 'null') || {});
+      if (sub === 'keys' && request.method === 'POST') {   // 교사 키쌍: 공개키(JWK) + 교사 비밀번호로 잠근 비밀키
+        if (!b.pub || !b.priv || typeof b.priv.iv !== 'string' || typeof b.priv.data !== 'string') return json({ error: 'bad' }, 400);
+        await env.CLASS_KV.put('tkey:' + me.n, JSON.stringify({ pub: b.pub, priv: b.priv }));
+        return json({ ok: true });
+      }
+      if (sub === 'shares' && request.method === 'GET') {
+        const out = {};
+        const list = await env.CLASS_KV.list({ prefix: 'share:' });
+        for (const k of list.keys) { const v = await env.CLASS_KV.get(k.name); if (v) out[k.name.slice(6)] = JSON.parse(v); }
+        return json({ shares: out });
+      }
       if (sub === 'preview' && request.method === 'GET') {   // 학생 화면 미리보기 (읽기 전용: 그 학생이 보는 공통 데이터만, 암호화된 점수·선택과목은 볼 수 없음)
         const st = roster.find((x) => x.n === parseInt(url.searchParams.get('n'), 10) && x.role !== 'teacher');
         if (!st) return json({ error: 'not_found' }, 404);
@@ -140,7 +176,7 @@ export default {
       if (sub === 'reset' && request.method === 'POST') {
         const st = roster.find((x) => x.n === b.n && x.role !== 'teacher');
         if (!st) return json({ error: 'not_found' }, 404);
-        await env.CLASS_KV.delete('pw:' + st.n); await env.CLASS_KV.delete('sc:' + st.n);   // 비밀번호 초기화(암호화 점수는 키가 바뀌어 복구 불가라 같이 삭제)
+        await env.CLASS_KV.delete('pw:' + st.n); await env.CLASS_KV.delete('sc:' + st.n); await env.CLASS_KV.delete('share:' + st.n);   // 비밀번호 초기화(암호화 점수는 키가 바뀌어 복구 불가라 같이 삭제)
         await env.CLASS_KV.delete('rl:n:' + st.n);
         return json({ ok: true });
       }

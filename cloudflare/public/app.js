@@ -51,6 +51,7 @@
     });
         if (name === 'grade') loadGrade();
     if (name === 'me') renderMe();
+    if (name === 'naesin') renderNaesin();
     try { history.replaceState(null, '', '#' + name); } catch (e) {}
   }
   tabs.forEach(function (t) { t.addEventListener('click', function () { selectTab(t.getAttribute('data-tab')); }); });
@@ -252,6 +253,8 @@
       var d3 = new Date(toUTC(x.date));
       grid.push(stat(x.title, n === 0 ? 'D-DAY' : 'D-' + n, d3.getUTCFullYear() + '/' + (d3.getUTCMonth() + 1) + '/' + d3.getUTCDate() + '(' + DOW[d3.getUTCDay()] + ')', function () { goTab('today'); setTimeout(function () { var b = document.querySelectorAll('#panel-today .seg-b'); if (b[1]) b[1].click(); }, 60); }));
     });
+    var ns = nsStat();
+    if (ns) grid.push(stat('내신 평균', nsFmt(ns.avg), ns.sems + '개 학기 · 반영 ' + ns.credits + '단위', function () { goTab('naesin'); }));
     var moveTxt = me.n <= mv.frontCount ? mv.otherRoom + '로 이동' : '우리 교실 그대로';
     grid.push(stat('내 원반', moveTxt, me.n + '번 · ' + (me.n <= mv.frontCount ? '앞번호 ' + mv.frontCount + '명 이동' : mv.ownRoom + ' 응시'), function () { goTab('exam'); setTimeout(function () { jumpTo('sec-move'); }, 60); }));
     grid.push(stat('특별실 응시', DATA.special.length ? DATA.special.length + '과목' : '없음',
@@ -335,6 +338,72 @@
     return wrap;
   }
 
+  // ---------- 선생님 공유 (학생 기기에서 교사 공개키로 암호화한 사본 · 서버/운영자/다른 학생은 못 읽음) ----------
+  var shareTimer = null;
+  function pushShare() {
+    if (PREVIEW || !DATA || !DATA.me || DATA.me.role === 'teacher') return;
+    clearTimeout(shareTimer);
+    shareTimer = setTimeout(doShare, 1200);
+  }
+  function doShare() {
+    var tok = load('tok26'); if (!tok) return;
+    fetch('/api/teacherkeys', { headers: { authorization: 'Bearer ' + tok }, cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) {
+      if (!j || !j.keys || !j.keys.length) return;
+      var prefs = Object.assign({}, prefLoad()); delete prefs.myEvents;   // 내 개인 일정은 공유하지 않음
+      var content = { v: 1, n: DATA.me.n, name: DATA.me.name, scores: gcLoad(), prefs: prefs, at: Date.now() };
+      return crypto.subtle.generateKey({ name: 'AES-GCM', length: 256 }, true, ['encrypt']).then(function (K) {
+        var iv = crypto.getRandomValues(new Uint8Array(12));
+        return Promise.all([crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, K, te.encode(JSON.stringify(content))), crypto.subtle.exportKey('raw', K)]).then(function (res) {
+          return Promise.all(j.keys.map(function (k) {
+            return crypto.subtle.importKey('jwk', k.pub, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['encrypt'])
+              .then(function (pub) { return crypto.subtle.encrypt({ name: 'RSA-OAEP' }, pub, res[1]); })
+              .then(function (w) { return [String(k.n), b64e(w)]; });
+          })).then(function (pairs) {
+            var keys = {}; pairs.forEach(function (x) { keys[x[0]] = x[1]; });
+            return fetch('/api/share', { method: 'PUT', headers: { authorization: 'Bearer ' + tok, 'content-type': 'application/json' }, body: JSON.stringify({ iv: b64e(iv), data: b64e(res[0]), keys: keys }) });
+          });
+        });
+      });
+    }).catch(function () {});
+  }
+  // 교사: 내 키쌍 준비 (비밀키는 내 비밀번호로 잠가서 서버에 둠 → 운영자도 못 풂) + 학생 사본 풀기
+  var TKEY = null, TSHARES = {};
+  function ensureTeacherKeys() {
+    if (TKEY) return Promise.resolve(TKEY);
+    return storedKey().then(function (wrap) {
+      if (!wrap) return null;
+      return tApi('mykey').then(function (rec) {
+        var open = rec && rec.priv ? crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(rec.priv.iv) }, wrap, b64d(rec.priv.data))
+          .then(function (pk) { return crypto.subtle.importKey('pkcs8', pk, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']); }) : Promise.reject(new Error('none'));
+        return open.catch(function () {   // 처음이거나 비밀번호가 바뀐 경우: 새 키쌍 (이전 사본은 학생이 다시 로그인하면 새로 만들어짐)
+          return crypto.subtle.generateKey({ name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['encrypt', 'decrypt']).then(function (kp) {
+            return Promise.all([crypto.subtle.exportKey('jwk', kp.publicKey), crypto.subtle.exportKey('pkcs8', kp.privateKey)]).then(function (r) {
+              var iv = crypto.getRandomValues(new Uint8Array(12));
+              return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, wrap, r[1]).then(function (ct) {
+                return tApi('keys', { pub: r[0], priv: { iv: b64e(iv), data: b64e(ct) } });
+              }).then(function () { return kp.privateKey; });
+            });
+          });
+        });
+      });
+    }).then(function (k) { TKEY = k; return k; }).catch(function () { return null; });
+  }
+  function loadShares() {
+    return ensureTeacherKeys().then(function (key) {
+      if (!key) return {};
+      return tApi('shares').then(function (j) {
+        var out = {}, me = String(DATA.me.n);
+        return Promise.all(Object.keys(j.shares || {}).map(function (n) {
+          var s = j.shares[n], w = s.keys && s.keys[me]; if (!w) return null;
+          return crypto.subtle.decrypt({ name: 'RSA-OAEP' }, key, b64d(w))
+            .then(function (raw) { return crypto.subtle.importKey('raw', raw, { name: 'AES-GCM' }, false, ['decrypt']); })
+            .then(function (K) { return crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(s.iv) }, K, b64d(s.data)); })
+            .then(function (pt) { out[n] = JSON.parse(td.decode(pt)); }).catch(function () {});
+        })).then(function () { TSHARES = out; return out; });
+      });
+    });
+  }
+
   // ---------- 점수 암호화 (내 비밀번호에서 만든 키로 브라우저에서 암호화 → 서버엔 암호문만) ----------
   var te = new TextEncoder(), td = new TextDecoder();
   function b64e(buf) { var a = new Uint8Array(buf), s = ''; for (var i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s); }
@@ -362,11 +431,13 @@
   }
   var PREVIEW = null;   // 교사가 학생 화면을 미리보는 중일 때 그 학생 정보
   var PKEY = 'pref26';
-  function prefLoad() { if (PREVIEW) return {}; try { return JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch (e) { return {}; } }
+  function prefLoad() { if (PREVIEW) return PREVIEW.prefs || {}; try { return JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch (e) { return {}; } }
   function prefSave(o) { if (PREVIEW) return; try { localStorage.setItem(PKEY, JSON.stringify(o)); } catch (e) {} pushScores(); }
   function normName(s) { return String(s || '').replace(/\s+/g, '').replace(/Ⅱ/g, 'II').replace(/Ⅰ/g, 'I').replace(/[*]/g, ''); }
   var pushTimer = null;
   function pushScores() {
+    if (PREVIEW) return;
+    pushShare();
     clearTimeout(pushTimer);
     pushTimer = setTimeout(function () {
       storedKey().then(function (key) {
@@ -378,6 +449,7 @@
     }, 800);
   }
   function syncScores() {
+    if (PREVIEW) return Promise.resolve(false);
     return storedKey().then(function (key) {
       if (!key) return false;
       return fetch('/api/scores', { headers: { authorization: 'Bearer ' + (load('tok26') || '') }, cache: 'no-store' })
@@ -398,20 +470,22 @@
 
   // 교사: 학생 화면 미리보기 (읽기 전용)
   function enterPreview(n, name) {
-    tApi('preview?n=' + n).then(function (d) {
+    Promise.all([tApi('preview?n=' + n), loadShares()]).then(function (res) {
+      var d = res[0], sh = res[1][String(n)];
       if (!d || !d.me) return;
-      PREVIEW = { n: n, name: name }; DATA = d;
+      PREVIEW = { n: n, name: name, scores: sh ? sh.scores || {} : {}, prefs: sh ? sh.prefs || {} : {}, shared: !!sh }; DATA = d;
+      GC_STATE = GC_STATE === 'loading' ? GC_STATE : (GC ? 'dirty' : 'idle');
       document.body.classList.remove('teacher'); document.body.classList.add('preview');
       var bar = document.getElementById('previewBar'); bar.hidden = false;
-      document.getElementById('previewWho').textContent = '👀 ' + name + '(' + n + '번) 학생 화면 미리보기 · 읽기 전용';
-      var who = document.getElementById('who'); who.textContent = name + ' · ' + n + '번';
+      document.getElementById('previewWho').textContent = '👀 ' + name + '(' + n + '번) 학생 화면 · 읽기 전용' + (sh ? ' · 성적 공유됨' : ' · 아직 공유 데이터 없음(학생이 한 번 로그인하면 생겨요)');
+      document.getElementById('who').textContent = name + ' · ' + n + '번';
       clear(document.getElementById('panel-exam'));
-      renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution(); tagExamCards();
+      renderMe(); renderNaesin(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderSeat(); renderCaution(); tagExamCards();
       selectTab('home'); window.scrollTo({ top: 0 });
     });
   }
   function exitPreview() {
-    PREVIEW = null; document.body.classList.remove('preview'); document.getElementById('previewBar').hidden = true;
+    PREVIEW = null; GC_STATE = GC ? 'dirty' : 'idle'; document.body.classList.remove('preview'); document.getElementById('previewBar').hidden = true;
     fetch('/api/data', { headers: { authorization: 'Bearer ' + load('tok26') }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       DATA = d; document.body.classList.add('teacher');
       document.getElementById('who').textContent = DATA.me.name + ' 선생님';
@@ -474,10 +548,11 @@
     var box = h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '불러오는 중…' })]);
     p.appendChild(h('div', { class: 'card' }, [head('STUDENTS', '학생 현황'), box]));
     function drawStudents() {
-      tApi('students').then(function (j) {
+      Promise.all([tApi('students'), loadShares()]).then(function (res) { var j = res[0]; var shares = res[1] || {};
         clear(box); if (!j.students) { box.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요.' })); return; }
         var on = j.students.filter(function (s) { return s.active; }).length;
-        box.appendChild(h('div', { class: 'note-sm', text: '가입(비밀번호 설정) ' + on + ' / ' + j.students.length + '명 · 비밀번호를 잊은 학생은 초기화해 주세요. 초기화하면 그 학생은 반 코드로 다시 설정하고, 저장한 점수는 사라져요.' }));
+        var nsh = j.students.filter(function (s) { return shares[String(s.n)]; }).length;
+        box.appendChild(h('div', { class: 'note-sm', text: '가입 ' + on + ' / ' + j.students.length + '명 · 성적 공유 ' + nsh + '명. 학생의 점수·내신·선택과목은 선생님 전용으로 암호화돼 공유돼요(운영자·다른 학생은 못 봐요). 비밀번호 초기화하면 학생은 반 코드로 다시 설정하고 저장한 점수는 사라져요.' }));
         j.students.forEach(function (s) {
           var rst = h('button', { class: 'linkbtn del-b', type: 'button', text: '초기화' }); rst.disabled = !s.active;
           rst.addEventListener('click', function () {
@@ -486,8 +561,13 @@
           });
           var view = h('button', { class: 'linkbtn', type: 'button', text: '화면 보기' });
           view.addEventListener('click', function () { enterPreview(s.n, s.name); });
-          box.appendChild(h('div', { class: 'srow' }, [h('span', { class: 'srow-n', text: s.n + '번' }), h('span', { class: 'srow-name', text: s.name }),
-            h('span', { class: 'srow-st' + (s.active ? ' on' : ''), text: s.active ? '가입함' : '아직' }), view, rst]));
+          var sh = shares[String(s.n)], sumTxt = '';
+          if (sh) {
+            var pr = sh.prefs || {}, ns = pr.naesin && pr.naesin.sems ? nsTotal(pr.naesin.sems) : null;
+            sumTxt = '선택 ' + (pr.el2 || []).length + '/5' + (ns && ns.avg != null ? ' · 내신 ' + nsFmt(ns.avg) : '') + ' · 점수 ' + Object.keys(sh.scores || {}).filter(function (k) { return k.indexOf('perf-') !== 0; }).length + '과목';
+          }
+          box.appendChild(h('div', { class: 'srow-wrap' }, [h('div', { class: 'srow' }, [h('span', { class: 'srow-n', text: s.n + '번' }), h('span', { class: 'srow-name', text: s.name }),
+            h('span', { class: 'srow-st' + (s.active ? ' on' : ''), text: s.active ? (sh ? '공유' : '가입') : '아직' }), view, rst]), sumTxt ? h('div', { class: 'srow-sum', text: sumTxt }) : null]));
         });
       });
     }
@@ -510,19 +590,140 @@
     p.appendChild(h('div', { class: 'card' }, [head('CREDITS', '만든 사람'), h('div', { class: 'card-b' }, people.concat(notes))]));
   }
 
+  // ---------- 내신 (학기별 등급 입력 → 총 내신 평균) ----------
+  var NS_SEMS = [['1-1', '1학년 1학기'], ['1-2', '1학년 2학기'], ['2-1', '2학년 1학기'], ['2-2', '2학년 2학기']];
+  var NS_BASE = {   // 편성표의 공통·일반 과목 (이름, 단위, 내신 반영 기본값). 반영 여부는 학교 기준에 맞게 직접 바꿀 수 있어요
+    '1-1': [['공통국어1', 4], ['공통수학1', 4], ['공통영어1', 4], ['한국사1', 3], ['통합사회1', 4], ['통합과학1', 4], ['과학탐구실험1', 1, 1], ['체육Ⅰ', 2, 1], ['음악/미술', 2, 1], ['기술·가정/정보', 3]],
+    '1-2': [['공통국어2', 4], ['공통수학2', 4], ['공통영어2', 4], ['한국사2', 3], ['통합사회2', 4], ['통합과학2', 4], ['과학탐구실험2', 1, 1], ['체육Ⅱ', 2, 1], ['음악/미술', 2, 1], ['정보/기술·가정', 3]],
+    '2-1': [['문학', 4], ['대수', 4], ['영어Ⅰ', 4], ['스포츠문화', 1, 1], ['음악 연주와 창작/미술 창작', 2, 1]],
+    '2-2': [['화법과 언어', 4], ['미적분Ⅰ', 4], ['영어Ⅱ', 4], ['스포츠과학', 1, 1], ['음악 연주와 창작/미술 창작', 2, 1]]
+  };
+  function nsLoad() { var s = (prefLoad().naesin || {}).sems; return s && typeof s === 'object' ? s : {}; }
+  function nsSave(sems) { var p2 = prefLoad(); p2.naesin = { sems: sems }; prefSave(p2); }
+  function nsDefault(key) {
+    var rows = (NS_BASE[key] || []).map(function (r) { return { n: r[0], cr: r[1], g: 0, x: r[2] ? 1 : 0 }; });
+    var pr = prefLoad(), picks = key === '2-1' ? pr.el1 : key === '2-2' ? pr.el2 : null;   // 내 정보에서 고른 선택과목 불러오기
+    (picks || []).forEach(function (n) { rows.push({ n: n, cr: 3, g: 0, x: 0 }); });
+    if (key === '2-1') (pr.el1lib || []).forEach(function (n) { rows.push({ n: n, cr: 2, g: 0, x: 1 }); });
+    return rows;
+  }
+  function nsRows(sems, key) { return sems[key] || nsDefault(key); }
+  function semAvg(rows) {
+    var s = 0, c = 0; rows.forEach(function (r) { if (!r.x && r.g >= 1 && r.g <= 5 && r.cr > 0) { s += r.g * r.cr; c += r.cr; } });
+    return { avg: c ? s / c : null, credits: c, sum: s };
+  }
+  function nsTotal(sems, assume) {
+    var s = 0, c = 0, n = 0;
+    NS_SEMS.forEach(function (sm) { var r = semAvg(nsRows(sems, sm[0])); if (r.credits) { s += r.sum; c += r.credits; n++; } });
+    return { avg: c ? s / c : null, credits: c, sems: n, sum: s, c: c };
+  }
+  function nsStat() { var t = nsTotal(nsLoad()); return t.avg == null ? null : t; }
+  var nsFmt = function (v) { return v == null ? '-' : (Math.round(v * 100) / 100).toFixed(2); };
+
+  function renderNaesin() {
+    var p = document.getElementById('panel-naesin'); if (!p || !DATA) return; clear(p);
+    var sems = nsLoad(), summary = h('div', { class: 'card ns-sum' }), cards = h('div');
+    p.appendChild(h('div', { class: 'note-sm ns-intro', text: '학기별로 과목의 등급(1~5)과 단위수를 넣으면 단위수 가중 평균을 계산해요. 체육·예술·과학탐구실험 등은 기본으로 평균에서 빼 뒀고, 학교 기준에 맞게 "반영"을 켜고 끌 수 있어요.' }));
+    p.appendChild(secureNote(!!load('gk26')));
+    p.appendChild(summary); p.appendChild(cards);
+
+    function persist() { nsSave(sems); drawSummary(); }
+    function drawSummary() {
+      clear(summary);
+      var t = nsTotal(sems);
+      var per = NS_SEMS.map(function (sm) { var r = semAvg(nsRows(sems, sm[0])); return h('div', { class: 'ns-per' }, [h('small', { text: sm[1] }), h('b', { text: r.avg == null ? '-' : nsFmt(r.avg) })]); });
+      var kids = [h('div', { class: 'eyebrow', text: '총 내신 평균 (단위수 가중)' }), h('div', { class: 'ns-avg', text: nsFmt(t.avg) }),
+        h('div', { class: 'note-sm', text: t.avg == null ? '아래에 등급을 넣으면 계산돼요.' : t.sems + '개 학기 · 반영 ' + t.credits + '단위' }), h('div', { class: 'ns-pers' }, per)];
+      // 이번 학기(2-2) 가정: 아직 등급이 없는 학기의 평균을 가정해서 총 평균을 미리 보기
+      var r22 = nsRows(sems, '2-2'), cr22 = r22.reduce(function (a, r) { return a + (!r.x && r.cr > 0 ? r.cr : 0); }, 0), has22 = semAvg(r22).credits > 0;
+      if (!has22 && cr22 > 0) {
+        var base = nsTotal(sems), out = h('div', { class: 'ns-what-v' }), rng = h('input', { class: 'semrange', type: 'range', min: '1', max: '5', step: '0.1', value: '2.5', 'aria-label': '2학년 2학기 가정 평균 등급' });
+        var upd = function () {
+          var x = parseFloat(rng.value), c = base.c + cr22, tot = (base.sum + x * cr22) / c;
+          clear(out); out.appendChild(h('div', null, ['2학년 2학기를 평균 ', h('b', { text: x.toFixed(1) }), '등급으로 받으면 → 총 평균 ', h('b', { class: 'ns-accent', text: nsFmt(tot) })]));
+        };
+        rng.addEventListener('input', upd); upd();
+        kids.push(h('div', { class: 'ns-what' }, [h('div', { class: 'needs-h', text: '🎚 이번 학기(2-2) 가정해 보기' }), rng, h('div', { class: 'rr' }, [h('span', { text: '1등급' }), h('span', { text: '5등급' })]), out,
+          h('div', { class: 'note-sm', text: '2-2 반영 ' + cr22 + '단위 기준 · 기말이 끝나고 등급을 넣으면 이 가정은 사라져요.' })]));
+      }
+      summary.appendChild(h('div', { class: 'card-b' }, kids));
+    }
+    function drawCards() {
+      clear(cards);
+      NS_SEMS.forEach(function (sm, si) {
+        var key = sm[0], rows = nsRows(sems, key), avgEl = h('span', { class: 'ns-savg' }), meta = h('span', { class: 'el-gcount' });
+        var list = h('div', { class: 'ns-rows' });
+        function head2() { var r = semAvg(rows); avgEl.textContent = r.avg == null ? '-' : nsFmt(r.avg); meta.textContent = r.credits + '단위'; }
+        function save() { sems[key] = rows; persist(); head2(); }
+        function drawRows() {
+          clear(list);
+          rows.forEach(function (r, ri) {
+            var on = h('button', { class: 'ns-on' + (r.x ? '' : ' on'), type: 'button', 'aria-pressed': r.x ? 'false' : 'true', title: '내신 반영', text: r.x ? '제외' : '반영' });
+            on.addEventListener('click', function () { r.x = r.x ? 0 : 1; on.className = 'ns-on' + (r.x ? '' : ' on'); on.textContent = r.x ? '제외' : '반영'; on.setAttribute('aria-pressed', r.x ? 'false' : 'true'); save(); });
+            var nm = h('input', { class: 'ns-name', type: 'text', maxlength: '24', value: r.n, 'aria-label': '과목명' });
+            nm.addEventListener('input', function () { r.n = nm.value; save(); });
+            var cr = h('input', { class: 'ns-cr', type: 'number', min: '1', max: '9', step: '1', value: String(r.cr), 'aria-label': '단위수', inputmode: 'numeric' });
+            cr.addEventListener('input', function () { r.cr = Math.max(0, Math.min(9, parseInt(cr.value, 10) || 0)); save(); });
+            var gs = h('div', { class: 'ns-g' });
+            [1, 2, 3, 4, 5].forEach(function (g) {
+              var b = h('button', { class: 'ns-gb g' + g + (r.g === g ? ' on' : ''), type: 'button', 'aria-pressed': r.g === g ? 'true' : 'false', text: String(g) });
+              b.addEventListener('click', function () { r.g = r.g === g ? 0 : g; Array.prototype.forEach.call(gs.children, function (x, k) { var o = r.g === k + 1; x.classList.toggle('on', o); x.setAttribute('aria-pressed', o ? 'true' : 'false'); }); save(); });
+              gs.appendChild(b);
+            });
+            var del = h('button', { class: 'linkbtn del-b', type: 'button', text: '삭제', 'aria-label': r.n + ' 삭제' });
+            del.addEventListener('click', function () { rows.splice(ri, 1); save(); drawRows(); });
+            list.appendChild(h('div', { class: 'ns-row' + (r.x ? ' off' : '') }, [h('div', { class: 'ns-r1' }, [nm, cr, on]), h('div', { class: 'ns-r2' }, [gs, del])]));
+          });
+          var add = h('button', { class: 'linkbtn', type: 'button', text: '＋ 과목 추가' });
+          add.addEventListener('click', function () { rows.push({ n: '', cr: 3, g: 0, x: 0 }); save(); drawRows(); var ins = list.querySelectorAll('.ns-name'); if (ins.length) ins[ins.length - 1].focus(); });
+          list.appendChild(add);
+          // 선택과목을 내 정보에서 새로 고른 경우 불러오기
+          if (key === '2-1' || key === '2-2') {
+            var picks = (prefLoad()[key === '2-1' ? 'el1' : 'el2'] || []).filter(function (n) { return !rows.some(function (r) { return r.n === n; }); });
+            if (picks.length) {
+              var imp = h('button', { class: 'linkbtn', type: 'button', text: '내 선택과목 ' + picks.length + '개 불러오기' });
+              imp.addEventListener('click', function () { picks.forEach(function (n) { rows.push({ n: n, cr: 3, g: 0, x: 0 }); }); save(); drawRows(); });
+              list.appendChild(imp);
+            }
+          }
+        }
+        head2(); drawRows();
+        var box = h('details', { class: 'card el-card' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: key + ' · 평균' }), h('h2', null, [sm[1] + ' ', avgEl])]), meta]), h('div', { class: 'el-body' }, [list])]);
+        if (si >= 2) box.setAttribute('open', '');
+        cards.appendChild(box);
+      });
+    }
+    drawSummary(); drawCards();
+  }
+
   // ---------- 보안 안내 문구 ----------
+  function secureBanner(compact) {
+    var rows = [['🙅', '관리자', '저장된 내용을 볼 수 없어요'], ['👤', '나', '내 비밀번호로 볼 수 있어요'], ['👩‍🏫', '담임 선생님', '선생님 전용 열쇠로 볼 수 있어요'], ['🚫', '다른 친구들', '볼 수 없어요']];
+    var det = h('details', { class: 'secure-det' }, [h('summary', { text: '어떻게 암호화되나요? (자세히)' }), h('ul', null, [
+      h('li', null, [h('b', { text: '암호 방식 ' }), 'AES-256-GCM(변조까지 감지하는 인증 암호화) + 선생님 공유용 RSA-OAEP']),
+      h('li', null, [h('b', { text: '열쇠 ' }), '내 비밀번호 + PBKDF2-SHA256 20만 회로 내 기기 안에서만 만들어요. 비밀번호와 열쇠는 서버로 보내지 않아요.']),
+      h('li', null, [h('b', { text: '서버 저장 ' }), '점수·내신·선택과목은 저장되기 전에 이미 내 기기에서 암호화돼, 서버에는 읽을 수 없는 암호문만 있어요.']),
+      h('li', null, [h('b', { text: '선생님 공유 ' }), '선생님이 학생 지도에 쓰도록, 같은 내용의 사본이 선생님 전용 열쇠로 암호화돼 함께 저장돼요. 개인 일정은 공유하지 않아요.']),
+      h('li', null, [h('b', { text: '비밀번호 분실 ' }), '열쇠를 복구할 수 없어서, 초기화하면 저장된 점수는 사라져요.']),
+      h('li', null, [h('b', { text: '주의 ' }), '내 비밀번호를 아는 사람은 볼 수 있어요. 짧은 비밀번호(6자 미만)는 암호가 약해요. 비밀번호는 나만 알고 있어야 해요.'])
+        ].concat(parseInt(load('pwlen26') || '99', 10) < 6 ? [h('li', { class: 'weak' }, [h('b', { text: '⚠ 약한 비밀번호 ' }), '지금 비밀번호가 6자 미만이라 암호가 약해요. 6자 이상으로 바꾸는 걸 권장해요. (담임 선생님께 초기화 요청 후 다시 설정)'])] : []))]);
+    return h('div', { class: 'secure-big' + (compact ? ' compact' : '') }, [
+      h('div', { class: 'sb-head' }, [h('span', { class: 'sb-ic', text: '🔒' }), h('div', null, [h('div', { class: 'sb-t', text: '내 성적은 암호화돼요' }), h('div', { class: 'sb-s', text: '관리자는 볼 수 없고, 나와 담임 선생님만 볼 수 있어요' })])]),
+      h('div', { class: 'sb-grid' }, rows.map(function (r, k) { return h('div', { class: 'sb-cell' + (k === 0 || k === 3 ? ' no' : ' yes') }, [h('span', { text: r[0] }), h('b', { text: r[1] }), h('small', { text: r[2] })]); })),
+      det]);
+  }
   function secureNote(synced) {
-    if (!synced) return h('div', { class: 'note-sm', text: '내 점수는 이 기기에만 저장돼요. 다시 로그인하면 암호화 저장·동기화가 켜져요.' });
-    return h('details', { class: 'secure' }, [
-      h('summary', null, [h('span', { class: 'secure-ic', text: '🔒' }), h('div', null, [h('b', { text: '종단간 암호화 · 나만 볼 수 있어요' }), h('small', { text: '운영자를 포함해 다른 사람은 내용을 볼 수 없어요 · 자세히' })])]),
-      h('ul', null, [
-        h('li', null, [h('b', { text: '암호 방식 ' }), 'AES-256-GCM (변조까지 감지하는 인증 암호화)']),
-        h('li', null, [h('b', { text: '키 생성 ' }), '내 비밀번호 + PBKDF2-SHA256 20만 회로 내 기기 안에서만 만들어요. 키와 비밀번호는 서버로 보내지 않아요.']),
-        h('li', null, [h('b', { text: '서버 저장 ' }), '읽을 수 없는 암호문만 저장돼요. 점수·선택과목은 저장 전에 이미 암호화돼요.']),
-        h('li', null, [h('b', { text: '비밀번호 분실 ' }), '키를 복구할 방법이 없어서, 초기화하면 저장된 점수는 사라지고 다시 입력해야 해요.']),
-        h('li', null, [h('b', { text: '주의 ' }), '내 비밀번호를 아는 사람은 볼 수 있어요. 비밀번호는 나만 알고 있어야 해요.'])
-      ].concat(parseInt(load('pwlen26') || '99', 10) < 6 ? [h('li', { class: 'weak' }, [h('b', { text: '⚠ 약한 비밀번호 ' }), '지금 비밀번호가 6자 미만이라 암호가 약해요. 짧은 비밀번호는 시간을 들이면 풀릴 수 있어서, 6자 이상으로 바꾸는 걸 권장해요. (담당자에게 초기화 요청 후 다시 설정)'])] : []))
-    ]);
+    if (!synced) return h('div', { class: 'note-sm', text: '내 점수는 이 기기에만 저장돼요. 다시 로그인하면 암호화 저장·동기화(선생님 공유 포함)가 켜져요.' });
+    return secureBanner(false);
+  }
+  // 로그인 직후 한 번 크게 알려 주기
+  function showSecureModal() {
+    var seen = false; try { seen = !!localStorage.getItem('secack26'); } catch (e) {}
+    if (seen || (DATA && DATA.me && DATA.me.role === 'teacher') || PREVIEW) return;
+    var ok = h('button', { class: 'btn', type: 'button', text: '확인했어요' });
+    var wrap = h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' }, [h('div', { class: 'modal-card' }, [secureBanner(false), ok])]);
+    ok.addEventListener('click', function () { try { localStorage.setItem('secack26', '1'); } catch (e) {} wrap.classList.add('out'); setTimeout(function () { wrap.remove(); }, 300); });
+    document.body.appendChild(wrap);
   }
 
   // ---------- 내 정보 (선택과목) ----------
@@ -649,7 +850,7 @@
 
   // ---------- 등급컷 (gradecut 계산 로직을 내장) ----------
   var GC = null, GC_STATE = 'idle', GC_SYNC = false, GKEY = 'gcscore26';
-  function gcLoad() { try { return JSON.parse(localStorage.getItem(GKEY) || '{}'); } catch (e) { return {}; } }
+  function gcLoad() { if (PREVIEW) return PREVIEW.scores || {}; try { return JSON.parse(localStorage.getItem(GKEY) || '{}'); } catch (e) { return {}; } }
   function gcSave(o) { if (PREVIEW) return; try { localStorage.setItem(GKEY, JSON.stringify(o)); } catch (e) {} }
   function gradeGate() {
     var n = myElectives().length;
@@ -868,14 +1069,14 @@
   function jumpTo(id) { var el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   function renderExamJump() {
     var p = document.getElementById('panel-exam');
-    var items = [['sec-table', '시간표'], ['sec-move', '이동교실'], ['sec-special', '특별실'], ['sec-caution', '유의사항']];
+    var items = [['sec-table', '시간표'], ['sec-move', '이동교실'], ['sec-special', '특별실'], ['sec-seat', '자리배치'], ['sec-caution', '유의사항']];
     p.appendChild(h('div', { class: 'jump' }, items.map(function (it) {
       var b = h('button', { class: 'jump-b', type: 'button', text: it[1] });
       b.addEventListener('click', function () { jumpTo(it[0]); }); return b;
     })));
   }
   function tagExamCards() {
-    var map = { 'EXAM TIMETABLE': 'sec-table', 'MOVING ROOM': 'sec-move', 'SPECIAL ROOM': 'sec-special', 'NOTICE': 'sec-caution' };
+    var map = { 'EXAM TIMETABLE': 'sec-table', 'MOVING ROOM': 'sec-move', 'SPECIAL ROOM': 'sec-special', 'SEAT MAP': 'sec-seat', 'NOTICE': 'sec-caution' };
     Array.prototype.forEach.call(document.querySelectorAll('#panel-exam .card'), function (c) {
       var e = c.querySelector('.eyebrow'); if (e && map[e.textContent]) c.id = map[e.textContent];
     });
@@ -1109,6 +1310,38 @@
     p.appendChild(h('div', { class: 'card' }, [head('SPECIAL ROOM', '② 내 특별실(4층) 응시'), h('div', { class: 'card-b' }, kids)]));
   }
 
+  // ---------- 내 고사장 자리배치도 (5열 · 66676, 홀수열=원반 · 짝수열=이동반, 번호순) ----------
+  function renderSeat() {
+    var p = document.getElementById('panel-exam'), mv = DATA.move, me = DATA.me;
+    var cols = (mv.seats && mv.seats.cols) || [6, 6, 6, 7, 6], front = mv.frontCount, rows = Math.max.apply(null, cols);
+    function seq(isOdd) {   // 열 순서대로 앞(칠판)에서 뒤로 채움
+      var out = [];
+      cols.forEach(function (n, ci) { if ((ci % 2 === 0) === isOdd) for (var r = 0; r < n; r++) out.push({ c: ci, r: r }); });
+      return out;
+    }
+    var odd = seq(true), even = seq(false);   // odd: 원반 18명, even: 이동반 13명
+    var moved = me.n <= front, room = moved ? mv.otherRoom : mv.ownRoom;
+    var mine = moved ? even[me.n - 1] : odd[me.n - front - 1];
+    // 이 고사장에서 홀수열 = 그 교실의 원반(학년 다름), 짝수열 = 이동해 온 학생
+    var oddLab = moved ? '1학년' : '2학년', evenLab = moved ? '2학년' : '1학년';
+    var grid = h('div', { class: 'seat-grid', style: 'grid-template-columns:repeat(' + cols.length + ',1fr)' });
+    cols.forEach(function (n, ci) { grid.appendChild(h('div', { class: 'seat-col', text: (ci + 1) + '열' })); });
+    for (var r = 0; r < rows; r++) cols.forEach(function (n, ci) {
+      if (r >= n) { grid.appendChild(h('div', { class: 'seat blank' })); return; }
+      var isOdd = ci % 2 === 0, list = isOdd ? odd : even, idx = list.findIndex(function (s) { return s.c === ci && s.r === r; });
+      var num = isOdd ? (moved ? front + 1 + idx : front + 1 + idx) : idx + 1;   // 홀수열: 원반 뒷번호(14~) · 짝수열: 이동반 앞번호(1~13)
+      var isMe = mine && mine.c === ci && mine.r === r;
+      grid.appendChild(h('div', { class: 'seat ' + (isOdd ? 'own' : 'mv') + (isMe ? ' me' : '') }, [h('b', { text: isMe ? '★' : String(num) }), h('small', { text: isMe ? me.n + '번' : (isOdd ? oddLab : evenLab) })]));
+    });
+    var seatTxt = mine ? me.name + '(' + me.n + '번) → ' + room + ' · ' + (mine.c + 1) + '열 앞에서 ' + (mine.r + 1) + '번째' : '';
+    p.appendChild(h('div', { class: 'card', id: 'sec-seat' }, [head('SEAT MAP', '내 고사장 자리배치도'), h('div', { class: 'card-b' }, [
+      h('div', { class: 'result ' + (moved ? 'go' : 'stay') }, [h('strong', { text: room }), seatTxt]),
+      h('div', { class: 'seat-board', text: '칠판 · 교탁' }), grid,
+      h('div', { class: 'seat-side' }, [h('span', { text: '← 운동장쪽 창가' }), h('span', { text: '복도쪽 →' })]),
+      h('div', { class: 'legend' }, [h('span', { class: 'lg' }, [h('i', { style: 'background:var(--blue-t)' }), '홀수열 = 원반']), h('span', { class: 'lg' }, [h('i', { style: 'background:var(--amber-t)' }), '짝수열 = 이동반'])]),
+      h('div', { class: 'note-sm', text: '열마다 좌석 수는 ' + cols.join('') + '이고, 번호순으로 앞(칠판)에서 뒤로 앉아요. 빈 번호(자퇴·전출 등)가 있으면 자리가 밀릴 수 있어요. 시험 당일 칠판 좌석표를 꼭 확인하세요.' })])]));
+  }
+
   // ---------- 유의사항 ----------
   function renderCaution() {
     var p = document.getElementById('panel-exam');
@@ -1137,11 +1370,13 @@
       return;
     }
     clear(document.getElementById('panel-exam'));
-    renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
+    renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderSeat(); renderCaution();
     tagExamCards();
+    pushShare();
+    setTimeout(showSecureModal, 900);
     var start = (location.hash || '').replace('#', '');
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
-    selectTab(['home', 'today', 'exam', 'grade', 'me', 'more'].indexOf(start) >= 0 ? start : 'home');
+    selectTab(['home', 'today', 'exam', 'grade', 'naesin', 'me', 'more'].indexOf(start) >= 0 ? start : 'home');
   }
 
   // ---------- 로그인 (서버: 이름+번호) ----------
@@ -1174,7 +1409,7 @@
     }
     btn.addEventListener('click', go);
     pwIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
-    card([h('div', { class: 'login-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '2-6 알림장' })]), h('div', { class: 'login-sub', text: '우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), nameIn, numIn, pwIn, btn, err]);
+    card([h('div', { class: 'login-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '2-6 알림장' })]), h('div', { class: 'login-sub', text: '우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), h('div', { class: 'login-lock', text: '🔒 내 성적은 암호화돼요 · 관리자는 볼 수 없고, 나와 담임 선생님만 볼 수 있어요' }), nameIn, numIn, pwIn, btn, err]);
   }
 
   function showSetup(setupToken, num) {
