@@ -1,0 +1,4 @@
+node_modules/
+.wrangler/
+roster.json
+data.json

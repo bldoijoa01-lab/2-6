@@ -1,0 +1,9 @@
+name = "class-26"
+main = "src/index.js"
+compatibility_date = "2025-01-01"
+
+[[kv_namespaces]]
+binding = "CLASS_KV"
+id = "3b0183b8c07e4dbea43c84c455d0bc5e"
+preview_urls = false
+workers_dev = true
