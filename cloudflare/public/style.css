@@ -465,7 +465,7 @@ a.linkbtn{text-decoration:none; align-self:flex-start}
 /* 교사 모드 */
 .tab-t{display:none}
 body.teacher .tab-t{display:inline-block}
-body.teacher #tab-home,body.teacher #tab-exam,body.teacher #tab-me,body.teacher #tab-naesin{display:none !important}
+body.teacher #tab-home,body.teacher #tab-me,body.teacher #tab-naesin{display:none !important}
 .srow{display:grid; grid-template-columns:40px 1fr 48px 62px 48px; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14.5px}
 .srow:last-child{border-bottom:0}
 .srow-n{color:var(--mute); font-weight:700} .srow-name{font-weight:700}
@@ -799,3 +799,8 @@ button:active,.btn:active,.stat:active,.myev:active,.nudge:active,.el-chip:activ
   .ch-line{animation:none !important; stroke-dashoffset:0 !important}
   .ch-dot,.ch-val,.ch-cum,.cn-tags span{animation:none !important; opacity:1 !important}
 }
+
+/* 기말고사 탭 안 전환 (시간표·이동 | 시험 대비) */
+.exam-seg{margin:0 0 14px; align-self:flex-start; display:inline-flex}
+.prep-box{display:none} #panel-exam.show-prep .prep-box{display:block}
+#panel-exam.show-prep > *:not(.exam-seg):not(.prep-box){display:none !important}

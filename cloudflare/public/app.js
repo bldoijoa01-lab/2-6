@@ -151,6 +151,7 @@
     if (dir) animateSwap(nsSub === 'grade' ? g : m, dir);
   }
   function selectTab(name) {
+    if (name === 'prep') { examView = 'prep'; name = 'exam'; applyExamView(); }   // 예전 주소(#prep)는 기말고사 탭의 시험 대비로
     if (name === 'grade') { nsSub = 'grade'; name = 'naesin'; }   // 등급컷은 내신 탭 안의 하위 페이지
     var prevIdx = TAB_ORDER.indexOf(curTab);
     var nextIdx = TAB_ORDER.indexOf(name);
@@ -183,7 +184,6 @@
     if (name === 'home' && DATA && DATA.me && DATA.me.role !== 'teacher') renderHome();   // 내신·선택과목 등 바뀐 값이 홈에도 바로 반영되게
     if (name === 'naesin') { applyNsSub(''); if (nsSub === 'grade') loadGrade(); else renderNaesin(); }
     if (name === 'me') renderMe();
-    if (name === 'prep') renderPrep();
     if (name === 'admin') renderAdmin();
     requestAnimationFrame(refreshAllPills);
     try { history.replaceState(null, '', '#' + (name === 'naesin' && nsSub === 'grade' ? 'grade' : name)); } catch (e) {}
@@ -422,7 +422,7 @@
   }
 
   // ---------- 홈 ----------
-  function goTab(name) { selectTab(name); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+  function goTab(name) { if (name === 'exam' && examView !== 'main') { examView = 'main'; renderExamSeg(); } selectTab(name); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   function renderHome() {
     var p = document.getElementById('panel-home'); clear(p);
     var me = DATA.me, mv = DATA.move;
@@ -703,7 +703,27 @@
   var PREVIEW = null;   // 교사가 학생 화면을 미리보는 중일 때 그 학생 정보
   var PKEY = 'pref26';
   function prefLoad() { if (PREVIEW) return PREVIEW.prefs || {}; try { return JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch (e) { return {}; } }
-  function prefSave(o) { if (PREVIEW) return; try { localStorage.setItem(PKEY, JSON.stringify(o)); } catch (e) {} pushScores(); }
+  function prefSave(o) {
+    if (PREVIEW) return;
+    try {   // 항목별로 마지막 수정 시각을 기록: 다른 기기와 합칠 때 더 최근에 바꾼 쪽을 살림
+      var old = prefLoad(), ts = Object.assign({}, old._ts || {}), now = Date.now();
+      Object.keys(o).forEach(function (k) { if (k !== '_ts' && JSON.stringify(o[k]) !== JSON.stringify(old[k])) ts[k] = now; });
+      Object.keys(old).forEach(function (k) { if (k !== '_ts' && !(k in o)) ts[k] = now; });
+      o._ts = ts; localStorage.setItem(PKEY, JSON.stringify(o));
+    } catch (e) {}
+    pushScores();
+  }
+  function mergePrefs(loc, srv) {   // 항목별: 더 최근에 바꾼 쪽이 이김 (기록이 없으면 서버 우선)
+    var lt = loc._ts || {}, st = srv._ts || {}, out = {}, ts = {};
+    var keys = {}; Object.keys(loc).concat(Object.keys(srv)).forEach(function (k) { if (k !== '_ts') keys[k] = 1; });
+    Object.keys(keys).forEach(function (k) {
+      var l = lt[k] || 0, s = st[k] || 0, useLocal = l > s || (l === s && !(k in srv) && (k in loc));
+      var win = useLocal ? loc : srv;
+      if (k in win) out[k] = win[k];
+      if (Math.max(l, s)) ts[k] = Math.max(l, s);
+    });
+    out._ts = ts; return out;
+  }
   function normName(s) { return String(s || '').replace(/\s+/g, '').replace(/Ⅱ/g, 'II').replace(/Ⅰ/g, 'I').replace(/[*]/g, ''); }
   var pushTimer = null;
   function pushScores() {
@@ -730,7 +750,7 @@
           if (!j.blob) { if (Object.keys(gcLoad()).length || Object.keys(prefLoad()).length) pushScores(); return true; }
           return decryptJSON(key, j.blob).then(function (obj) {
             var srvScores = obj && obj.v === 2 ? (obj.scores || {}) : (obj || {}), srvPrefs = obj && obj.v === 2 ? (obj.prefs || {}) : {};
-            var mergedS = Object.assign({}, gcLoad(), srvScores), mergedP = Object.assign({}, prefLoad(), srvPrefs);
+            var mergedS = Object.assign({}, gcLoad(), srvScores), mergedP = mergePrefs(prefLoad(), srvPrefs);
             try { var ln = (prefLoad().naesin || {}).sems || {}, sn = (srvPrefs.naesin || {}).sems || {}; if (Object.keys(ln).length || Object.keys(sn).length) mergedP.naesin = { sems: Object.assign({}, ln, sn) }; } catch (e) {}   // 학기별로 합침
             gcSave(mergedS); try { localStorage.setItem(PKEY, JSON.stringify(mergedP)); } catch (e) {}
             if (!(obj && obj.v === 2) || JSON.stringify(mergedS) !== JSON.stringify(srvScores) || JSON.stringify(mergedP) !== JSON.stringify(srvPrefs)) pushScores();
@@ -2087,6 +2107,29 @@
 
   // ---------- 시험 대비 (과목별 시험 범위 · 팁) ----------
   var prepMine = true;
+  var examView = 'main';   // 기말고사 탭 안: 'main'(시간표·이동 공지) | 'prep'(시험 대비)
+  function examBox() { var pe = document.getElementById('panel-exam'), b = pe.querySelector('.prep-box'); if (!b) { b = h('div', { class: 'prep-box' }); pe.appendChild(b); } return b; }
+  function applyExamView() { var pe = document.getElementById('panel-exam'); if (!pe) return; pe.classList.toggle('show-prep', examView === 'prep'); if (examView === 'prep') renderPrep(); }
+  function renderExamSeg(teacherOnly) {   // 기말고사 탭 맨 위: [시간표·이동 | 시험 대비] 전환 (교사는 시험 대비만)
+    var pe = document.getElementById('panel-exam'); if (!pe) return;
+    var old = pe.querySelector('.exam-seg'); if (old) old.parentNode.removeChild(old);
+    if (teacherOnly) examView = 'prep';
+    else {
+      var seg = h('div', { class: 'seg exam-seg' });
+      [['시간표 · 이동', 'main'], ['시험 대비', 'prep']].forEach(function (v) {
+        var b = h('button', { class: 'seg-b', type: 'button', text: v[0], 'aria-pressed': examView === v[1] ? 'true' : 'false' });
+        b.addEventListener('click', function () {
+          if (examView === v[1]) return; examView = v[1];
+          Array.prototype.forEach.call(seg.children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+          syncPill(seg, b); applyExamView(); window.scrollTo({ top: 0 });
+        });
+        seg.appendChild(b);
+      });
+      registerPill(seg, function () { return seg.querySelector('.seg-b[aria-pressed="true"]'); });
+      pe.insertBefore(seg, pe.firstChild);
+    }
+    examBox(); applyExamView();
+  }
   function prepSubjects(mine) {   // 시간표 순서대로 과목 목록 (내 과목만 / 전체)
     var ex = DATA.exam, out = [], seen = {};
     ex.days.forEach(function (d) {
@@ -2106,7 +2149,7 @@
     return (t ? tApi('prep', body) : aApi('prep', body));
   }
   function renderPrep() {
-    var p = document.getElementById('panel-prep'); if (!p || !DATA || !DATA.exam) return; clear(p);
+    var p = examBox(); if (!DATA || !DATA.exam) return; clear(p);
     var canEdit = !PREVIEW && (DATA.me.role === 'teacher' || DATA.me.admin), hasMine = DATA.me.role !== 'teacher' && myElectives().length > 0;
     var first = DATA.exam.days[0], dd = first ? diffDays(first.date, TODAY) : null;
     var top = [h('div', { class: 'eyebrow', text: 'FINAL EXAM PREP' }), h('h2', { text: '기말고사 대비' }),
@@ -2330,7 +2373,7 @@
     document.getElementById('todayLabel').textContent = (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + DOW[d.getUTCDay()] + ')';
     document.getElementById('updated').textContent = DATA.className + ' 알림장 · 마지막 업데이트 ' + fmt(DATA.updated);
     if (isT) {   // 교사 계정: 학생 전용 화면(홈·기말고사·등급컷·내 정보)은 만들지 않음
-      renderMore(); renderToday(); renderTeacher();
+      renderMore(); renderToday(); renderTeacher(); renderExamSeg(true);
       var ts = (location.hash || '').replace('#', '');
       selectTab(['teacher', 'today', 'more'].indexOf(ts) >= 0 ? ts : 'teacher');
       return;
@@ -2338,18 +2381,18 @@
     applyOfficial();
     clear(document.getElementById('panel-exam'));
     renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
-    tagExamCards();
+    tagExamCards(); renderExamSeg();
     pushShare();
     syncScores().then(function (ok) {   // 다른 기기에서 저장한 선택과목·성적을 불러와 화면 갱신
       if (!ok || PREVIEW) return;
       clear(document.getElementById('panel-exam'));
-      renderMe(); renderNaesin(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution(); tagExamCards();
+      renderMe(); renderNaesin(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution(); tagExamCards(); renderExamSeg();
       if (GC_STATE === 'done') GC_STATE = 'dirty';
     });
     setTimeout(function () { if (load('tutorial26') === '1' || DATA.tutorial) showTutorial(); }, 1100);
     var start = (location.hash || '').replace('#', '');
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
-    selectTab(['home', 'today', 'exam', 'grade', 'naesin', 'me', 'more', 'admin'].indexOf(start) >= 0 && (start !== 'admin' || DATA.me.admin) ? start : 'home');
+    selectTab(['home', 'today', 'exam', 'prep', 'grade', 'naesin', 'me', 'more', 'admin'].indexOf(start) >= 0 && (start !== 'admin' || DATA.me.admin) ? start : 'home');
   }
 
   // ---------- 로그인 (서버: 이름+번호) ----------
