@@ -728,3 +728,9 @@ html{
     linear-gradient(180deg,var(--bg1),var(--bg2) 55%,var(--bg3));
 }
 body{background:transparent}
+
+/* 활성 탭 그림자가 가로 스크롤 영역(overflow)에 잘려 네모난 경계가 보이던 문제: 바깥 그림자를 없애고 안쪽 하이라이트만 */
+.tabs .tab,.tabs .tab[aria-selected="true"]{box-shadow:none !important}
+.tabs .tab[aria-selected="true"]{box-shadow:inset 0 1px 0 rgba(255,255,255,.38), inset 0 -2px 6px rgba(40,50,160,.18) !important}
+/* 같은 이유로 스크롤되는 칩 줄도 그림자 없음 */
+.jump .jump-b,.jump .jump-b[aria-pressed="true"]{box-shadow:none !important}
