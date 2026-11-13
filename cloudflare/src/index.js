@@ -57,6 +57,12 @@ async function personalized(env, me) {
   const d = JSON.parse(await env.CLASS_KV.get('data') || '{}');
   d.me = { n: me.n, name: me.name, role: me.role === 'teacher' ? 'teacher' : 'student' };
   d.special = (d.special || []).filter((x) => (x.members || []).includes(me.name)).map((x) => ({ ...x, members: [me.name] }));
+  // 대상자가 정해진 일정(audience)은 대상 학생에게만 내려보냄 (다른 학생 이름은 노출하지 않음). 교사는 전체 확인
+  if (me.role !== 'teacher') {
+    d.events = (d.events || []).filter((e) => !Array.isArray(e.audience) || e.audience.includes(me.name)).map((e) => {
+      if (!Array.isArray(e.audience)) return e; const { audience, ...rest } = e; return { ...rest, target: true };
+    });
+  }
   const off = JSON.parse(await env.CLASS_KV.get('official:' + me.n) || 'null');   // 선생님이 올린 학교 기준 선택과목(암호화 대상 아님)
   if (off) d.official = off;
   return d;
@@ -118,6 +124,33 @@ export default {
         return json({ ok: true });
       }
       return json({ error: 'method' }, 405);
+    }
+    if (url.pathname === '/api/submit' && request.method === 'POST') {
+      // 학생이 보내는 선택과목 목록(글 + 파일 아무 형식): 선생님/운영자가 읽어서 반영
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const text = await request.text();
+      if (text.length > 7 * 1024 * 1024) return json({ error: 'too_big' }, 413);
+      let b; try { b = JSON.parse(text); } catch { return json({ error: 'bad' }, 400); }
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]');
+      const me = roster.find((x) => x.n === tok.w); if (!me) return json({ error: 'unauthorized' }, 401);
+      const msg = typeof b.text === 'string' ? b.text.trim().slice(0, 4000) : '';
+      const f = b.file && typeof b.file.b64 === 'string' ? b.file : null;
+      if (!msg && !f) return json({ error: 'empty' }, 400);
+      const mine = await env.CLASS_KV.list({ prefix: 'submit:' + me.n + ':' });
+      if (mine.keys.length >= 10) return json({ error: 'limit' }, 429);
+      const ts = Date.now(), key = 'submit:' + me.n + ':' + ts;
+      let file = null;
+      if (f) {
+        const bin = Uint8Array.from(atob(f.b64), (c) => c.charCodeAt(0));
+        if (bin.length > 5 * 1024 * 1024) return json({ error: 'file_big' }, 413);
+        const fname = String(f.name || 'file').replace(/[^\w.\-가-힣 ()]/g, '_').slice(0, 80);
+        await env.CLASS_KV.put('submitfile:' + me.n + ':' + ts, bin, { metadata: { name: fname, type: String(f.type || '').slice(0, 80) } });
+        file = { name: fname, type: String(f.type || '').slice(0, 80), size: bin.length };
+      }
+      await env.CLASS_KV.put(key, JSON.stringify({ n: me.n, name: me.name, text: msg, file, at: ts }));
+      return json({ ok: true });
     }
     if (url.pathname === '/api/teacherkeys' && request.method === 'GET') {
       // 교사 공개키 목록 (학생이 성적 사본을 선생님 전용으로 암호화할 때 씀. 공개키라 노출돼도 안전)
@@ -197,6 +230,24 @@ export default {
       if (sub === 'official-clear' && request.method === 'POST') {
         const list = await env.CLASS_KV.list({ prefix: 'official:' });
         for (const k of list.keys) await env.CLASS_KV.delete(k.name);
+        return json({ ok: true });
+      }
+      if (sub === 'submissions' && request.method === 'GET') {
+        const list = await env.CLASS_KV.list({ prefix: 'submit:' }), out = [];
+        for (const k of list.keys) { const v = await env.CLASS_KV.get(k.name); if (v) out.push({ key: k.name, ...JSON.parse(v) }); }
+        out.sort((x, y) => y.at - x.at);
+        return json({ submissions: out });
+      }
+      if (sub === 'submission-file' && request.method === 'GET') {
+        const key = (url.searchParams.get('key') || '').replace(/^submit:/, '');
+        const r = await env.CLASS_KV.getWithMetadata('submitfile:' + key, 'arrayBuffer');
+        if (!r.value) return json({ error: 'not_found' }, 404);
+        const md = r.metadata || {};
+        return new Response(r.value, { headers: { 'content-type': md.type || 'application/octet-stream', 'content-disposition': 'attachment; filename*=UTF-8\'\'' + encodeURIComponent(md.name || 'file'), 'cache-control': 'no-store' } });
+      }
+      if (sub === 'submission-delete' && request.method === 'POST') {
+        const key = String(b.key || '').replace(/^submit:/, '');
+        await env.CLASS_KV.delete('submit:' + key); await env.CLASS_KV.delete('submitfile:' + key);
         return json({ ok: true });
       }
       if (sub === 'rewrap' && request.method === 'POST') {   // 교사 열쇠 교체 후, 학생 사본의 감싼 열쇠만 새 공개키로 바꿈 (사본 내용은 그대로)

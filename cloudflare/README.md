@@ -64,3 +64,7 @@ Pretendard(OFL)를 서브셋해서 `src/pretendard.woff2`로 Worker에 내장 (�
 - PDF·사진·한글(hwp) 등 못 읽는 형식은 원본을 `upload:<시각>:<파일명>` (KV, 8MB 이하)으로 보관 → 운영자가 읽어서 반영
   - 목록: `npx wrangler kv key list --namespace-id=<KV> --remote --prefix upload:`
   - 받기: `npx wrangler kv key get --namespace-id=<KV> --remote --binary "<키>" > 파일`
+
+## 대상자가 정해진 일정 (audience)
+- 일정에 `"audience": ["이름", ...]` 를 넣으면 그 학생에게만 보임 (서버에서 거름, 다른 학생 이름은 내려가지 않음). 대상 학생 화면에는 `대상자` 표시. 교사는 전체 확인 가능
+- 교사 화면의 일정 올리기 폼에서는 아직 대상자를 못 정함 → 데이터(KV `data`)에 직접 추가
