@@ -234,7 +234,7 @@ body.locked #panel-today .card-b{padding:30px 28px 30px}
 .cal-dow.sun,.cal-cell.sun .cal-d{color:var(--red)} .cal-dow.sat,.cal-cell.sat .cal-d{color:var(--blue)}
 .cal-cell{appearance:none; font:inherit; color:var(--ink); position:relative; aspect-ratio:1/1.05; display:flex; flex-direction:column; align-items:center; justify-content:flex-start; gap:3px; padding-top:7px;
   border:1px solid transparent; border-radius:14px; background:var(--gray-t); cursor:pointer}
-.cal-cell.empty{background:transparent; pointer-events:none}
+.cal-cell.blank{background:transparent; pointer-events:none}
 .cal-d{font-size:14.5px; font-weight:600}
 .cal-cell.today{box-shadow:inset 0 0 0 2px var(--blue)}
 .cal-cell.today .cal-d{font-weight:800}
@@ -385,3 +385,43 @@ body.locked #panel-today .card{animation:rise .7s cubic-bezier(.2,.8,.2,1) .15s 
   background:var(--blue-t); border:1px solid color-mix(in srgb,var(--blue) 28%,transparent)}
 .myev .stat-big{font-size:20px} .myev-s{white-space:normal}
 .ev{align-items:flex-start} .ev .dday{margin-top:2px}
+
+.card-b > .seg{align-self:flex-start; margin-bottom:0}
+
+/* 버튼 연타·더블탭 때 화면이 확대되는 현상 방지 (핀치 확대는 그대로 가능) */
+*{touch-action:manipulation; -webkit-tap-highlight-color:transparent}
+input,select,textarea{font-size:max(16px,1em)}
+button{user-select:none; -webkit-user-select:none}
+
+/* ===== 버튼·전환 모션: 눌림은 줄어드는 방향으로만(확대 없음), 색은 부드럽게 ===== */
+:root{--ease:cubic-bezier(.22,.8,.24,1)}
+button,.tab,.seg-b,.jump-b,.el-chip,.cal-cell,.cal-nav,.btn,.stat,.myev,.nudge,.linkbtn,.theme,.logout,.field,.login-in,.secure summary,.gc-more summary,.card{
+  transition:background-color .28s var(--ease),color .28s var(--ease),border-color .28s var(--ease),box-shadow .28s var(--ease),transform .2s var(--ease),opacity .25s var(--ease)}
+button:active,.btn:active,.stat:active,.myev:active,.nudge:active,.el-chip:active,.cal-cell:active,.cal-nav:active,.jump-b:active,.theme:active{transform:scale(.96)}
+.tab:active,.seg-b:active{transform:scale(.95)}
+.el-chip.dis:active{transform:none}
+
+/* 그라데이션은 직접 전환이 안 돼서, 겹친 층의 투명도로 부드럽게 */
+.tab,.seg-b,.el-chip,.jump-b{position:relative; isolation:isolate}
+.tab::before,.seg-b::before,.el-chip::before,.jump-b::before{content:""; position:absolute; inset:0; border-radius:inherit; z-index:-1; opacity:0; transition:opacity .3s var(--ease);
+  background:linear-gradient(135deg,var(--blue),var(--indigo))}
+.tab[aria-selected="true"]::before,.seg-b[aria-pressed="true"]::before,.el-chip.on::before,.jump-b[aria-pressed="true"]::before{opacity:1}
+.tab[aria-selected="true"],.seg-b[aria-pressed="true"],.el-chip.on,.jump-b[aria-pressed="true"]{background:transparent !important; color:#fff}
+:root[data-theme="dark"] .tab[aria-selected="true"],:root[data-theme="dark"] .seg-b[aria-pressed="true"],:root[data-theme="dark"] .el-chip.on,:root[data-theme="dark"] .jump-b[aria-pressed="true"]{color:#0F1218}
+.el-chip.on{box-shadow:0 6px 14px rgba(80,90,230,.3)}
+
+/* 라이트/다크 전환: 지원 브라우저는 화면 전체가 부드럽게 교차, 아니면 색만 천천히 */
+::view-transition-old(root),::view-transition-new(root){animation-duration:.5s; animation-timing-function:ease}
+.theme-fade *,.theme-fade *::before,.theme-fade *::after{transition:background-color .45s ease,color .45s ease,border-color .45s ease,box-shadow .45s ease,fill .45s ease !important}
+body{transition:background-color .45s ease}
+.swap-in{animation:fade .35s ease both}
+
+/* 더보기: 업데이트 목록 */
+.up{padding:12px 0; border-bottom:1px solid var(--line)} .up:last-child{border-bottom:0}
+.up-top{display:flex; align-items:center; gap:8px; margin-bottom:4px}
+.up-k{padding:2px 10px; border-radius:999px; font-size:11.5px; font-weight:800; background:var(--blue-t); color:var(--blue)}
+.up-k.design{background:var(--indigo-t); color:var(--indigo)} .up-k.fix{background:var(--amber-t); color:var(--amber)}
+.up-d{font-size:12.5px; color:var(--mute); font-weight:700}
+.up-t{font-size:16px; font-weight:700; letter-spacing:-.02em; line-height:1.4}
+.up-s{font-size:13.5px; color:var(--sub); line-height:1.5; margin-top:2px}
+@media (prefers-reduced-motion:reduce){ button,.tab,.seg-b,.el-chip,.card{transition:none !important} ::view-transition-group(*),::view-transition-old(*),::view-transition-new(*){animation:none !important} }

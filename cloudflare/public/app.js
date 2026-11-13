@@ -64,7 +64,10 @@
     try { apply(localStorage.getItem('theme26')); } catch (e) {}
     btn.addEventListener('click', function () {
       var dark = root.getAttribute('data-theme') ? root.getAttribute('data-theme') === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
-      var t = dark ? 'light' : 'dark'; apply(t); try { localStorage.setItem('theme26', t); } catch (e) {}
+      var t = dark ? 'light' : 'dark', reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+      var commit = function () { apply(t); try { localStorage.setItem('theme26', t); } catch (e) {} };
+      if (document.startViewTransition && !reduce) document.startViewTransition(commit);
+      else { root.classList.add('theme-fade'); commit(); setTimeout(function () { root.classList.remove('theme-fade'); }, 500); }
     });
   })();
 
@@ -180,7 +183,7 @@
       var grid = h('div', { class: 'cal-grid' });
       DOW.forEach(function (d, i) { grid.appendChild(h('div', { class: 'cal-dow' + (i === 0 ? ' sun' : i === 6 ? ' sat' : ''), text: d })); });
       var first = new Date(Date.UTC(year, month, 1)).getUTCDay(), days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
-      for (var i = 0; i < first; i++) grid.appendChild(h('div', { class: 'cal-cell empty' }));
+      for (var i = 0; i < first; i++) grid.appendChild(h('div', { class: 'cal-cell blank' }));
       for (var d = 1; d <= days; d++) (function (d) {
         var key = iso(year, month, d), evs = eventsOn(key), dow = (first + d - 1) % 7;
         var cls = 'cal-cell' + (key === iso(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()) ? ' today' : '') + (key === sel ? ' sel' : '') + (dow === 0 ? ' sun' : dow === 6 ? ' sat' : '');
@@ -267,6 +270,22 @@
     });
   }
 
+  // ---------- 더보기 (업데이트 내역 · 만든 사람) ----------
+  var KIND = { feature: ['새 기능', 'new'], design: ['디자인', 'design'], fix: ['수정', 'fix'] };
+  function renderMore() {
+    var p = document.getElementById('panel-more'); if (!p || !DATA) return; clear(p);
+    var about = DATA.about || {}, ups = (DATA.updates || []).slice().sort(function (x, y) { return x.date < y.date ? 1 : x.date > y.date ? -1 : 0; });
+    p.appendChild(h('div', { class: 'card' }, [head('UPDATES', '업데이트 내역'), h('div', { class: 'card-b' },
+      ups.length ? ups.map(function (u) {
+        var k = KIND[u.kind] || ['업데이트', 'new'], d = new Date(toUTC(u.date));
+        return h('div', { class: 'up' }, [h('div', { class: 'up-top' }, [h('span', { class: 'up-k ' + k[1], text: k[0] }), h('span', { class: 'up-d', text: (d.getUTCMonth() + 1) + '/' + d.getUTCDate() })]),
+          h('div', { class: 'up-t', text: u.title }), u.detail ? h('div', { class: 'up-s', text: u.detail }) : null]);
+      }) : [h('div', { class: 'empty', text: '아직 업데이트 기록이 없어요.' })])]));
+    var people = (about.people || []).map(function (x) { return h('div', { class: 'me-row' }, [h('span', { text: x.role }), h('b', { text: x.name })]); });
+    var notes = (about.notes || []).map(function (n) { return h('div', { class: 'note-sm', text: n }); });
+    p.appendChild(h('div', { class: 'card' }, [head('CREDITS', '만든 사람'), h('div', { class: 'card-b' }, people.concat(notes))]));
+  }
+
   // ---------- 보안 안내 문구 ----------
   function secureNote(synced) {
     if (!synced) return h('div', { class: 'note-sm', text: '내 점수는 이 기기에만 저장돼요. 다시 로그인하면 암호화 저장·동기화가 켜져요.' });
@@ -300,34 +319,43 @@
     function picker(key, def, open) {
       var sel = (Array.isArray(prefs[key]) ? prefs[key] : []).slice(), body = h('div', { class: 'el-body' });
       var count = h('span', { class: 'el-count' });
+      var btns = [];
+      function update() {
+        count.textContent = sel.length + ' / ' + def.pick + ' 선택';
+        btns.forEach(function (x) {
+          var on = sel.indexOf(x.o.n) >= 0, full = !on && sel.length >= def.pick;
+          x.b.classList.toggle('on', on); x.b.classList.toggle('dis', full); x.b.setAttribute('aria-pressed', on ? 'true' : 'false');
+        });
+      }
       function draw() {
-        clear(body); count.textContent = sel.length + ' / ' + def.pick + ' 선택';
+        clear(body); btns = [];
         var byG = {}, order = [];
         def.options.forEach(function (o) { if (!byG[o.g]) { byG[o.g] = []; order.push(o.g); } byG[o.g].push(o); });
         order.forEach(function (g) {
           body.appendChild(h('div', { class: 'el-g', text: g }));
           var wrap = h('div', { class: 'el-chips' });
           byG[g].forEach(function (o) {
-            var on = sel.indexOf(o.n) >= 0, full = !on && sel.length >= def.pick;
-            var b = h('button', { class: 'el-chip' + (on ? ' on' : '') + (full ? ' dis' : ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', text: o.n });
+            var b = h('button', { class: 'el-chip', type: 'button', 'aria-pressed': 'false', text: o.n });
             if (key === 'el2' && gcNames[normName(o.n)]) b.appendChild(h('i', { class: 'el-dot', title: '등급컷 자료 있음' }));
             b.addEventListener('click', function () {
+              var on = sel.indexOf(o.n) >= 0, full = !on && sel.length >= def.pick;
               if (on) sel = sel.filter(function (x) { return x !== o.n; });
               else if (!full) sel.push(o.n); else return;
-              prefs[key] = sel; prefSave(prefs); draw();
-              if (key === 'el2') { GC_STATE = GC_STATE === 'done' ? 'dirty' : GC_STATE; renderHome(); }
+              prefs[key] = sel; prefSave(prefs); update(); syncCta();
+              if (key === 'el2') { GC_STATE = GC_STATE === 'done' ? 'dirty' : GC_STATE; renderHome(); refreshTable(); }
             });
-            wrap.appendChild(b);
+            btns.push({ o: o, b: b }); wrap.appendChild(b);
           });
           body.appendChild(wrap);
         });
+        update();
       }
       draw();
       var cta = h('button', { class: 'btn el-cta', type: 'button', text: '등급컷 보러 가기 →' });
       cta.addEventListener('click', function () { goTab('grade'); });
       var box = h('details', { class: 'card el-card' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: def.credits + '학점 · 택' + def.pick }), h('h2', { text: def.title })]), count]), body, key === 'el2' ? cta : null]);
       function syncCta() { cta.hidden = sel.length < def.pick; }
-      syncCta(); box.addEventListener('click', function () { setTimeout(syncCta, 0); });
+      syncCta();
       if (open) box.setAttribute('open', '');
       return box;
     }
@@ -631,33 +659,125 @@
   }
 
   // ---------- 기말 시간표 ----------
-  function renderTable() {
-    var p = document.getElementById('panel-exam');
-    var ex = DATA.exam;
+  var ttCard = null, ttMine = true;
+  // 내 선택과목에 맞춰 칸 고르기: 선택 칸이 여러 과목이면 내 과목만, 내 과목이 없으면 자습 칸
+  function myCell(c) {
+    if (c.k !== 'elective') return { t: c.t, k: c.k };
+    var mine = myElectives().map(normName);
+    var hit = c.t.split('/').map(function (x) { return x.trim(); }).filter(function (x) { return mine.indexOf(normName(x)) >= 0; });
+    return hit.length ? { t: hit.join(' / '), k: 'elective' } : { t: '시험 없음', k: 'self' };
+  }
+  function ttCells(d, pi, mineView) { var c = d.cells[pi]; return mineView ? myCell(c) : { t: c.t, k: c.k }; }
+  function buildTableCard() {
+    var ex = DATA.exam, hasMine = myElectives().length > 0, mineView = hasMine && ttMine;
     var thead = h('tr', null, [h('th', { text: '' })].concat(ex.days.map(function (d) {
       return h('th', { class: diffDays(d.date, TODAY) === 0 ? 'today' : '', text: d.label });
     })));
     var rows = ex.periods.map(function (per, pi) {
       var tr = h('tr', null, [h('th', null, [per.name, h('small', { text: per.time })])]);
       ex.days.forEach(function (d) {
-        var c = d.cells[pi];
+        var c = ttCells(d, pi, mineView);
         tr.appendChild(h('td', { class: 'k-' + c.k + (diffDays(d.date, TODAY) === 0 ? ' today' : ''), text: c.t }));
       });
       return tr;
     });
     var table = h('table', { class: 'tt' }, [h('thead', null, [thead]), h('tbody', null, rows)]);
     var morning = ex.morning.map(function (m) { return m.name + ' ' + m.time; }).join(' · ');
-    var body = [
-      h('div', { class: 'scroll-hint', text: '← 옆으로 밀어서 보기 →' }),
-      h('div', { class: 'tt-wrap' }, [table]),
-      h('div', { class: 'legend' }, [
-        h('span', { class: 'lg' }, [h('i', { style: 'background:var(--blue-t)' }), '공통']),
-        h('span', { class: 'lg' }, [h('i', { style: 'background:var(--green-t)' }), '선택 ( / = 둘 중 내 과목 )']),
-        h('span', { class: 'lg' }, [h('i', { style: 'background:var(--gray-t)' }), '자습'])
-      ]),
-      h('div', { class: 'note-sm' }, [morning + ' · 점심 있음 (', h('b', { text: fmt(ex.noLunchDate) + '만 점심 없음' }), ')'])
-    ];
-    p.appendChild(h('div', { class: 'card' }, [head('EXAM TIMETABLE', '2학기 기말고사 시간표 (2학년)'), h('div', { class: 'card-b' }, body)]));
+    var body = [];
+    if (hasMine) {
+      var seg = h('div', { class: 'seg' });
+      [['내 시간표', true], ['전체', false]].forEach(function (v) {
+        var b = h('button', { class: 'seg-b', type: 'button', text: v[0], 'aria-pressed': ttMine === v[1] ? 'true' : 'false' });
+        b.addEventListener('click', function () { ttMine = v[1]; refreshTable(); });
+        seg.appendChild(b);
+      });
+      body.push(seg);
+    } else {
+      var go = h('button', { class: 'linkbtn', type: 'button', text: '내 정보에서 선택과목을 고르면 내 시간표만 볼 수 있어요 →' });
+      go.addEventListener('click', function () { goTab('me'); });
+      body.push(go);
+    }
+    body.push(h('div', { class: 'scroll-hint', text: '← 옆으로 밀어서 보기 →' }));
+    body.push(h('div', { class: 'tt-wrap' }, [table]));
+    body.push(h('div', { class: 'legend' }, [
+      h('span', { class: 'lg' }, [h('i', { style: 'background:var(--blue-t)' }), '공통']),
+      h('span', { class: 'lg' }, [h('i', { style: 'background:var(--green-t)' }), mineView ? '내 선택과목' : '선택 ( / = 둘 중 내 과목 )']),
+      h('span', { class: 'lg' }, [h('i', { style: 'background:var(--gray-t)' }), mineView ? '자습 · 시험 없음' : '자습'])
+    ]));
+    body.push(h('div', { class: 'note-sm' }, [morning + ' · 점심 있음 (', h('b', { text: fmt(ex.noLunchDate) + '만 점심 없음' }), ')']));
+    var photo = h('button', { class: 'btn', type: 'button', text: '📷 사진으로 저장' });
+    photo.addEventListener('click', function () { saveTimetableImage(hasMine ? true : false, photo); });
+    body.push(photo);
+    var card = h('div', { class: 'card', id: 'sec-table' }, [head('EXAM TIMETABLE', mineView ? '내 기말고사 시간표' : '2학기 기말고사 시간표 (2학년)'), h('div', { class: 'card-b' }, body)]);
+    return card;
+  }
+  function refreshTable() {
+    if (!ttCard || !ttCard.parentNode) return;
+    var n = buildTableCard(); n.classList.add('swap-in'); ttCard.parentNode.replaceChild(n, ttCard); ttCard = n;
+  }
+  function renderTable() {
+    ttCard = buildTableCard(); document.getElementById('panel-exam').appendChild(ttCard);
+  }
+
+  // 시간표를 사진(PNG)으로: 캔버스에 직접 그려서 저장/공유
+  function saveTimetableImage(mineView, btn) {
+    var ex = DATA.exam, me = DATA.me, mv = mineView && ttMine;
+    var dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var W = 1080, pad = 48, labW = 150, gap = 10, nd = ex.days.length, np = ex.periods.length;
+    var cw = (W - pad * 2 - labW - gap * nd) / nd, ch = 150, headH = 64, top = 210;
+    var H = top + headH + np * (ch + gap) + 150;
+    var cv = document.createElement('canvas'); cv.width = W; cv.height = H; var x = cv.getContext('2d');
+    var C = dark ? { bg: '#0F1218', ink: '#EAEEFB', sub: '#A6B0CB', head: '#262C3A', lab: '#222735', common: '#1D2A4A', commonT: '#9DB8FF', el: '#173326', self: '#222735', selfT: '#7C8496' }
+                 : { bg: '#EAF0FF', ink: '#1A2040', sub: '#566078', head: '#1A2040', lab: '#E7EAF3', common: '#DCE6FE', commonT: '#2E58D6', el: '#DDF2E8', self: '#ECEEF4', selfT: '#8590A8' };
+    function rr(px, py, w, h2, r, fill) { x.beginPath(); x.moveTo(px + r, py); x.arcTo(px + w, py, px + w, py + h2, r); x.arcTo(px + w, py + h2, px, py + h2, r); x.arcTo(px, py + h2, px, py, r); x.arcTo(px, py, px + w, py, r); x.closePath(); x.fillStyle = fill; x.fill(); }
+    function wrap(text, cx, cy, maxW, lh) {
+      var words = text.split(' '), lines = [], cur = '';
+      words.forEach(function (w) { var t = cur ? cur + ' ' + w : w; if (x.measureText(t).width > maxW && cur) { lines.push(cur); cur = w; } else cur = t; });
+      if (cur) lines.push(cur);
+      var y0 = cy - (lines.length - 1) * lh / 2;
+      lines.forEach(function (l, i) { x.fillText(l, cx, y0 + i * lh); });
+    }
+    var F = 'PretendardL, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif';
+    (document.fonts && document.fonts.load ? Promise.all([document.fonts.load('800 40px PretendardL'), document.fonts.load('500 28px PretendardL')]) : Promise.resolve()).catch(function () {}).then(function () {
+      var g = x.createLinearGradient(0, 0, W, H);
+      if (dark) { g.addColorStop(0, '#0A0F22'); g.addColorStop(1, '#190F26'); } else { g.addColorStop(0, '#DCE8FF'); g.addColorStop(0.55, '#F0E4FF'); g.addColorStop(1, '#FFE6EE'); }
+      x.fillStyle = g; x.fillRect(0, 0, W, H);
+      x.textBaseline = 'middle'; x.textAlign = 'left';
+      x.fillStyle = C.sub; x.font = '700 26px ' + F; x.fillText('2-6 알림장  ·  2학기 기말고사', pad, 78);
+      x.fillStyle = C.ink; x.font = '800 60px ' + F; x.fillText(mv ? '내 시간표' : '기말고사 시간표', pad, 142);
+      if (mv) { x.textAlign = 'right'; x.fillStyle = C.commonT; x.font = '800 34px ' + F; x.fillText(me.name + ' · ' + me.n + '번', W - pad, 142); }
+      x.textAlign = 'center';
+      ex.days.forEach(function (d, i) {
+        var px = pad + labW + gap + i * (cw + gap);
+        rr(px, top, cw, headH, 18, C.head); x.fillStyle = dark ? '#EAEEFB' : '#FFFFFF'; x.font = '800 28px ' + F; x.fillText(d.label, px + cw / 2, top + headH / 2);
+      });
+      ex.periods.forEach(function (per, pi) {
+        var py = top + headH + gap + pi * (ch + gap);
+        rr(pad, py, labW, ch, 18, C.lab);
+        x.fillStyle = C.ink; x.font = '800 30px ' + F; x.fillText(per.name, pad + labW / 2, py + ch / 2 - 18);
+        x.fillStyle = C.sub; x.font = '500 20px ' + F; x.fillText(per.time, pad + labW / 2, py + ch / 2 + 20);
+        ex.days.forEach(function (d, i) {
+          var c = ttCells(d, pi, mv), px = pad + labW + gap + i * (cw + gap);
+          rr(px, py, cw, ch, 18, c.k === 'common' ? C.common : c.k === 'elective' ? C.el : C.self);
+          x.fillStyle = c.k === 'common' ? C.commonT : c.k === 'self' ? C.selfT : C.ink;
+          x.font = (c.k === 'self' ? '500 ' : '800 ') + '27px ' + F; wrap(c.t, px + cw / 2, py + ch / 2, cw - 24, 34);
+        });
+      });
+      x.textAlign = 'left'; x.fillStyle = C.sub; x.font = '500 24px ' + F;
+      x.fillText(ex.morning.map(function (m) { return m.name + ' ' + m.time; }).join(' · '), pad, H - 84);
+      x.fillText('점심 있음 · ' + fmt(ex.noLunchDate) + '만 점심 없음', pad, H - 44);
+      x.textAlign = 'right'; x.fillText('class-26.bldoijoa01.workers.dev', W - pad, H - 44);
+      cv.toBlob(function (blob) {
+        if (!blob) return;
+        var name = '기말고사-시간표' + (mv ? '-' + me.name : '') + '.png', file = null;
+        try { file = new File([blob], name, { type: 'image/png' }); } catch (e) {}
+        if (file && navigator.canShare && navigator.canShare({ files: [file] })) {
+          navigator.share({ files: [file], title: '기말고사 시간표' }).catch(function () {});
+        } else {
+          var u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
+        }
+      }, 'image/png');
+    });
   }
 
   // ---------- 이동교실 (로그인한 계정 기준 자동 판별) ----------
@@ -716,11 +836,11 @@
     document.getElementById('todayLabel').textContent = (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + DOW[d.getUTCDay()] + ')';
     document.getElementById('updated').textContent = DATA.className + ' 알림장 · 마지막 업데이트 ' + fmt(DATA.updated);
     clear(document.getElementById('panel-exam'));
-    renderMe(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
+    renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
     tagExamCards();
     var start = (location.hash || '').replace('#', '');
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
-    selectTab(['home', 'today', 'exam', 'grade', 'me'].indexOf(start) >= 0 ? start : 'home');
+    selectTab(['home', 'today', 'exam', 'grade', 'me', 'more'].indexOf(start) >= 0 ? start : 'home');
   }
 
   // ---------- 로그인 (서버: 이름+번호) ----------
