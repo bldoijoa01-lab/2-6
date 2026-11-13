@@ -98,6 +98,23 @@ export default {
       });
       return json(d);
     }
+    if (url.pathname === '/api/scores') {
+      // 내 점수: 브라우저에서 내 비밀번호로 암호화한 덩어리만 저장 (서버·관리자는 내용을 읽을 수 없음)
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const key = 'sc:' + tok.w;
+      if (request.method === 'GET') { const v = await env.CLASS_KV.get(key); return json({ blob: v ? JSON.parse(v) : null }); }
+      if (request.method === 'PUT') {
+        const text = await request.text();
+        if (text.length > 16000) return json({ error: 'too_big' }, 413);
+        let b; try { b = JSON.parse(text); } catch { return json({ error: 'bad' }, 400); }
+        if (typeof b.iv !== 'string' || typeof b.data !== 'string') return json({ error: 'bad' }, 400);
+        await env.CLASS_KV.put(key, JSON.stringify({ iv: b.iv, data: b.data }));
+        return json({ ok: true });
+      }
+      return json({ error: 'method' }, 405);
+    }
     if (url.pathname === '/api/cuts' && request.method === 'GET') {
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
       if (!await verifyToken(env, auth, 'full')) return json({ error: 'unauthorized' }, 401);

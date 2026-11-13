@@ -31,5 +31,5 @@ Pretendard(OFL)를 서브셋해서 `src/pretendard.woff2`로 Worker에 내장 (�
 ## 등급컷 탭
 - 계산 로직은 `public/grade.js` (bldoijoa01-lab/gradecut 의 등급·석차 계산을 그대로 옮김)
 - 데이터는 Worker `/api/cuts` 가 gradecut 저장소의 `cuts.json` (GitHub Pages)을 5분 캐시로 직접 가져옴 → gradecut 쪽을 고치면 자동 반영. 못 가져오면 KV `cuts` 에 마지막으로 받은 사본 사용
-- 내 점수는 브라우저 localStorage(`gcscore26`)에만 저장 — 서버로 보내지 않음
+- 내 점수는 브라우저에서 **내 비밀번호로 만든 키(PBKDF2→AES-GCM)로 암호화**해 KV(`sc:<번호>`)에 저장 → 서버·관리자는 암호문만 보임. 로그인 때 키를 만들어 이 기기에 보관(로그아웃 시 삭제). 비밀번호를 초기화하면 이전 점수는 복호화 불가(다시 입력)
 - 아직 안 옮긴 기능: 기말 목표 계산기, 수행 점수, 성적표 이미지 저장, 정보 제보

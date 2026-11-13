@@ -45,7 +45,7 @@
   }
   tabs.forEach(function (t) { t.addEventListener('click', function () { selectTab(t.getAttribute('data-tab')); }); });
 
-  document.getElementById('logoutBtn').addEventListener('click', function () { store('tok26', null); location.hash = ''; location.reload(); });
+  document.getElementById('logoutBtn').addEventListener('click', function () { store('tok26', null); store('gk26', null); store('gcscore26', null); location.hash = ''; location.reload(); });
 
   // ---------- 테마 ----------
   (function () {
@@ -146,8 +146,62 @@
     return wrap;
   }
 
+  // ---------- 점수 암호화 (내 비밀번호에서 만든 키로 브라우저에서 암호화 → 서버엔 암호문만) ----------
+  var te = new TextEncoder(), td = new TextDecoder();
+  function b64e(buf) { var a = new Uint8Array(buf), s = ''; for (var i = 0; i < a.length; i++) s += String.fromCharCode(a[i]); return btoa(s); }
+  function b64d(s) { return Uint8Array.from(atob(s), function (c) { return c.charCodeAt(0); }); }
+  function deriveKey(pw, n) {
+    return crypto.subtle.importKey('raw', te.encode(pw), 'PBKDF2', false, ['deriveKey']).then(function (km) {
+      return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: te.encode('class26-scores|' + n), iterations: 200000, hash: 'SHA-256' }, km, { name: 'AES-GCM', length: 256 }, true, ['encrypt', 'decrypt']);
+    });
+  }
+  function rememberKey(pw, n) {
+    return deriveKey(pw, n).then(function (k) { return crypto.subtle.exportKey('raw', k); })
+      .then(function (raw) { store('gk26', b64e(raw)); }).catch(function () {});
+  }
+  function storedKey() {
+    var raw = load('gk26'); if (!raw) return Promise.resolve(null);
+    return crypto.subtle.importKey('raw', b64d(raw), { name: 'AES-GCM' }, false, ['encrypt', 'decrypt']).catch(function () { return null; });
+  }
+  function encryptJSON(key, obj) {
+    var iv = crypto.getRandomValues(new Uint8Array(12));
+    return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, key, te.encode(JSON.stringify(obj)))
+      .then(function (ct) { return { iv: b64e(iv), data: b64e(ct) }; });
+  }
+  function decryptJSON(key, blob) {
+    return crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(blob.iv) }, key, b64d(blob.data)).then(function (pt) { return JSON.parse(td.decode(pt)); });
+  }
+  var pushTimer = null;
+  function pushScores() {
+    clearTimeout(pushTimer);
+    pushTimer = setTimeout(function () {
+      storedKey().then(function (key) {
+        if (!key) return;
+        return encryptJSON(key, gcLoad()).then(function (blob) {
+          return fetch('/api/scores', { method: 'PUT', headers: { authorization: 'Bearer ' + (load('tok26') || ''), 'content-type': 'application/json' }, body: JSON.stringify(blob) });
+        });
+      }).catch(function () {});
+    }, 800);
+  }
+  function syncScores() {
+    return storedKey().then(function (key) {
+      if (!key) return false;
+      return fetch('/api/scores', { headers: { authorization: 'Bearer ' + (load('tok26') || '') }, cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) {
+          if (!j) return false;
+          if (!j.blob) { if (Object.keys(gcLoad()).length) pushScores(); return true; }
+          return decryptJSON(key, j.blob).then(function (srv) {
+            var merged = Object.assign({}, gcLoad(), srv); gcSave(merged);
+            if (JSON.stringify(merged) !== JSON.stringify(srv)) pushScores();
+            return true;
+          });
+        }).catch(function () { return false; });
+    });
+  }
+
   // ---------- 등급컷 (gradecut 계산 로직을 내장) ----------
-  var GC = null, GC_STATE = 'idle', GKEY = 'gcscore26';
+  var GC = null, GC_STATE = 'idle', GC_SYNC = false, GKEY = 'gcscore26';
   function gcLoad() { try { return JSON.parse(localStorage.getItem(GKEY) || '{}'); } catch (e) { return {}; } }
   function gcSave(o) { try { localStorage.setItem(GKEY, JSON.stringify(o)); } catch (e) {} }
   function loadGrade() {
@@ -157,7 +211,7 @@
     p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '등급컷을 불러오는 중이에요…' })])]));
     fetch('/api/cuts', { headers: { authorization: 'Bearer ' + (load('tok26') || '') }, cache: 'no-store' })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function (j) { GC = j; GC_STATE = 'done'; renderGrade(); })
+      .then(function (j) { GC = j; return syncScores().then(function (ok) { GC_SYNC = ok; GC_STATE = 'done'; renderGrade(); }); })
       .catch(function () {
         GC_STATE = 'idle'; clear(p);
         p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '등급컷을 못 불러왔어요. 잠시 후 다시 눌러 보세요.' })])]));
@@ -174,7 +228,7 @@
 
     p.appendChild(h('div', { class: 'card' }, [head('GRADE CUT ARCHIVE', '오송고 등급컷 아카이브'), h('div', { class: 'card-b' }, [
       h('div', { class: 'note-sm', text: '오송고 2학년 시험 기준 · 학생들이 모은 정보예요 (학교 공식 자료 아님). 5등급제: 1컷 상위 10% · 2컷 34% · 3컷 66% · 4컷 90%' }),
-      h('div', { class: 'note-sm', text: '내 점수는 이 기기에만 저장되고 서버로 보내지 않아요.' + (asof ? ' · 업데이트 ' + asof : '') }),
+      h('div', { class: 'note-sm', text: (GC_SYNC ? '🔒 내 점수는 내 비밀번호로 암호화돼 저장돼요. 다른 기기에서도 보이고, 서버·관리자는 내용을 읽을 수 없어요.' : '내 점수는 이 기기에만 저장돼요. (다시 로그인하면 암호화 저장·동기화가 켜져요)') + (asof ? ' · 업데이트 ' + asof : '') }),
       h('a', { class: 'linkbtn', href: 'https://bldoijoa01-lab.github.io/gradecut/', target: '_blank', rel: 'noopener', text: '기말 목표 계산기 등 전체 기능은 원본 사이트 ↗' })
     ])]));
     var chips = null;
@@ -219,7 +273,7 @@
         function calc(save) {
           var raw = inp.value.trim(); clear(info); msg.textContent = '';
           inp.classList.remove('bad'); row.g = null;
-          if (save) { if (raw) scores[d.id] = raw; else delete scores[d.id]; gcSave(scores); }
+          if (save) { if (raw) scores[d.id] = raw; else delete scores[d.id]; gcSave(scores); pushScores(); }
           var bad = G.badNum(raw, 0, 100) ? '0~100 사이 숫자로 넣어 주세요' : G.scoreIssue(d, raw);
           if (bad) { inp.classList.add('bad'); msg.textContent = bad; }
           var x = Object.assign({}, d, { my: bad ? '' : raw }), g = bad ? null : G.gradeInfo(x);
@@ -462,8 +516,8 @@
       api('/api/login', { name: nameIn.value, number: numIn.value, secret: pwIn.value }).then(function (j) {
         if (j.status === 429) { btn.disabled = false; err.textContent = '많이 틀렸어요. 10분 뒤에 다시 시도하세요.'; }
         else if (j.status !== 200) { btn.disabled = false; err.textContent = '이름·번호·비밀번호가 맞지 않아요.'; }
-        else if (j.setup) showSetup(j.token);
-        else { store('tok26', j.token); loadData(); }
+        else if (j.setup) showSetup(j.token, parseInt(numIn.value, 10));
+        else { store('tok26', j.token); rememberKey(pwIn.value, parseInt(numIn.value, 10)).then(loadData); }
       }).catch(function () { btn.disabled = false; err.textContent = '연결에 실패했어요. 다시 시도하세요.'; });
     }
     btn.addEventListener('click', go);
@@ -471,7 +525,7 @@
     card([h('div', { class: 'login-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '2-6 알림장' })]), h('div', { class: 'login-sub', text: '우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), nameIn, numIn, pwIn, btn, err]);
   }
 
-  function showSetup(setupToken) {
+  function showSetup(setupToken, num) {
     var p1 = h('input', { type: 'password', class: 'login-in', placeholder: '새 비밀번호 (6자 이상)', autocomplete: 'new-password' });
     var p2 = h('input', { type: 'password', class: 'login-in', placeholder: '새 비밀번호 확인', autocomplete: 'new-password' });
     var err = h('div', { class: 'empty', text: '' });
@@ -481,7 +535,7 @@
       if (p1.value !== p2.value) { err.textContent = '두 번 입력한 비밀번호가 달라요.'; return; }
       btn.disabled = true;
       api('/api/setpw', { token: setupToken, password: p1.value }).then(function (j) {
-        if (j.status === 200) { store('tok26', j.token); loadData(); }
+        if (j.status === 200) { store('tok26', j.token); rememberKey(p1.value, num).then(loadData); }
         else { btn.disabled = false; err.textContent = '시간이 지났어요. 처음부터 다시 입장하세요.'; }
       }).catch(function () { btn.disabled = false; err.textContent = '연결에 실패했어요.'; });
     }
