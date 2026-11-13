@@ -246,7 +246,7 @@
   function saveMyEvents(list) { var p2 = prefLoad(); p2.myEvents = list; prefSave(p2); }
   function allEvents() { return DATA.events.concat(myEvents().map(function (e) { return Object.assign({}, e, { mine: true }); })); }
   function delMyEvent(id) { saveMyEvents(myEvents().filter(function (e) { return e.id !== id; })); renderToday(); renderHome(); }
-  function myBadge(e) { return e.mine ? h('span', { class: 'chip mine', text: '내 일정' }) : (e.target ? h('span', { class: 'chip target', text: '대상자' }) : (Array.isArray(e.audience) ? h('span', { class: 'chip target', text: '대상자 ' + e.audience.length + '명' }) : null)); }
+  function myBadge(e) { return e.mine ? h('span', { class: 'chip mine', text: '내 일정' }) : (e.target ? h('span', { class: 'chip target', text: e.targetLabel || '대상자' }) : (Array.isArray(e.audience) ? h('span', { class: 'chip target', text: '대상자 ' + e.audience.length + '명' }) : null)); }
   function myDelBtn(e) {
     if (!e.mine) return null;
     var b = h('button', { class: 'linkbtn del-b', type: 'button', text: '삭제' });
