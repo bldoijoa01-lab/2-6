@@ -99,6 +99,51 @@
     p.appendChild(h('div', { class: 'card' }, [head('UP NEXT', '다가오는 일정'), h('div', { class: 'card-b' }, rows.concat(rows.length ? [more] : [h('div', { class: 'empty', text: '예정된 일정이 없어요. 평화 ✌️' })]))]));
   }
 
+  // ---------- 캘린더 ----------
+  function buildCalendar() {
+    var t = new Date(TODAY), year = t.getUTCFullYear(), month = t.getUTCMonth(), sel = null;
+    var wrap = h('div', { class: 'card' });
+    function iso(y, m, d) { return y + '-' + ('0' + (m + 1)).slice(-2) + '-' + ('0' + d).slice(-2); }
+    function eventsOn(key) {
+      return DATA.events.filter(function (e) { return key >= e.date && key <= (e.end || e.date); });
+    }
+    function draw() {
+      clear(wrap);
+      var prev = h('button', { class: 'cal-nav', type: 'button', 'aria-label': '이전 달', text: '‹' });
+      var next = h('button', { class: 'cal-nav', type: 'button', 'aria-label': '다음 달', text: '›' });
+      prev.addEventListener('click', function () { month--; if (month < 0) { month = 11; year--; } sel = null; draw(); });
+      next.addEventListener('click', function () { month++; if (month > 11) { month = 0; year++; } sel = null; draw(); });
+      var top = h('div', { class: 'cal-top' }, [prev, h('div', { class: 'cal-title' }, [h('div', { class: 'eyebrow', text: 'CALENDAR' }), h('h2', { text: year + '년 ' + (month + 1) + '월' })]), next]);
+      var grid = h('div', { class: 'cal-grid' });
+      DOW.forEach(function (d, i) { grid.appendChild(h('div', { class: 'cal-dow' + (i === 0 ? ' sun' : i === 6 ? ' sat' : ''), text: d })); });
+      var first = new Date(Date.UTC(year, month, 1)).getUTCDay(), days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
+      for (var i = 0; i < first; i++) grid.appendChild(h('div', { class: 'cal-cell empty' }));
+      for (var d = 1; d <= days; d++) (function (d) {
+        var key = iso(year, month, d), evs = eventsOn(key), dow = (first + d - 1) % 7;
+        var cls = 'cal-cell' + (key === iso(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()) ? ' today' : '') + (key === sel ? ' sel' : '') + (dow === 0 ? ' sun' : dow === 6 ? ' sat' : '');
+        var cell = h('button', { class: cls, type: 'button' }, [h('span', { class: 'cal-d', text: String(d) })]);
+        if (evs.length) {
+          var dots = h('span', { class: 'cal-dots' });
+          evs.slice(0, 3).forEach(function (e) { dots.appendChild(h('i', { class: (/기말|중간|고사/.test(e.title) ? 'exam' : diffDays(e.date, TODAY) <= 7 && diffDays(e.date, TODAY) >= 0 ? 'hot' : '') })); });
+          cell.appendChild(dots);
+        }
+        cell.addEventListener('click', function () { sel = key === sel ? null : key; draw(); });
+        grid.appendChild(cell);
+      })(d);
+      var shown = sel ? eventsOn(sel) : DATA.events.filter(function (e) { var m = iso(year, month, 1), n = iso(year, month, days); return (e.end || e.date) >= m && e.date <= n; })
+        .sort(function (a, b) { return a.date < b.date ? -1 : 1; });
+      var title = sel ? fmt(sel) : (month + 1) + '월 일정';
+      var rows = shown.length ? shown.map(function (e) {
+        var when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
+        return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: e.title }), h('div', { class: 'ev-sub' }, [h('b', { text: when }), e.note ? ' · ' + e.note : ''])]), ddayBadge(e)]);
+      }) : [h('div', { class: 'empty', text: '이 날은 일정이 없어요.' })];
+      wrap.appendChild(top);
+      wrap.appendChild(h('div', { class: 'card-b' }, [grid, h('div', { class: 'cal-list-t', text: title })].concat(rows)));
+    }
+    draw();
+    return wrap;
+  }
+
   // ---------- 기말고사 (시간표 + 이동교실 + 유의사항 한 곳에) ----------
   function jumpTo(id) { var el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   function renderExamJump() {
@@ -163,7 +208,19 @@
     if (rest.length) { body.push(h('div', { class: 'tag blue', text: '📌 좀중요' })); rest.forEach(function (e) { body.push(evRow(e)); }); }
     if (!upcoming.length) body.push(h('div', { class: 'empty', text: '예정된 일정이 없어요. 평화 ✌️' }));
     body.push(h('div', { class: 'elect', text: '📣 ' + DATA.electiveNote }));
-    p.appendChild(h('div', { class: 'card' }, [head('SCHEDULE', '수행·시험 일정'), h('div', { class: 'card-b' }, body)]));
+    var listCard = h('div', { class: 'card' }, [head('SCHEDULE', '수행·시험 일정'), h('div', { class: 'card-b' }, body)]);
+    var calCard = buildCalendar();
+    calCard.hidden = true;
+    var seg = h('div', { class: 'seg' });
+    [['목록', listCard], ['캘린더', calCard]].forEach(function (v, i) {
+      var b = h('button', { class: 'seg-b', type: 'button', text: v[0], 'aria-pressed': i === 0 ? 'true' : 'false' });
+      b.addEventListener('click', function () {
+        listCard.hidden = v[1] !== listCard; calCard.hidden = v[1] !== calCard;
+        Array.prototype.forEach.call(seg.children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+      });
+      seg.appendChild(b);
+    });
+    p.appendChild(seg); p.appendChild(listCard); p.appendChild(calCard);
   }
 
   // ---------- 기말 시간표 ----------
