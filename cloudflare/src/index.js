@@ -66,7 +66,8 @@ export default {
       if (await limited(env, 'rl:n:' + hit.n, 10)) return json({ error: 'too_many' }, 429);
       const rec = JSON.parse(await env.CLASS_KV.get('pw:' + hit.n) || 'null');
       if (!rec) { // 첫 로그인: 반 코드 -> 비밀번호 설정 단계
-        if (!safeEq(secret, env.CLASS_CODE)) return json({ error: 'invalid' }, 401);
+        const code = hit.role === 'teacher' ? env.TEACHER_CODE : env.CLASS_CODE;   // 교사 계정은 별도 코드로만 만들 수 있음
+        if (!code || !safeEq(secret, code)) return json({ error: 'invalid' }, 401);
         return json({ setup: true, token: await makeToken(env, hit.n, 'setup', 600) });
       }
       if (!await checkPw(rec, secret)) return json({ error: 'invalid' }, 401);
@@ -76,7 +77,7 @@ export default {
       let b; try { b = await request.json(); } catch { return json({ error: 'bad' }, 400); }
       const p = await verifyToken(env, b.token, 'setup'), pw = String(b.password || '');
       if (!p) return json({ error: 'unauthorized' }, 401);
-      if (pw.length < 6 || pw.length > 64) return json({ error: 'weak' }, 400);
+      if (pw.length < 4 || pw.length > 64) return json({ error: 'weak' }, 400);
       if (await env.CLASS_KV.get('pw:' + p.w)) return json({ error: 'exists' }, 409);
       await savePw(env, p.w, pw);
       return json({ token: await makeToken(env, p.w, 'full', TTL) });
@@ -90,7 +91,7 @@ export default {
       if (!me) return json({ error: 'unauthorized' }, 401);
       // 계정별 맞춤 데이터: 특별실 응시는 내 것만, 행사 참여자 명단은 반 공지라 전체 공개 (로그인한 학생만)
       const d = JSON.parse(await env.CLASS_KV.get('data') || '{}');
-      d.me = { n: me.n, name: me.name };
+      d.me = { n: me.n, name: me.name, role: me.role === 'teacher' ? 'teacher' : 'student' };
       d.special = (d.special || []).filter((s) => (s.members || []).includes(me.name)).map((s) => ({ ...s, members: [me.name] }));
       return json(d);
     }
@@ -110,6 +111,54 @@ export default {
         return json({ ok: true });
       }
       return json({ error: 'method' }, 405);
+    }
+    if (url.pathname.startsWith('/api/teacher/')) {
+      // 교사 전용: 학생 현황 · 비밀번호 초기화 · 일정/공지 관리
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]');
+      const me = roster.find((x) => x.n === tok.w);
+      if (!me || me.role !== 'teacher') return json({ error: 'forbidden' }, 403);
+      const sub = url.pathname.slice('/api/teacher/'.length);
+      if (sub === 'students' && request.method === 'GET') {
+        const keys = await env.CLASS_KV.list({ prefix: 'pw:' });
+        const active = new Set(keys.keys.map((k) => parseInt(k.name.slice(3), 10)));
+        return json({ students: roster.filter((x) => x.role !== 'teacher').map((x) => ({ n: x.n, name: x.name, active: active.has(x.n) })) });
+      }
+      let b = {}; if (request.method === 'POST') { try { b = await request.json(); } catch { return json({ error: 'bad' }, 400); } }
+      if (sub === 'reset' && request.method === 'POST') {
+        const st = roster.find((x) => x.n === b.n && x.role !== 'teacher');
+        if (!st) return json({ error: 'not_found' }, 404);
+        await env.CLASS_KV.delete('pw:' + st.n); await env.CLASS_KV.delete('sc:' + st.n);   // 비밀번호 초기화(암호화 점수는 키가 바뀌어 복구 불가라 같이 삭제)
+        await env.CLASS_KV.delete('rl:n:' + st.n);
+        return json({ ok: true });
+      }
+      if (sub === 'content' && request.method === 'POST') {
+        const data = JSON.parse(await env.CLASS_KV.get('data') || '{}');
+        const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+        const isDate = (v) => typeof v === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(v);
+        const goodUrl = (v) => { try { return new URL(v).protocol === 'https:'; } catch { return false; } };
+        const kind = b.kind === 'notice' ? 'notices' : 'events';
+        data[kind] = Array.isArray(data[kind]) ? data[kind] : [];
+        if (b.op === 'add') {
+          const e = { title: str(b.title, 80) };
+          if (!e.title) return json({ error: 'title' }, 400);
+          if (kind === 'events') {
+            if (!isDate(b.date)) return json({ error: 'date' }, 400);
+            e.date = b.date; if (isDate(b.end) && b.end > b.date) e.end = b.end;
+            if (str(b.note, 120)) e.note = str(b.note, 120);
+          } else if (str(b.text, 200)) e.text = str(b.text, 200);
+          if (b.link && goodUrl(b.link)) e.link = { url: b.link, label: str(b.linkLabel, 20) || '열기' };
+          data[kind].push(e);
+        } else if (b.op === 'delete') {
+          const t = str(b.title, 80);
+          data[kind] = data[kind].filter((e) => !(e.title === t && (kind === 'notices' || e.date === b.date)));
+        } else return json({ error: 'op' }, 400);
+        await env.CLASS_KV.put('data', JSON.stringify(data));
+        return json({ ok: true });
+      }
+      return json({ error: 'not_found' }, 404);
     }
     if (url.pathname === '/api/cuts' && request.method === 'GET') {
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');

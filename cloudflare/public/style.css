@@ -428,3 +428,63 @@ body{transition:background-color .45s ease}
 
 .notice-card{margin-bottom:14px}
 .notice-b{background:var(--blue-t); border-color:color-mix(in srgb,var(--blue) 28%,transparent)}
+
+/* 주간 시간표 */
+.tt.wk td{height:74px; padding:4px 2px; line-height:1.25}
+.tt.wk td b{display:block; font-size:14.5px; font-weight:800; letter-spacing:-.02em}
+.tt.wk td small{display:block; font-size:11px; color:var(--mute); font-weight:600}
+.tt.wk .k-common{background:var(--blue-t); color:var(--blue); font-size:inherit !important}
+.tt.wk .k-common b{color:var(--blue)}
+.tt.wk .k-block{background:transparent; border:1.5px dashed var(--mute) !important; color:var(--sub)}
+.tt.wk .k-block b{font-size:20px}
+.tt.wk td.now{box-shadow:inset 0 0 0 2px var(--red)}
+.tt.wk td.today:not(.now){box-shadow:inset 0 0 0 1.5px var(--blue)}
+.tday{display:grid; grid-template-columns:54px 52px 1fr; align-items:center; gap:8px; padding:8px 10px; border-radius:14px; font-size:14px}
+.tday.now{background:var(--amber-t)}
+.tday-p{font-weight:800} .tday-t{color:var(--mute); font-size:12.5px}
+.tday-s b{font-weight:700} .tday-s small{margin-left:6px; color:var(--mute); font-size:12px}
+.tday-s.unset b{color:var(--mute)}
+.blk-row{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0; border-bottom:1px solid var(--line); flex-wrap:wrap}
+.blk-row:last-child{border-bottom:0}
+.blk-n{font-weight:700; font-size:15px}
+.blk-chips{display:flex; gap:6px}
+.el-chip.blk{width:40px; height:40px; padding:0; border-radius:50%; font-weight:800}
+
+.el-sec{padding-top:6px; margin-top:8px; border-top:1px solid var(--line)} .el-sec:first-child{border-top:0; margin-top:0}
+.el-sh{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:10px 0 0}
+.el-sh b{font-size:15px; font-weight:800; margin-right:8px} .el-sh small{color:var(--mute); font-size:12.5px; font-weight:600}
+.el-gcount{padding:3px 10px; border-radius:999px; background:var(--gray-t); color:var(--sub); font-size:12px; font-weight:800}
+.el-next{margin:18px 4px 8px; font-size:12.5px; font-weight:800; letter-spacing:.08em; color:var(--mute)}
+/* 주간 시간표는 폰에서 스크롤 없이 한 화면에 */
+.tt.wk{min-width:0 !important}
+.tt.wk tbody th{width:50px; font-size:11.5px; padding:4px 2px} .tt.wk tbody th small{font-size:10px}
+.tt.wk td{height:70px} .tt.wk td b{font-size:13px} .tt.wk td small{font-size:10px}
+.tt.wk thead th{font-size:13px}
+
+/* 내 일정 */
+.seg-row{display:flex; align-items:center; justify-content:space-between; gap:10px; flex-wrap:wrap; margin-bottom:14px} .seg-row .seg{margin-bottom:0}
+.add-ev{font-size:14px; padding:8px 4px}
+.addform{margin-bottom:14px} .addform .card-b{gap:10px}
+.addform .field{width:100%; max-width:none}
+.af-l{display:flex; flex-direction:column; gap:4px; font-size:12.5px; font-weight:700; color:var(--sub)}
+.af-btns{display:flex; gap:10px} .af-btns .btn{flex:1; margin:0; width:auto}
+.chip.mine{margin-left:6px; background:var(--indigo-t); color:var(--indigo); vertical-align:middle}
+.del-b{align-self:flex-start; color:var(--red); font-size:12.5px; padding:4px 0}
+.cal-dots i.mine{background:var(--indigo)}
+
+/* 맨 위/아래에서 당겼을 때 배경이 끊기며 빈칸이 보이는 현상(iOS 바운스) 방지 */
+html{overscroll-behavior-y:none; background-color:var(--bg2)}
+body{overscroll-behavior-y:none}
+
+/* 교사 모드: 학생 전용 탭은 숨김 */
+.tab-t{display:none}
+body.teacher .tab-t{display:inline-block}
+body.teacher #tab-home,body.teacher #tab-exam,body.teacher #tab-grade,body.teacher #tab-me{display:none}
+.srow{display:grid; grid-template-columns:44px 1fr 56px 52px; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14.5px}
+.srow:last-child{border-bottom:0}
+.srow-n{color:var(--mute); font-weight:700} .srow-name{font-weight:700}
+.srow-st{font-size:12px; font-weight:800; color:var(--mute); text-align:center} .srow-st.on{color:var(--green)}
+.srow .del-b{text-align:right; padding:2px 0} .srow .del-b:disabled{opacity:.35}
+select.field{appearance:auto}
+
+.secure li.weak{color:var(--red)} .secure li.weak b{color:var(--red)}

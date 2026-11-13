@@ -55,7 +55,7 @@
   }
   tabs.forEach(function (t) { t.addEventListener('click', function () { selectTab(t.getAttribute('data-tab')); }); });
 
-  document.getElementById('logoutBtn').addEventListener('click', function () { store('tok26', null); store('gk26', null); store('gcscore26', null); store('pref26', null); location.hash = ''; location.reload(); });
+  document.getElementById('logoutBtn').addEventListener('click', function () { store('tok26', null); store('gk26', null); store('pwlen26', null); store('gcscore26', null); store('pref26', null); location.hash = ''; location.reload(); });
 
   // ---------- 테마 ----------
   (function () {
@@ -116,12 +116,118 @@
     }))]);
   }
 
+  // ---------- 주간 시간표 · 선택과목 반(A~E) ----------
+  var weeklyBox = null;
+  function myBlocks() { var b = prefLoad().blocks || {}, mine = myElectives(), out = {}; Object.keys(b).forEach(function (n) { if (mine.indexOf(n) >= 0) out[b[n]] = n; }); return out; }   // 글자 → 과목
+  function blocksAssigned() { return Object.keys(myBlocks()).length; }
+  function wCell(c) {
+    if (!c) return { cls: 'k-self', kids: [] };
+    if (c.k === 'block') {
+      var sub = myBlocks()[c.b];
+      return sub ? { cls: 'k-elective', kids: [h('b', { text: sub }), h('small', { text: c.b + '반' })] }
+                 : { cls: 'k-block', kids: [h('b', { text: c.b }), h('small', { text: '선택' })] };
+    }
+    return { cls: 'k-' + c.k, kids: [h('b', { text: c.t })].concat(c.who ? [h('small', { text: c.who })] : []) };
+  }
+  function nowPeriod() {   // 지금 몇 교시인지 (KST)
+    var t = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()).split(':');
+    var m = (+t[0]) * 60 + (+t[1]), W = DATA.weekly, cur = -1;
+    W.rows.forEach(function (r, i) { var s = r.time.split(':'); if (m >= (+s[0]) * 60 + (+s[1])) cur = i; });
+    return m >= 16 * 60 + 10 ? -1 : cur;
+  }
+  function todayDow() { var d = new Date(TODAY).getUTCDay(); return d >= 1 && d <= 5 ? d - 1 : -1; }   // 월0..금4
+  function fillWeekly(box) {
+    clear(box); var W = DATA.weekly; if (!W) return;
+    var dow = todayDow(), np = dow >= 0 ? nowPeriod() : -1, unset = blocksAssigned() < 5;
+    var thead = h('tr', null, [h('th', { text: '' })].concat(W.days.map(function (d, i) { return h('th', { class: i === dow ? 'today' : '', text: d }); })));
+    var rows = W.rows.map(function (r, ri) {
+      var tr = h('tr', null, [h('th', null, [r.n + '교시', h('small', { text: r.time })])]);
+      r.cells.forEach(function (c, di) { var x = wCell(c); tr.appendChild(h('td', { class: x.cls + (di === dow ? ' today' : '') + (di === dow && ri === np ? ' now' : '') }, x.kids)); });
+      return tr;
+    });
+    var body = [];
+    if (unset) {
+      var go = h('button', { class: 'nudge notice-b', type: 'button' }, [h('b', { text: '🅰 내 선택과목 반(A~E)을 정해 주세요' }), h('small', { text: (myElectives().length < 5 ? '선택과목을 고른 뒤 ' : '') + '정하면 A~E 칸이 내 과목으로 바뀌어요 →' })]);
+      go.addEventListener('click', function () { goTab('me'); });
+      body.push(go);
+    }
+    body.push(h('div', { class: 'tt-wrap' }, [h('table', { class: 'tt wk' }, [h('thead', null, [thead]), h('tbody', null, rows)])]));
+    body.push(h('div', { class: 'legend' }, [
+      h('span', { class: 'lg' }, [h('i', { style: 'background:var(--blue-t)' }), '공통 수업']),
+      h('span', { class: 'lg' }, [h('i', { style: 'background:var(--green-t)' }), '내 선택과목']),
+      h('span', { class: 'lg' }, [h('i', { style: 'border:1.5px dashed var(--mute)' }), '선택(반 미정)'])]));
+    if (W.note) body.push(h('div', { class: 'note-sm', text: W.note }));
+    box.appendChild(h('div', { class: 'card-b' }, body));
+  }
+  function buildWeeklyCard() {
+    var card = h('div', { class: 'card' }, [head('WEEKLY', '주간 시간표')]);
+    var box = h('div'); card.appendChild(box); weeklyBox = box; fillWeekly(box); return card;
+  }
+  function refreshWeekly() { if (weeklyBox && weeklyBox.parentNode) fillWeekly(weeklyBox); }
+  // 홈: 오늘 시간표
+  function todayTimetableCard() {
+    var W = DATA.weekly, dow = todayDow(); if (!W) return null;
+    var np = nowPeriod(), dn = W.days[dow];
+    if (dow < 0) return null;
+    var rows = W.rows.map(function (r, ri) {
+      var x = wCell(r.cells[dow]); if (!r.cells[dow]) return null;
+      return h('div', { class: 'tday' + (ri === np ? ' now' : '') }, [h('span', { class: 'tday-p', text: r.n + '교시' }), h('span', { class: 'tday-t', text: r.time }),
+        h('span', { class: 'tday-s' + (x.cls === 'k-block' ? ' unset' : '') }, x.kids.map(function (k) { return k.cloneNode(true); }))]);
+    });
+    var more = h('button', { class: 'linkbtn', type: 'button', text: '주간 시간표 보기 →' });
+    more.addEventListener('click', function () { goTab('today'); setTimeout(function () { var b = document.querySelectorAll('#panel-today .seg-b'); if (b[2]) b[2].click(); }, 60); });
+    return h('div', { class: 'card' }, [head('TODAY', dn + '요일 시간표'), h('div', { class: 'card-b' }, rows.concat([more]))]);
+  }
+
+  // ---------- 내 일정 (개인 일정: 내 비밀번호로 암호화되어 저장·동기화) ----------
+  var todayView = 'list', calState = null;
+  function myEvents() { var v = prefLoad().myEvents; return Array.isArray(v) ? v : []; }
+  function saveMyEvents(list) { var p2 = prefLoad(); p2.myEvents = list; prefSave(p2); }
+  function allEvents() { return DATA.events.concat(myEvents().map(function (e) { return Object.assign({}, e, { mine: true }); })); }
+  function delMyEvent(id) { saveMyEvents(myEvents().filter(function (e) { return e.id !== id; })); renderToday(); renderHome(); }
+  function myBadge(e) { return e.mine ? h('span', { class: 'chip mine', text: '내 일정' }) : null; }
+  function myDelBtn(e) {
+    if (!e.mine) return null;
+    var b = h('button', { class: 'linkbtn del-b', type: 'button', text: '삭제' });
+    b.addEventListener('click', function () { if (confirm('"' + e.title + '" 일정을 지울까요?')) delMyEvent(e.id); });
+    return b;
+  }
+  function addEventForm(preset) {
+    var title = h('input', { class: 'field', type: 'text', placeholder: '일정 이름 (예: 수행 제출, 병원)', maxlength: '40', 'aria-label': '일정 이름' });
+    var date = h('input', { class: 'field', type: 'date', 'aria-label': '날짜' });
+    var end = h('input', { class: 'field', type: 'date', 'aria-label': '끝나는 날(선택)' });
+    var note = h('input', { class: 'field', type: 'text', placeholder: '메모 (선택)', maxlength: '60', 'aria-label': '메모' });
+    date.value = preset || ''; var err = h('div', { class: 'badmsg' });
+    var save = h('button', { class: 'btn', type: 'button', text: '저장' }), cancel = h('button', { class: 'btn out', type: 'button', text: '취소' });
+    var form = h('div', { class: 'card addform' }, [h('div', { class: 'card-b' }, [
+      h('div', { class: 'ev-title', text: '내 일정 추가' }),
+      title, h('label', { class: 'af-l' }, ['날짜', date]), h('label', { class: 'af-l' }, ['끝나는 날 (여러 날일 때만)', end]), note, err,
+      h('div', { class: 'af-btns' }, [save, cancel]),
+      h('div', { class: 'note-sm', text: '🔒 내 일정은 나만 볼 수 있어요. 내 비밀번호로 암호화되어 저장돼요.' })])]);
+    save.addEventListener('click', function () {
+      var t = title.value.trim();
+      if (!t) { err.textContent = '일정 이름을 넣어 주세요.'; return; }
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(date.value)) { err.textContent = '날짜를 골라 주세요.'; return; }
+      if (end.value && end.value < date.value) { err.textContent = '끝나는 날이 시작보다 빠를 수 없어요.'; return; }
+      var list = myEvents();
+      if (list.length >= 100) { err.textContent = '내 일정은 100개까지 저장할 수 있어요.'; return; }
+      var ev = { id: Date.now().toString(36) + Math.random().toString(36).slice(2, 5), title: t, date: date.value };
+      if (end.value && end.value !== date.value) ev.end = end.value;
+      if (note.value.trim()) ev.note = note.value.trim();
+      list.push(ev); saveMyEvents(list);
+      if (calState) { var d0 = new Date(toUTC(ev.date)); calState.year = d0.getUTCFullYear(); calState.month = d0.getUTCMonth(); calState.sel = null; }
+      renderToday(); renderHome();
+    });
+    cancel.addEventListener('click', function () { form.remove(); });
+    return form;
+  }
+
   // ---------- 홈 ----------
   function goTab(name) { selectTab(name); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   function renderHome() {
     var p = document.getElementById('panel-home'); clear(p);
     var me = DATA.me, mv = DATA.move;
-    var upcoming = DATA.events.filter(function (e) { return diffDays(e.end || e.date, TODAY) >= 0; })
+    var upcoming = allEvents().filter(function (e) { return diffDays(e.end || e.date, TODAY) >= 0; })
       .sort(function (a, b) { return toUTC(a.date) - toUTC(b.date); });
     var exam = upcoming.filter(function (e) { return /기말/.test(e.title); })[0];
     var others = upcoming.filter(function (e) { return e !== exam; });
@@ -167,6 +273,7 @@
     }
     p.appendChild(h('div', { class: 'stats' }, grid));
 
+    var ttc = todayTimetableCard(); if (ttc) p.appendChild(ttc);
     // 다음 일정 미리보기
     var rows = others.slice(0, 3).map(function (e) {
       var d = diffDays(e.date, TODAY), when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
@@ -179,18 +286,19 @@
 
   // ---------- 캘린더 ----------
   function buildCalendar() {
-    var t = new Date(TODAY), year = t.getUTCFullYear(), month = t.getUTCMonth(), sel = null;
-    var wrap = h('div', { class: 'card' });
+    var t = new Date(TODAY);
+    if (!calState) calState = { year: t.getUTCFullYear(), month: t.getUTCMonth(), sel: null };
+    var st = calState, wrap = h('div', { class: 'card' });
     function iso(y, m, d) { return y + '-' + ('0' + (m + 1)).slice(-2) + '-' + ('0' + d).slice(-2); }
     function eventsOn(key) {
-      return DATA.events.filter(function (e) { return key >= e.date && key <= (e.end || e.date); });
+      return allEvents().filter(function (e) { return key >= e.date && key <= (e.end || e.date); });
     }
     function draw() {
-      clear(wrap);
+      clear(wrap); var year = st.year, month = st.month, sel = st.sel;
       var prev = h('button', { class: 'cal-nav', type: 'button', 'aria-label': '이전 달', text: '‹' });
       var next = h('button', { class: 'cal-nav', type: 'button', 'aria-label': '다음 달', text: '›' });
-      prev.addEventListener('click', function () { month--; if (month < 0) { month = 11; year--; } sel = null; draw(); });
-      next.addEventListener('click', function () { month++; if (month > 11) { month = 0; year++; } sel = null; draw(); });
+      prev.addEventListener('click', function () { st.month--; if (st.month < 0) { st.month = 11; st.year--; } st.sel = null; draw(); });
+      next.addEventListener('click', function () { st.month++; if (st.month > 11) { st.month = 0; st.year++; } st.sel = null; draw(); });
       var top = h('div', { class: 'cal-top' }, [prev, h('div', { class: 'cal-title' }, [h('div', { class: 'eyebrow', text: 'CALENDAR' }), h('h2', { text: year + '년 ' + (month + 1) + '월' })]), next]);
       var grid = h('div', { class: 'cal-grid' });
       DOW.forEach(function (d, i) { grid.appendChild(h('div', { class: 'cal-dow' + (i === 0 ? ' sun' : i === 6 ? ' sat' : ''), text: d })); });
@@ -202,18 +310,18 @@
         var cell = h('button', { class: cls, type: 'button' }, [h('span', { class: 'cal-d', text: String(d) })]);
         if (evs.length) {
           var dots = h('span', { class: 'cal-dots' });
-          evs.slice(0, 3).forEach(function (e) { dots.appendChild(h('i', { class: (/기말|중간|고사/.test(e.title) ? 'exam' : diffDays(e.date, TODAY) <= 7 && diffDays(e.date, TODAY) >= 0 ? 'hot' : '') })); });
+          evs.slice(0, 3).forEach(function (e) { dots.appendChild(h('i', { class: (e.mine ? 'mine' : /기말|중간|고사/.test(e.title) ? 'exam' : diffDays(e.date, TODAY) <= 7 && diffDays(e.date, TODAY) >= 0 ? 'hot' : '') })); });
           cell.appendChild(dots);
         }
-        cell.addEventListener('click', function () { sel = key === sel ? null : key; draw(); });
+        cell.addEventListener('click', function () { st.sel = key === sel ? null : key; draw(); });
         grid.appendChild(cell);
       })(d);
-      var shown = sel ? eventsOn(sel) : DATA.events.filter(function (e) { var m = iso(year, month, 1), n = iso(year, month, days); return (e.end || e.date) >= m && e.date <= n; })
+      var shown = sel ? eventsOn(sel) : allEvents().filter(function (e) { var m = iso(year, month, 1), n = iso(year, month, days); return (e.end || e.date) >= m && e.date <= n; })
         .sort(function (a, b) { return a.date < b.date ? -1 : 1; });
       var title = sel ? fmt(sel) : (month + 1) + '월 일정';
       var rows = shown.length ? shown.map(function (e) {
         var when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
-        return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: e.title }), h('div', { class: 'ev-sub' }, [h('b', { text: when }), e.note ? ' · ' + e.note : ''])].concat(evExtras(e))), ddayBadge(e)]);
+        return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title' }, [e.title, myBadge(e)]), h('div', { class: 'ev-sub' }, [h('b', { text: when }), e.note ? ' · ' + e.note : ''])].concat(evExtras(e)).concat([myDelBtn(e)])), ddayBadge(e)]);
       }) : [h('div', { class: 'empty', text: '이 날은 일정이 없어요.' })];
       wrap.appendChild(top);
       wrap.appendChild(h('div', { class: 'card-b' }, [grid, h('div', { class: 'cal-list-t', text: title })].concat(rows)));
@@ -282,6 +390,78 @@
     });
   }
 
+  // ---------- 교사 도구 ----------
+  function tApi(path, body) {
+    return fetch('/api/teacher/' + path, { method: body ? 'POST' : 'GET', headers: { authorization: 'Bearer ' + (load('tok26') || ''), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().then(function (j) { j._ok = r.ok; return j; }); });
+  }
+  function renderTeacher() {
+    var p = document.getElementById('panel-teacher'); clear(p);
+    p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: DATA.me.name + ' 선생님, 안녕하세요 👋' }), h('div', { class: 'greet-s', text: DATA.className + ' 교사 도구' })]));
+
+    // 1) 일정·공지 올리기
+    var kind = h('select', { class: 'field', 'aria-label': '종류' }, [h('option', { value: 'event', text: '일정 (날짜 있음)' }), h('option', { value: 'notice', text: '공지 (날짜 없음)' })]);
+    var title = h('input', { class: 'field', type: 'text', maxlength: '80', placeholder: '제목 (예: 수행평가 제출)' });
+    var date = h('input', { class: 'field', type: 'date', 'aria-label': '날짜' });
+    var end = h('input', { class: 'field', type: 'date', 'aria-label': '끝나는 날(선택)' });
+    var note = h('input', { class: 'field', type: 'text', maxlength: '120', placeholder: '메모 / 공지 내용 (선택)' });
+    var link = h('input', { class: 'field', type: 'url', placeholder: '링크 (선택, https://…)' });
+    var msg = h('div', { class: 'badmsg' }), post = h('button', { class: 'btn', type: 'button', text: '올리기' });
+    var dateRow = h('div', null, [h('label', { class: 'af-l' }, ['날짜', date]), h('label', { class: 'af-l' }, ['끝나는 날 (여러 날일 때만)', end])]);
+    kind.addEventListener('change', function () { dateRow.hidden = kind.value === 'notice'; });
+    post.addEventListener('click', function () {
+      msg.textContent = '';
+      if (!title.value.trim()) { msg.textContent = '제목을 넣어 주세요.'; return; }
+      if (kind.value === 'event' && !date.value) { msg.textContent = '날짜를 골라 주세요.'; return; }
+      var body = { op: 'add', kind: kind.value, title: title.value, link: link.value || undefined };
+      if (kind.value === 'event') { body.date = date.value; body.end = end.value || undefined; body.note = note.value; } else body.text = note.value;
+      post.disabled = true;
+      tApi('content', body).then(function (j) {
+        post.disabled = false;
+        if (!j._ok) { msg.textContent = '올리지 못했어요. 입력을 확인해 주세요.'; return; }
+        return fetch('/api/data', { headers: { authorization: 'Bearer ' + load('tok26') }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) { DATA = d; renderTeacher(); renderToday(); });
+      }).catch(function () { post.disabled = false; msg.textContent = '연결에 실패했어요.'; });
+    });
+    p.appendChild(h('div', { class: 'card' }, [head('POST', '일정·공지 올리기'), h('div', { class: 'card-b' }, [kind, title, dateRow, note, link, msg, post,
+      h('div', { class: 'note-sm', text: '올리면 학생 화면의 일정·공지에 바로 나와요. (참여자 명단·자세한 공고문은 아직 직접 요청해 주세요)' })])]));
+
+    // 2) 올라간 일정·공지 관리
+    var mk = [];
+    (DATA.notices || []).forEach(function (n) { mk.push({ k: 'notice', title: n.title, sub: '공지' + (n.text ? ' · ' + n.text : '') }); });
+    DATA.events.slice().sort(function (x, y) { return x.date < y.date ? -1 : 1; }).forEach(function (e) { mk.push({ k: 'event', title: e.title, date: e.date, sub: fmt(e.date) + (e.end ? '~' + fmt(e.end) : '') + (e.note ? ' · ' + e.note : '') }); });
+    p.appendChild(h('div', { class: 'card' }, [head('MANAGE', '올라간 일정·공지'), h('div', { class: 'card-b' }, mk.map(function (m) {
+      var del = h('button', { class: 'linkbtn del-b', type: 'button', text: '삭제' });
+      del.addEventListener('click', function () {
+        if (!confirm('"' + m.title + '"을(를) 지울까요? 학생 화면에서도 사라져요.')) return;
+        tApi('content', { op: 'delete', kind: m.k, title: m.title, date: m.date }).then(function () {
+          return fetch('/api/data', { headers: { authorization: 'Bearer ' + load('tok26') }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) { DATA = d; renderTeacher(); renderToday(); });
+        });
+      });
+      return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: m.title }), h('div', { class: 'ev-sub', text: m.sub })]), del]);
+    }))]));
+
+    // 3) 학생 현황 · 비밀번호 초기화
+    var box = h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '불러오는 중…' })]);
+    p.appendChild(h('div', { class: 'card' }, [head('STUDENTS', '학생 현황'), box]));
+    function drawStudents() {
+      tApi('students').then(function (j) {
+        clear(box); if (!j.students) { box.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요.' })); return; }
+        var on = j.students.filter(function (s) { return s.active; }).length;
+        box.appendChild(h('div', { class: 'note-sm', text: '가입(비밀번호 설정) ' + on + ' / ' + j.students.length + '명 · 비밀번호를 잊은 학생은 초기화해 주세요. 초기화하면 그 학생은 반 코드로 다시 설정하고, 저장한 점수는 사라져요.' }));
+        j.students.forEach(function (s) {
+          var rst = h('button', { class: 'linkbtn del-b', type: 'button', text: '초기화' }); rst.disabled = !s.active;
+          rst.addEventListener('click', function () {
+            if (!confirm(s.n + '번 ' + s.name + ' 학생의 비밀번호를 초기화할까요?')) return;
+            tApi('reset', { n: s.n }).then(drawStudents);
+          });
+          box.appendChild(h('div', { class: 'srow' }, [h('span', { class: 'srow-n', text: s.n + '번' }), h('span', { class: 'srow-name', text: s.name }),
+            h('span', { class: 'srow-st' + (s.active ? ' on' : ''), text: s.active ? '가입함' : '아직' }), rst]));
+        });
+      });
+    }
+    drawStudents();
+  }
+
   // ---------- 더보기 (업데이트 내역 · 만든 사람) ----------
   var KIND = { feature: ['새 기능', 'new'], design: ['디자인', 'design'], fix: ['수정', 'fix'] };
   function renderMore() {
@@ -309,12 +489,18 @@
         h('li', null, [h('b', { text: '서버 저장 ' }), '읽을 수 없는 암호문만 저장돼요. 점수·선택과목은 저장 전에 이미 암호화돼요.']),
         h('li', null, [h('b', { text: '비밀번호 분실 ' }), '키를 복구할 방법이 없어서, 초기화하면 저장된 점수는 사라지고 다시 입력해야 해요.']),
         h('li', null, [h('b', { text: '주의 ' }), '내 비밀번호를 아는 사람은 볼 수 있어요. 비밀번호는 나만 알고 있어야 해요.'])
-      ])
+      ].concat(parseInt(load('pwlen26') || '99', 10) < 6 ? [h('li', { class: 'weak' }, [h('b', { text: '⚠ 약한 비밀번호 ' }), '지금 비밀번호가 6자 미만이라 암호가 약해요. 짧은 비밀번호는 시간을 들이면 풀릴 수 있어서, 6자 이상으로 바꾸는 걸 권장해요. (담당자에게 초기화 요청 후 다시 설정)'])] : []))
     ]);
   }
 
   // ---------- 내 정보 (선택과목) ----------
   function myElectives() { var v = prefLoad().el2; return Array.isArray(v) ? v : []; }
+  var SEM_CARDS = [
+    { eyebrow: '2학년 · 지금', title: '2학기', open: true, groups: [['el2', 'sem2']] },
+    { eyebrow: '3학년 · 내년', title: '3학년 1학기', groups: [['y3s1', 'y3s1'], ['y3s1art', 'y3s1art']] },
+    { eyebrow: '3학년 · 내년', title: '3학년 2학기', groups: [['y3s2', 'y3s2'], ['y3s2lib', 'y3s2lib']] },
+    { eyebrow: '2학년 · 지난 학기', title: '1학기', groups: [['el1', 'sem1'], ['el1lib', 'liberal']] }
+  ];
   function renderMe() {
     var p = document.getElementById('panel-me'); if (!p || !DATA) return; clear(p);
     var E = window.ELECTIVES, me = DATA.me, prefs = prefLoad();
@@ -328,57 +514,102 @@
       secureNote(!!load('gk26'))
     ])]));
 
-    function picker(key, def, open) {
-      var sel = (Array.isArray(prefs[key]) ? prefs[key] : []).slice(), body = h('div', { class: 'el-body' });
-      var count = h('span', { class: 'el-count' });
-      var btns = [];
-      function update() {
-        count.textContent = sel.length + ' / ' + def.pick + ' 선택';
-        btns.forEach(function (x) {
-          var on = sel.indexOf(x.o.n) >= 0, full = !on && sel.length >= def.pick;
-          x.b.classList.toggle('on', on); x.b.classList.toggle('dis', full); x.b.setAttribute('aria-pressed', on ? 'true' : 'false');
-        });
+    // 한 학기 = 한 카드. 선택과목·교양(예술)은 칸을 나눠서 따로 고름
+    function semCard(cfg) {
+      var count = h('span', { class: 'el-count' }), sels = {}, groups = [];
+      var content = h('div', { class: 'el-body' });
+      function total() {
+        var need = 0, have = 0;
+        groups.forEach(function (g) { need += g.def.pick; have += Math.min(sels[g.key].length, g.def.pick); });
+        count.textContent = have + ' / ' + need + ' 선택';
       }
-      function draw() {
-        clear(body); btns = [];
+      cfg.groups.forEach(function (gc, gi) {
+        var key = gc[0], def = E[gc[1]];
+        var sel = (Array.isArray(prefs[key]) ? prefs[key] : []).slice(); sels[key] = sel; groups.push({ key: key, def: def });
+        var gcount = h('span', { class: 'el-gcount' }), btns = [];
+        function update() {
+          gcount.textContent = sel.length + ' / ' + def.pick;
+          btns.forEach(function (x) {
+            var on = sel.indexOf(x.o.n) >= 0, full = !on && sel.length >= def.pick;
+            x.b.classList.toggle('on', on); x.b.classList.toggle('dis', full); x.b.setAttribute('aria-pressed', on ? 'true' : 'false');
+          });
+          total();
+        }
+        var sec = h('div', { class: 'el-sec' }, [h('div', { class: 'el-sh' }, [h('div', null, [h('b', { text: def.title }), h('small', { text: '택' + def.pick + ' · ' + def.credits + '학점' })]), gcount])]);
         var byG = {}, order = [];
         def.options.forEach(function (o) { if (!byG[o.g]) { byG[o.g] = []; order.push(o.g); } byG[o.g].push(o); });
         order.forEach(function (g) {
-          body.appendChild(h('div', { class: 'el-g', text: g }));
+          sec.appendChild(h('div', { class: 'el-g', text: g }));
           var wrap = h('div', { class: 'el-chips' });
           byG[g].forEach(function (o) {
             var b = h('button', { class: 'el-chip', type: 'button', 'aria-pressed': 'false', text: o.n });
             if (key === 'el2' && gcNames[normName(o.n)]) b.appendChild(h('i', { class: 'el-dot', title: '등급컷 자료 있음' }));
             b.addEventListener('click', function () {
               var on = sel.indexOf(o.n) >= 0, full = !on && sel.length >= def.pick;
-              if (on) sel = sel.filter(function (x) { return x !== o.n; });
-              else if (!full) sel.push(o.n); else return;
-              prefs[key] = sel; prefSave(prefs); update(); syncCta();
+              if (on) sel.splice(sel.indexOf(o.n), 1); else if (!full) sel.push(o.n); else return;
+              prefs[key] = sel; prefSave(prefs); update();
               if (key === 'el2') {
-                GC_STATE = GC_STATE === 'done' ? 'dirty' : GC_STATE; renderHome(); refreshTable();
+                syncCta(); GC_STATE = GC_STATE === 'done' ? 'dirty' : GC_STATE; renderHome(); refreshTable();
+                if (typeof drawBlocks === 'function') { drawBlocks(); refreshWeekly(); }
                 // 5개를 다 고르면 바로 내 시간표로 (칩이 눌리는 모션이 보이도록 잠깐 뒤에)
                 if (sel.length === def.pick) setTimeout(function () { goTab('exam'); setTimeout(function () { jumpTo('sec-table'); }, 80); }, 650);
               }
             });
             btns.push({ o: o, b: b }); wrap.appendChild(b);
           });
-          body.appendChild(wrap);
+          sec.appendChild(wrap);
         });
-        update();
+        update(); content.appendChild(sec);
+      });
+      var cta = null;
+      if (cfg.open) {
+        cta = h('button', { class: 'btn el-cta', type: 'button', text: '내 시간표 확인하기 →' });
+        cta.addEventListener('click', function () { goTab('exam'); setTimeout(function () { jumpTo('sec-table'); }, 80); });
       }
-      draw();
-      var cta = h('button', { class: 'btn el-cta', type: 'button', text: '내 시간표 확인하기 →' });
-      cta.addEventListener('click', function () { goTab('exam'); setTimeout(function () { jumpTo('sec-table'); }, 80); });
-      var box = h('details', { class: 'card el-card' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: def.credits + '학점 · 택' + def.pick }), h('h2', { text: def.title })]), count]), body, key === 'el2' ? cta : null]);
-      function syncCta() { cta.hidden = sel.length < def.pick; }
+      function syncCta() { if (cta) cta.hidden = (sels.el2 || []).length < 5; }
       syncCta();
-      if (open) box.setAttribute('open', '');
+      var box = h('details', { class: 'card el-card' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: cfg.eyebrow }), h('h2', { text: cfg.title })]), count]), content, cta]);
+      if (cfg.open) box.setAttribute('open', '');
+      total();
       return box;
     }
-    p.appendChild(picker('el2', E.sem2, true));
+    p.appendChild(semCard(SEM_CARDS[0]));
     p.appendChild(h('div', { class: 'note-sm el-hint', text: '파란 점이 있는 과목은 등급컷 자료가 있어요. 고른 과목은 등급컷 탭과 기말 목표 계산기에 먼저 나와요.' }));
-    p.appendChild(picker('el1', E.sem1, false));
-    p.appendChild(picker('el1lib', E.liberal, false));
+
+    // 선택과목 반(A~E): 고른 과목마다 몇 반인지
+    var blkCard = h('div', { class: 'card' });
+    function drawBlocks() {
+      clear(blkCard);
+      var mine = myElectives(), bl = prefLoad().blocks || {};
+      blkCard.appendChild(h('div', { class: 'el-sum', style: 'cursor:default' }, [h('div', null, [h('div', { class: 'eyebrow', text: 'A ~ E' }), h('h2', { text: '내 선택과목 반' })]),
+        h('span', { class: 'el-count', text: blocksAssigned() + ' / ' + Math.max(mine.length, 1) + ' 정함' })]));
+      var body = h('div', { class: 'el-body' });
+      if (!mine.length) body.appendChild(h('div', { class: 'note-sm', text: '위에서 2학기 선택과목을 먼저 골라 주세요.' }));
+      else {
+        body.appendChild(h('div', { class: 'note-sm', text: '시간표의 A~E 중 과목마다 내 반을 골라 주세요. 한 글자는 한 과목만 쓸 수 있어요.' }));
+        mine.forEach(function (name) {
+          var row = h('div', { class: 'blk-row' }, [h('div', { class: 'blk-n', text: name })]);
+          var chips = h('div', { class: 'blk-chips' });
+          ['A', 'B', 'C', 'D', 'E'].forEach(function (L) {
+            var on = bl[name] === L, usedBy = Object.keys(bl).filter(function (n) { return n !== name && bl[n] === L && mine.indexOf(n) >= 0; })[0];
+            var b = h('button', { class: 'el-chip blk' + (on ? ' on' : '') + (usedBy ? ' dis' : ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', text: L, title: usedBy ? usedBy + '이(가) 사용 중' : '' });
+            b.addEventListener('click', function () {
+              var p2 = prefLoad(), m2 = p2.blocks || {};
+              if (m2[name] === L) delete m2[name]; else { Object.keys(m2).forEach(function (n) { if (m2[n] === L) delete m2[n]; }); m2[name] = L; }
+              p2.blocks = m2; prefSave(p2); drawBlocks(); refreshWeekly(); renderHome();
+            });
+            chips.appendChild(b);
+          });
+          row.appendChild(chips); body.appendChild(row);
+        });
+      }
+      blkCard.appendChild(body);
+    }
+    drawBlocks();
+    p.appendChild(blkCard);
+
+    p.appendChild(h('div', { class: 'el-next', text: '내년 · 지난 학기' }));
+    SEM_CARDS.slice(1).forEach(function (c) { p.appendChild(semCard(c)); });
     var out = h('button', { class: 'btn out', type: 'button', text: '로그아웃' });
     out.addEventListener('click', function () { document.getElementById('logoutBtn').click(); });
     p.appendChild(out);
@@ -630,13 +861,14 @@
   }
   function renderToday() {
     var p = document.getElementById('panel-today'); clear(p);
-    var upcoming = DATA.events.filter(function (e) { return diffDays(e.end || e.date, TODAY) >= 0; })
-      .sort(function (a, b) { return toUTC(a.date) - toUTC(b.date); });
+    var byDate = function (a, b) { return toUTC(a.date) - toUTC(b.date); };
+    var base = DATA.events.filter(function (e) { return diffDays(e.end || e.date, TODAY) >= 0; }).sort(byDate);   // 반 공통 일정(헤더용)
+    var upcoming = allEvents().filter(function (e) { return diffDays(e.end || e.date, TODAY) >= 0; }).sort(byDate);   // 내 일정 포함
     var hot = upcoming.filter(function (e) { return diffDays(e.date, TODAY) <= 7; });
     var rest = upcoming.filter(function (e) { return diffDays(e.date, TODAY) > 7; });
 
     // 포스터식 요소: 오늘 체크 띠 + 스타버스트(가장 가까운 일정)
-    var nx = upcoming[0], burst = document.getElementById('burst');
+    var nx = base[0], burst = document.getElementById('burst');
     if (nx) {
       var nd = diffDays(nx.date, TODAY), nb = ddayBadge(nx);
       burst.hidden = false; clear(burst);
@@ -648,8 +880,9 @@
       var d = diffDays(e.date, TODAY);
       var when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
       var sub = h('div', { class: 'ev-sub' }, [h('b', { text: d === 0 ? '오늘 ' + when : when }), e.note ? ' · ' + e.note : '']);
-      var main = h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: e.title }), sub]);
+      var main = h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title' }, [e.title, myBadge(e)]), sub]);
       evExtras(e).forEach(function (x) { main.appendChild(x); });
+      var dl = myDelBtn(e); if (dl) main.appendChild(dl);
       return h('div', { class: 'ev' }, [main, ddayBadge(e)]);
     }
 
@@ -661,18 +894,28 @@
     body.push(h('div', { class: 'elect', text: '📣 ' + DATA.electiveNote }));
     var listCard = h('div', { class: 'card' }, [head('SCHEDULE', '수행·시험 일정'), h('div', { class: 'card-b' }, body)]);
     var calCard = buildCalendar();
-    calCard.hidden = true;
     var seg = h('div', { class: 'seg' });
-    [['목록', listCard], ['캘린더', calCard]].forEach(function (v, i) {
-      var b = h('button', { class: 'seg-b', type: 'button', text: v[0], 'aria-pressed': i === 0 ? 'true' : 'false' });
+    var weeklyCard = buildWeeklyCard();
+    var VIEWS = ['list', 'cal', 'week'], vi = Math.max(0, VIEWS.indexOf(todayView));
+    listCard.hidden = vi !== 0; calCard.hidden = vi !== 1; weeklyCard.hidden = vi !== 2;
+    [['목록', listCard], ['캘린더', calCard], ['주간 시간표', weeklyCard]].forEach(function (v, i) {
+      var b = h('button', { class: 'seg-b', type: 'button', text: v[0], 'aria-pressed': i === vi ? 'true' : 'false' });
       b.addEventListener('click', function () {
-        listCard.hidden = v[1] !== listCard; calCard.hidden = v[1] !== calCard;
+        todayView = VIEWS[i];
+        listCard.hidden = v[1] !== listCard; calCard.hidden = v[1] !== calCard; weeklyCard.hidden = v[1] !== weeklyCard;
         Array.prototype.forEach.call(seg.children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
       });
       seg.appendChild(b);
     });
+    var addBtn = h('button', { class: 'linkbtn add-ev', type: 'button', text: '＋ 내 일정 추가' });
+    var formSlot = h('div');
+    addBtn.addEventListener('click', function () {
+      if (formSlot.firstChild) { clear(formSlot); return; }
+      formSlot.appendChild(addEventForm(calState && calState.sel ? calState.sel : ''));
+    });
     var nc = noticesCard(); if (nc) p.appendChild(nc);
-    p.appendChild(seg); p.appendChild(listCard); p.appendChild(calCard);
+    p.appendChild(h('div', { class: 'seg-row' }, [seg, addBtn])); p.appendChild(formSlot);
+    p.appendChild(listCard); p.appendChild(calCard); p.appendChild(weeklyCard);
   }
 
   // ---------- 기말 시간표 ----------
@@ -848,10 +1091,19 @@
     DATA = data;
     document.body.classList.remove('locked');
     document.body.classList.add('enter'); setTimeout(function () { document.body.classList.remove('enter'); }, 1600);
-    var who = document.getElementById('who'); who.hidden = false; who.textContent = DATA.me.name + ' · ' + DATA.me.n + '번';
+    var who = document.getElementById('who'); who.hidden = false;
+    var isT = DATA.me.role === 'teacher';
+    who.textContent = isT ? DATA.me.name + ' 선생님' : DATA.me.name + ' · ' + DATA.me.n + '번';
+    document.body.classList.toggle('teacher', isT);
     var d = new Date(TODAY);
     document.getElementById('todayLabel').textContent = (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + DOW[d.getUTCDay()] + ')';
     document.getElementById('updated').textContent = DATA.className + ' 알림장 · 마지막 업데이트 ' + fmt(DATA.updated);
+    if (isT) {   // 교사 계정: 학생 전용 화면(홈·기말고사·등급컷·내 정보)은 만들지 않음
+      renderMore(); renderToday(); renderTeacher();
+      var ts = (location.hash || '').replace('#', '');
+      selectTab(['teacher', 'today', 'more'].indexOf(ts) >= 0 ? ts : 'teacher');
+      return;
+    }
     clear(document.getElementById('panel-exam'));
     renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
     tagExamCards();
@@ -885,7 +1137,7 @@
         if (j.status === 429) { btn.disabled = false; err.textContent = '많이 틀렸어요. 10분 뒤에 다시 시도하세요.'; }
         else if (j.status !== 200) { btn.disabled = false; err.textContent = '이름·번호·비밀번호가 맞지 않아요.'; }
         else if (j.setup) showSetup(j.token, parseInt(numIn.value, 10));
-        else { store('tok26', j.token); rememberKey(pwIn.value, parseInt(numIn.value, 10)).then(loadData); }
+        else { store('tok26', j.token); store('pwlen26', String(pwIn.value.length)); rememberKey(pwIn.value, parseInt(numIn.value, 10)).then(loadData); }
       }).catch(function () { btn.disabled = false; err.textContent = '연결에 실패했어요. 다시 시도하세요.'; });
     }
     btn.addEventListener('click', go);
@@ -894,22 +1146,22 @@
   }
 
   function showSetup(setupToken, num) {
-    var p1 = h('input', { type: 'password', class: 'login-in', placeholder: '새 비밀번호 (6자 이상)', autocomplete: 'new-password' });
+    var p1 = h('input', { type: 'password', class: 'login-in', placeholder: '새 비밀번호 (4자 이상)', autocomplete: 'new-password' });
     var p2 = h('input', { type: 'password', class: 'login-in', placeholder: '새 비밀번호 확인', autocomplete: 'new-password' });
     var err = h('div', { class: 'empty', text: '' });
     var btn = h('button', { class: 'btn', type: 'button', text: '비밀번호 정하고 입장' });
     function go() {
-      if (p1.value.length < 6) { err.textContent = '6자 이상으로 정하세요.'; return; }
+      if (p1.value.length < 4) { err.textContent = '4자 이상으로 정하세요.'; return; }
       if (p1.value !== p2.value) { err.textContent = '두 번 입력한 비밀번호가 달라요.'; return; }
       btn.disabled = true;
       api('/api/setpw', { token: setupToken, password: p1.value }).then(function (j) {
-        if (j.status === 200) { store('tok26', j.token); rememberKey(p1.value, num).then(loadData); }
+        if (j.status === 200) { store('tok26', j.token); store('pwlen26', String(p1.value.length)); rememberKey(p1.value, num).then(loadData); }
         else { btn.disabled = false; err.textContent = '시간이 지났어요. 처음부터 다시 입장하세요.'; }
       }).catch(function () { btn.disabled = false; err.textContent = '연결에 실패했어요.'; });
     }
     btn.addEventListener('click', go);
     p2.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
-    card([h('div', { class: 'login-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '비밀번호 설정' })]), h('div', { class: 'login-sub', text: '반 코드 확인 완료! 나만의 비밀번호를 정하세요. 다음부터는 이 비밀번호로 입장해요. (잊어버리면 담당자에게 초기화 요청)' }), p1, p2, btn, err]);
+    card([h('div', { class: 'login-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '비밀번호 설정' })]), h('div', { class: 'login-sub', text: '반 코드 확인 완료! 나만의 비밀번호를 정하세요. 다음부터는 이 비밀번호로 입장해요. (잊어버리면 담당자에게 초기화 요청)' }), p1, p2, h('div', { class: 'note-sm', text: '4자리 숫자도 가능해요. 다만 짧을수록 남이 맞히기 쉽고, 내 점수 암호도 약해져요. 6자 이상을 권장해요.' }), btn, err]);
   }
 
   function loadData() {
