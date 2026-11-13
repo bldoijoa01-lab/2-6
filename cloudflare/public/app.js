@@ -1112,7 +1112,7 @@
     function drawSummary() {
       clear(summary);
       var t = nsTotal(sems);
-      var per = NS_SEMS.map(function (sm) { var r = semAvg(nsRows(sems, sm[0])); return h('div', { class: 'ns-per' }, [h('small', { text: sm[1] }), h('b', { text: r.avg == null ? '-' : nsFmt(r.avg) })]); });
+      var per = NS_SEMS.map(function (sm) { var r = semAvg(nsRows(sems, sm[0])), c9 = conv9(r.avg); return h('div', { class: 'ns-per' }, [h('small', { text: sm[1] }), h('b', { text: r.avg == null ? '-' : nsFmt(r.avg) }), h('em', { text: c9 ? '9등급 ' + c9.min.toFixed(2) + '~' + c9.max.toFixed(2) : '' })]); });
       var kids = [h('div', { class: 'eyebrow', text: '총 내신 평균 (단위수 가중)' }), h('div', { class: 'ns-avg', text: nsFmt(t.avg) }),
         h('div', { class: 'note-sm', text: t.avg == null ? '아래에 등급을 넣으면 계산돼요.' : t.sems + '개 학기 · 반영 ' + t.credits + '단위' }), h('div', { class: 'ns-pers' }, per), c9card(t.avg)];
       // 이번 학기(2-2) 가정: 아직 등급이 없는 학기의 평균을 가정해서 총 평균을 미리 보기
@@ -1132,9 +1132,9 @@
     function drawCards() {
       clear(cards);
       NS_SEMS.forEach(function (sm, si) {
-        var key = sm[0], rows = nsRows(sems, key), avgEl = h('span', { class: 'ns-savg' }), meta = h('span', { class: 'el-gcount' });
+        var key = sm[0], rows = nsRows(sems, key), avgEl = h('span', { class: 'ns-savg' }), c9El = h('small', { class: 'ns-c9' }), meta = h('span', { class: 'el-gcount' });
         var list = h('div', { class: 'ns-rows' }), panelOpen = null;   // 선택과목 추가 패널: 여러 개 고르는 동안 열린 채로 유지
-        function head2() { var r = semAvg(rows); avgEl.textContent = r.avg == null ? '-' : nsFmt(r.avg); meta.textContent = r.credits + '단위'; }
+        function head2() { var r = semAvg(rows), c9 = conv9(r.avg); avgEl.textContent = r.avg == null ? '-' : nsFmt(r.avg); c9El.textContent = c9 ? '9등급제 ' + c9.min.toFixed(2) + ' ~ ' + c9.max.toFixed(2) : ''; meta.textContent = r.credits + '단위'; }
         function save() { sems[key] = rows; persist(); head2(); }
         function drawRows() {
           clear(list);
@@ -1192,7 +1192,7 @@
           }
         }
         head2(); drawRows();
-        var box = h('details', { class: 'card el-card' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: key + ' · 평균' }), h('h2', null, [sm[1] + ' ', avgEl])]), meta]), h('div', { class: 'el-body' }, [list])]);
+        var box = h('details', { class: 'card el-card' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: key + ' · 평균' }), h('h2', null, [sm[1] + ' ', avgEl]), c9El]), meta]), h('div', { class: 'el-body' }, [list])]);
         if (si >= 2) box.setAttribute('open', '');
         cards.appendChild(box);
       });
