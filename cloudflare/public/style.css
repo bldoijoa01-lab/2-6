@@ -709,3 +709,22 @@ html::after{content:""; position:fixed; inset:0; z-index:-2; pointer-events:none
 body::before{background:radial-gradient(circle,var(--blob1) 0%,color-mix(in srgb,var(--blob1) 62%,transparent) 22%,color-mix(in srgb,var(--blob1) 30%,transparent) 42%,color-mix(in srgb,var(--blob1) 10%,transparent) 60%,transparent 76%)}
 body::after{background:radial-gradient(circle,var(--blob2) 0%,color-mix(in srgb,var(--blob2) 62%,transparent) 22%,color-mix(in srgb,var(--blob2) 30%,transparent) 42%,color-mix(in srgb,var(--blob2) 10%,transparent) 60%,transparent 76%)}
 .wrap::before{background:radial-gradient(circle,var(--blob3) 0%,color-mix(in srgb,var(--blob3) 60%,transparent) 25%,color-mix(in srgb,var(--blob3) 24%,transparent) 48%,transparent 72%)}
+
+/* ===== 배경 단순화(최종): 화면에 고정된 큰 층(position:fixed 의사요소·blur·애니메이션)을 모두 없애고, 배경을 페이지 자체에 그림 =====
+   iOS 는 주소창이 줄었다 늘었다 할 때 고정 층에 틈/줄이 생기고, 큰 변환 층은 타일 경계가 보일 수 있어서 */
+html::before,html::after,body::before,body::after,.wrap::before{content:none !important; display:none !important; animation:none !important}
+html{
+  min-height:100%;
+  background-color:var(--bg2);
+  background-repeat:repeat,no-repeat,no-repeat,no-repeat,no-repeat;
+  background-size:180px 180px,60vmax 46vmax,56vmax 44vmax,64vmax 48vmax,100% 100%;
+  background-position:0 0,0% 0%,100% 16%,100% 100%,0 0;
+  background-attachment:scroll;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='180' height='180'><filter id='n' x='0' y='0' width='100%25' height='100%25'><feTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='1 0 0 0 0  1 0 0 0 0  1 0 0 0 0  0 0 0 0 .07'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>"),
+    radial-gradient(closest-side,var(--blob1),color-mix(in srgb,var(--blob1) 45%,transparent) 45%,transparent 100%),
+    radial-gradient(closest-side,var(--blob3),color-mix(in srgb,var(--blob3) 45%,transparent) 45%,transparent 100%),
+    radial-gradient(closest-side,var(--blob2),color-mix(in srgb,var(--blob2) 45%,transparent) 45%,transparent 100%),
+    linear-gradient(180deg,var(--bg1),var(--bg2) 55%,var(--bg3));
+}
+body{background:transparent}
