@@ -342,7 +342,11 @@
               if (on) sel = sel.filter(function (x) { return x !== o.n; });
               else if (!full) sel.push(o.n); else return;
               prefs[key] = sel; prefSave(prefs); update(); syncCta();
-              if (key === 'el2') { GC_STATE = GC_STATE === 'done' ? 'dirty' : GC_STATE; renderHome(); refreshTable(); }
+              if (key === 'el2') {
+                GC_STATE = GC_STATE === 'done' ? 'dirty' : GC_STATE; renderHome(); refreshTable();
+                // 5개를 다 고르면 바로 내 시간표로 (칩이 눌리는 모션이 보이도록 잠깐 뒤에)
+                if (sel.length === def.pick) setTimeout(function () { goTab('exam'); setTimeout(function () { jumpTo('sec-table'); }, 80); }, 650);
+              }
             });
             btns.push({ o: o, b: b }); wrap.appendChild(b);
           });
@@ -351,8 +355,8 @@
         update();
       }
       draw();
-      var cta = h('button', { class: 'btn el-cta', type: 'button', text: '등급컷 보러 가기 →' });
-      cta.addEventListener('click', function () { goTab('grade'); });
+      var cta = h('button', { class: 'btn el-cta', type: 'button', text: '내 시간표 확인하기 →' });
+      cta.addEventListener('click', function () { goTab('exam'); setTimeout(function () { jumpTo('sec-table'); }, 80); });
       var box = h('details', { class: 'card el-card' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: def.credits + '학점 · 택' + def.pick }), h('h2', { text: def.title })]), count]), body, key === 'el2' ? cta : null]);
       function syncCta() { cta.hidden = sel.length < def.pick; }
       syncCta();
