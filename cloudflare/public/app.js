@@ -16,6 +16,7 @@
     });
     return el;
   }
+  function head(eyebrow, title) { return h('div', { class: 'card-h' }, [h('div', { class: 'eyebrow', text: eyebrow }), h('h2', { text: title })]); }
   function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
 
   var DOW = ['일', '월', '화', '수', '목', '금', '토'];
@@ -42,6 +43,17 @@
     try { history.replaceState(null, '', '#' + name); } catch (e) {}
   }
   tabs.forEach(function (t) { t.addEventListener('click', function () { selectTab(t.getAttribute('data-tab')); }); });
+
+  // ---------- 테마 ----------
+  (function () {
+    var btn = document.getElementById('themeBtn'), root = document.documentElement;
+    function apply(t) { if (t) root.setAttribute('data-theme', t); else root.removeAttribute('data-theme'); }
+    try { apply(localStorage.getItem('theme26')); } catch (e) {}
+    btn.addEventListener('click', function () {
+      var dark = root.getAttribute('data-theme') ? root.getAttribute('data-theme') === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches;
+      var t = dark ? 'light' : 'dark'; apply(t); try { localStorage.setItem('theme26', t); } catch (e) {}
+    });
+  })();
 
   // ---------- 오늘 ----------
   function ddayBadge(ev) {
@@ -80,7 +92,7 @@
     if (rest.length) { body.push(h('div', { class: 'tag blue', text: '📌 좀중요' })); rest.forEach(function (e) { body.push(evRow(e)); }); }
     if (!upcoming.length) body.push(h('div', { class: 'empty', text: '예정된 일정이 없어요. 평화 ✌️' }));
     body.push(h('div', { class: 'elect', text: '📣 ' + DATA.electiveNote }));
-    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-h', text: '수행·시험 일정' }), h('div', { class: 'card-b' }, body)]));
+    p.appendChild(h('div', { class: 'card' }, [head('SCHEDULE', '수행·시험 일정'), h('div', { class: 'card-b' }, body)]));
   }
 
   // ---------- 기말 시간표 ----------
@@ -104,13 +116,13 @@
       h('div', { class: 'scroll-hint', text: '← 옆으로 밀어서 보기 →' }),
       h('div', { class: 'tt-wrap' }, [table]),
       h('div', { class: 'legend' }, [
-        h('span', { class: 'lg' }, [h('i', { style: 'background:var(--blue)' }), '공통']),
-        h('span', { class: 'lg' }, [h('i', { style: 'background:var(--lime)' }), '선택 ( / = 둘 중 내 과목 )']),
-        h('span', { class: 'lg' }, [h('i', { style: 'background:#ddd' }), '자습'])
+        h('span', { class: 'lg' }, [h('i', { style: 'background:var(--blue-t)' }), '공통']),
+        h('span', { class: 'lg' }, [h('i', { style: 'background:var(--green-t)' }), '선택 ( / = 둘 중 내 과목 )']),
+        h('span', { class: 'lg' }, [h('i', { style: 'background:var(--gray-t)' }), '자습'])
       ]),
       h('div', { class: 'note-sm' }, [morning + ' · 점심 있음 (', h('b', { text: fmt(ex.noLunchDate) + '만 점심 없음' }), ')'])
     ];
-    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-h', text: '2학기 기말고사 시간표 (2학년)' }), h('div', { class: 'card-b' }, body)]));
+    p.appendChild(h('div', { class: 'card' }, [head('EXAM TIMETABLE', '2학기 기말고사 시간표 (2학년)'), h('div', { class: 'card-b' }, body)]));
   }
 
   // ---------- 이동교실 ----------
@@ -130,7 +142,7 @@
         numOut.classList.add('go');
         numOut.appendChild(h('strong', { text: n + '번 → ' + mv.otherRoom + ' 교실로 이동!' }));
         numOut.appendChild(document.createTextNode(mv.moveTime + ' 사이에 이동 (1교시 시작 10분 전까지 도착). 책상 번호순 착석.'));
-        numOut.appendChild(h('div', { class: 'note-sm', style: 'color:#fff;margin-top:6px', text: '※ 빈 번호(자퇴·전출 등)가 있으면 앞번호 컷이 밀려요. 애매하면 담임쌤께 확인!' }));
+        numOut.appendChild(h('div', { class: 'note-sm', style: 'margin-top:6px', text: '※ 빈 번호(자퇴·전출 등)가 있으면 앞번호 컷이 밀려요. 애매하면 담임쌤께 확인!' }));
       } else {
         numOut.classList.add('stay');
         numOut.appendChild(h('strong', { text: n + '번 → 우리 교실(' + mv.ownRoom + ') 그대로!' }));
@@ -139,7 +151,7 @@
     }
     numIn.addEventListener('input', calcNum);
 
-    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-h red', text: '① 원반 이동 (2-6 ↔ 1-6)' }), h('div', { class: 'card-b' }, [
+    p.appendChild(h('div', { class: 'card' }, [head('MOVING ROOM', '① 원반 이동 (2-6 ↔ 1-6)'), h('div', { class: 'card-b' }, [
       h('div', { class: 'field-row' }, [h('label', { class: 'field-lab', for: 'numIn', text: '내 번호' }), numIn]),
       numOut,
       h('ul', { class: 'rules' }, mv.rules.map(function (r) { return h('li', { text: r }); }))
@@ -180,7 +192,7 @@
     nameIn.addEventListener('input', calcName);
     spRows('');
 
-    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-h purple', text: '② 특별실(4층) 응시 · 우리 반 명단' }), h('div', { class: 'card-b' }, [
+    p.appendChild(h('div', { class: 'card' }, [head('SPECIAL ROOM', '② 특별실(4층) 응시 · 우리 반 명단'), h('div', { class: 'card-b' }, [
       nameIn, nameOut, list, h('div', { class: 'callout', text: DATA.specialNote })
     ])]));
   }
@@ -188,7 +200,7 @@
   // ---------- 유의사항 ----------
   function renderCaution() {
     var p = document.getElementById('panel-caution'); clear(p);
-    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-h green', text: '시험 유의사항' }), h('div', { class: 'card-b' },
+    p.appendChild(h('div', { class: 'card' }, [head('NOTICE', '시험 유의사항'), h('div', { class: 'card-b' },
       DATA.cautions.map(function (c) {
         return h('div', { class: 'cau' }, [h('div', null, [h('div', { class: 'cau-t', text: c.t }), h('div', { class: 'cau-s', text: c.s })])]);
       }))]));
@@ -223,7 +235,7 @@
     var pwIn = h('input', { type: 'password', class: 'login-in', placeholder: '비밀번호 (처음이면 반 코드)', autocomplete: 'current-password' });
     nameIn.value = pre.name || ''; numIn.value = pre.number || '';
     var err = h('div', { class: 'empty', text: msg || '' });
-    var btn = h('button', { class: 'tab', type: 'button', text: '입장' });
+    var btn = h('button', { class: 'btn', type: 'button', text: '입장' });
     function go() {
       if (!nameIn.value || !numIn.value || !pwIn.value) return;
       btn.disabled = true; err.textContent = '확인 중…';
@@ -236,14 +248,14 @@
     }
     btn.addEventListener('click', go);
     pwIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
-    card([h('div', { text: '🔒 우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), nameIn, numIn, pwIn, btn, err]);
+    card([h('div', { class: 'login-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '2-6 알림장' })]), h('div', { class: 'login-sub', text: '우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), nameIn, numIn, pwIn, btn, err]);
   }
 
   function showSetup(setupToken) {
     var p1 = h('input', { type: 'password', class: 'login-in', placeholder: '새 비밀번호 (6자 이상)', autocomplete: 'new-password' });
     var p2 = h('input', { type: 'password', class: 'login-in', placeholder: '새 비밀번호 확인', autocomplete: 'new-password' });
     var err = h('div', { class: 'empty', text: '' });
-    var btn = h('button', { class: 'tab', type: 'button', text: '비밀번호 정하고 입장' });
+    var btn = h('button', { class: 'btn', type: 'button', text: '비밀번호 정하고 입장' });
     function go() {
       if (p1.value.length < 6) { err.textContent = '6자 이상으로 정하세요.'; return; }
       if (p1.value !== p2.value) { err.textContent = '두 번 입력한 비밀번호가 달라요.'; return; }
@@ -255,7 +267,7 @@
     }
     btn.addEventListener('click', go);
     p2.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
-    card([h('div', { text: '✅ 반 코드 확인! 이제 나만의 비밀번호를 정하세요. 다음부터는 이 비밀번호로 입장해요. (잊어버리면 담당자에게 초기화 요청)' }), p1, p2, btn, err]);
+    card([h('div', { class: 'login-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '비밀번호 설정' })]), h('div', { class: 'login-sub', text: '반 코드 확인 완료! 나만의 비밀번호를 정하세요. 다음부터는 이 비밀번호로 입장해요. (잊어버리면 담당자에게 초기화 요청)' }), p1, p2, btn, err]);
   }
 
   function loadData() {
