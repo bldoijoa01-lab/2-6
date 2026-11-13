@@ -767,3 +767,5 @@ body{background:transparent}
 @media (prefers-reduced-motion:reduce){ .ch-line{animation:none; stroke-dashoffset:0} .ch-dot,.ch-val,.ch-cum{animation:none; opacity:1} }
 :root[data-theme="dark"] .ch-dot{fill:#1b2140}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .ch-dot{fill:#1b2140}}
+
+.ns-nr{font-size:11.5px; font-weight:700; color:var(--mute); margin:-2px 0 2px 4px}

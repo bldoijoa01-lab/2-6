@@ -1088,12 +1088,19 @@
     '2-2': [['화법과 언어', 4], ['미적분Ⅰ', 4], ['영어Ⅱ', 4], ['스포츠과학', 1, 1], ['음악 연주와 창작/미술 창작', 2, 1]],
     '3-1': [['독서와 작문', 4], ['확률과 통계', 4], ['심화 영어', 4]]   // 단위수는 기본 4 — 다르면 카드에서 고치면 돼요
   };
+  // 2022 개정: 공통·일반선택만 석차등급(5등급제)이 나오고, 진로선택·융합선택은 성취도(A~E)만 나와요
+  function elTag(name) {
+    var E = window.ELECTIVES, nn = normName(name), t = null;
+    if (E) Object.keys(E).forEach(function (k) { (E[k].options || []).forEach(function (o) { if (t == null && normName(o.n) === nn) t = o.t || ''; }); });
+    return t;
+  }
+  function noRank(name) { var t = elTag(name); return !!t && (t.indexOf('진로') >= 0 || t.indexOf('융합') >= 0); }
   function nsLoad() { var s = (prefLoad().naesin || {}).sems; return s && typeof s === 'object' ? s : {}; }
   function nsSave(sems) { var p2 = prefLoad(); p2.naesin = { sems: sems }; prefSave(p2); }
   function nsDefault(key) {
     var rows = (NS_BASE[key] || []).map(function (r) { return { n: r[0], cr: r[1], g: 0, x: r[2] ? 1 : 0 }; });
     var pr = prefLoad(), picks = key === '2-1' ? pr.el1 : key === '2-2' ? pr.el2 : key === '3-1' ? pr.y3s1 : null;   // 내 정보에서 고른 선택과목 불러오기
-    (picks || []).forEach(function (n) { rows.push({ n: n, cr: 3, g: 0, x: 0 }); });
+    (picks || []).forEach(function (n) { rows.push({ n: n, cr: 3, g: 0, x: noRank(n) ? 1 : 0 }); });
     if (key === '2-1') (pr.el1lib || []).forEach(function (n) { rows.push({ n: n, cr: 2, g: 0, x: 1 }); });
     if (key === '3-1') (pr.y3s1art || []).forEach(function (n) { rows.push({ n: n, cr: 2, g: 0, x: 1 }); });
     return rows;
@@ -1213,7 +1220,7 @@
             });
             var del = h('button', { class: 'linkbtn del-b', type: 'button', text: '삭제', 'aria-label': r.n + ' 삭제' });
             del.addEventListener('click', function () { rows.splice(ri, 1); save(); drawRows(); });
-            list.appendChild(h('div', { class: 'ns-row' + (r.x ? ' off' : '') }, [h('div', { class: 'ns-r1' }, [nm, cr, on]), h('div', { class: 'ns-r2' }, [gs, del])]));
+            list.appendChild(h('div', { class: 'ns-row' + (r.x ? ' off' : '') }, [h('div', { class: 'ns-r1' }, [nm, cr, on]), noRank(r.n) ? h('div', { class: 'ns-nr', text: '석차등급 없음 · 성취도(A~E)만 나오는 과목' }) : null, h('div', { class: 'ns-r2' }, [gs, del])]));
           });
           // 2학년 선택과목은 내 정보에서 고르지 않았어도 여기서 바로 골라 추가할 수 있게
           if (key === '2-1' || key === '2-2' || key === '3-1') {
@@ -1228,7 +1235,7 @@
               var wg = h('div', { class: 'el-chips' });
               byG[g].forEach(function (o) {
                 var on = have(o.n), b = h('button', { class: 'el-chip' + (on ? ' on dis' : ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', text: o.n });
-                b.addEventListener('click', function () { if (have(o.n)) return; rows.push({ n: o.n, cr: o.lib ? 2 : 3, g: 0, x: o.lib ? 1 : 0 }); panelOpen = true; save(); drawRows(); });
+                b.addEventListener('click', function () { if (have(o.n)) return; rows.push({ n: o.n, cr: o.lib ? 2 : 3, g: 0, x: o.lib || noRank(o.n) ? 1 : 0 }); panelOpen = true; save(); drawRows(); });
                 wg.appendChild(b);
               });
               wrapC.appendChild(wg);
@@ -1241,12 +1248,18 @@
           var add = h('button', { class: 'linkbtn', type: 'button', text: '＋ 과목 직접 추가' });
           add.addEventListener('click', function () { rows.push({ n: '', cr: 3, g: 0, x: 0 }); save(); drawRows(); var ins = list.querySelectorAll('.ns-name'); if (ins.length) ins[ins.length - 1].focus(); });
           list.appendChild(add);
+          var inc = rows.filter(function (r) { return !r.x && noRank(r.n); });
+          if (inc.length) {
+            var ex = h('button', { class: 'linkbtn', type: 'button', text: '석차등급 없는 과목 ' + inc.length + '개 내신에서 제외' });
+            ex.addEventListener('click', function () { inc.forEach(function (r) { r.x = 1; }); save(); drawRows(); });
+            list.appendChild(ex);
+          }
           // 선택과목을 내 정보에서 새로 고른 경우 불러오기
           if (key === '2-1' || key === '2-2' || key === '3-1') {
             var picks = (prefLoad()[key === '2-1' ? 'el1' : key === '3-1' ? 'y3s1' : 'el2'] || []).filter(function (n) { return !rows.some(function (r) { return r.n === n; }); });
             if (picks.length) {
               var imp = h('button', { class: 'linkbtn', type: 'button', text: '내 선택과목 ' + picks.length + '개 불러오기' });
-              imp.addEventListener('click', function () { picks.forEach(function (n) { rows.push({ n: n, cr: 3, g: 0, x: 0 }); }); save(); drawRows(); });
+              imp.addEventListener('click', function () { picks.forEach(function (n) { rows.push({ n: n, cr: 3, g: 0, x: noRank(n) ? 1 : 0 }); }); save(); drawRows(); });
               list.appendChild(imp);
             }
           }
