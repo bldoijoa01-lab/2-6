@@ -1063,8 +1063,8 @@
       svg.appendChild(sv('line', { x1: L, x2: W - R, y1: Y(t), y2: Y(t), class: 'ch-grid' }));
       svg.appendChild(sv('text', { x: L - 8, y: Y(t) + 3.5, class: 'ch-ytxt', 'text-anchor': 'end' }, [String(t)]));
     });
-    NS_SEMS.forEach(function (sm, i) { svg.appendChild(sv('text', { x: X(i), y: H - 20, class: 'ch-xtxt', 'text-anchor': 'middle' }, [sm[1].replace('학년 ', '-').replace('학기', '').replace('1학', '1').replace('2학', '2')])); });
-    NS_SEMS.forEach(function (sm, i) { svg.appendChild(sv('text', { x: X(i), y: H - 6, class: 'ch-xtxt sub', 'text-anchor': 'middle' }, [sm[1].indexOf('1학년') === 0 ? '1학년' : '2학년'])); });
+    NS_SEMS.forEach(function (sm, i) { svg.appendChild(sv('text', { x: X(i), y: H - 20, class: 'ch-xtxt', 'text-anchor': 'middle' }, [sm[1].replace('학년 ', '-').replace('학기', '').replace('1학', '1').replace('2학', '2').replace('3학', '3')])); });
+    NS_SEMS.forEach(function (sm, i) { svg.appendChild(sv('text', { x: X(i), y: H - 6, class: 'ch-xtxt sub', 'text-anchor': 'middle' }, [sm[1].slice(0, 3)])); });
     var dc = path(cum);
     if (dc) svg.appendChild(sv('path', { d: dc, class: 'ch-cum', pathLength: '1' }));      // 누적 평균(점선)
     var dl = path(pts);
@@ -1080,20 +1080,22 @@
   }
 
   // ---------- 내신 (학기별 등급 입력 → 총 내신 평균) ----------
-  var NS_SEMS = [['1-1', '1학년 1학기'], ['1-2', '1학년 2학기'], ['2-1', '2학년 1학기'], ['2-2', '2학년 2학기']];
+  var NS_SEMS = [['1-1', '1학년 1학기'], ['1-2', '1학년 2학기'], ['2-1', '2학년 1학기'], ['2-2', '2학년 2학기'], ['3-1', '3학년 1학기']];
   var NS_BASE = {   // 편성표의 공통·일반 과목 (이름, 단위, 내신 반영 기본값). 반영 여부는 학교 기준에 맞게 직접 바꿀 수 있어요
     '1-1': [['공통국어1', 4], ['공통수학1', 4], ['공통영어1', 4], ['한국사1', 3], ['통합사회1', 4], ['통합과학1', 4], ['과학탐구실험1', 1, 1], ['체육Ⅰ', 2, 1], ['음악/미술', 2, 1], ['기술·가정/정보', 3]],
     '1-2': [['공통국어2', 4], ['공통수학2', 4], ['공통영어2', 4], ['한국사2', 3], ['통합사회2', 4], ['통합과학2', 4], ['과학탐구실험2', 1, 1], ['체육Ⅱ', 2, 1], ['음악/미술', 2, 1], ['정보/기술·가정', 3]],
     '2-1': [['문학', 4], ['대수', 4], ['영어Ⅰ', 4], ['스포츠문화', 1, 1], ['음악 연주와 창작/미술 창작', 2, 1]],
-    '2-2': [['화법과 언어', 4], ['미적분Ⅰ', 4], ['영어Ⅱ', 4], ['스포츠과학', 1, 1], ['음악 연주와 창작/미술 창작', 2, 1]]
+    '2-2': [['화법과 언어', 4], ['미적분Ⅰ', 4], ['영어Ⅱ', 4], ['스포츠과학', 1, 1], ['음악 연주와 창작/미술 창작', 2, 1]],
+    '3-1': []   // 3학년 공통 과목 편성은 학교 확정 후 직접 추가 (선택과목은 아래에서 골라 추가)
   };
   function nsLoad() { var s = (prefLoad().naesin || {}).sems; return s && typeof s === 'object' ? s : {}; }
   function nsSave(sems) { var p2 = prefLoad(); p2.naesin = { sems: sems }; prefSave(p2); }
   function nsDefault(key) {
     var rows = (NS_BASE[key] || []).map(function (r) { return { n: r[0], cr: r[1], g: 0, x: r[2] ? 1 : 0 }; });
-    var pr = prefLoad(), picks = key === '2-1' ? pr.el1 : key === '2-2' ? pr.el2 : null;   // 내 정보에서 고른 선택과목 불러오기
+    var pr = prefLoad(), picks = key === '2-1' ? pr.el1 : key === '2-2' ? pr.el2 : key === '3-1' ? pr.y3s1 : null;   // 내 정보에서 고른 선택과목 불러오기
     (picks || []).forEach(function (n) { rows.push({ n: n, cr: 3, g: 0, x: 0 }); });
     if (key === '2-1') (pr.el1lib || []).forEach(function (n) { rows.push({ n: n, cr: 2, g: 0, x: 1 }); });
+    if (key === '3-1') (pr.y3s1art || []).forEach(function (n) { rows.push({ n: n, cr: 2, g: 0, x: 1 }); });
     return rows;
   }
   function nsRows(sems, key) { return sems[key] || nsDefault(key); }
@@ -1214,8 +1216,8 @@
             list.appendChild(h('div', { class: 'ns-row' + (r.x ? ' off' : '') }, [h('div', { class: 'ns-r1' }, [nm, cr, on]), h('div', { class: 'ns-r2' }, [gs, del])]));
           });
           // 2학년 선택과목은 내 정보에서 고르지 않았어도 여기서 바로 골라 추가할 수 있게
-          if (key === '2-1' || key === '2-2') {
-            var EL = window.ELECTIVES, opts = key === '2-1' ? EL.sem1.options.concat(EL.liberal.options.map(function (o) { return Object.assign({ lib: 1 }, o); })) : EL.sem2.options;
+          if (key === '2-1' || key === '2-2' || key === '3-1') {
+            var EL = window.ELECTIVES, opts = key === '2-1' ? EL.sem1.options.concat(EL.liberal.options.map(function (o) { return Object.assign({ lib: 1 }, o); })) : key === '3-1' ? EL.y3s1.options.concat(EL.y3s1art.options.map(function (o) { return Object.assign({ lib: 1 }, o); })) : EL.sem2.options;
             var have = function (n) { return rows.some(function (r) { return normName(r.n) === normName(n); }); };
             var hasEl = opts.some(function (o) { return have(o.n); });
             if (!hasEl) list.appendChild(h('div', { class: 'note-sm ns-hint', text: sm[1] + ' 선택과목이 아직 없어요. 아래에서 내가 들은 과목을 골라 추가해 주세요.' }));
@@ -1240,8 +1242,8 @@
           add.addEventListener('click', function () { rows.push({ n: '', cr: 3, g: 0, x: 0 }); save(); drawRows(); var ins = list.querySelectorAll('.ns-name'); if (ins.length) ins[ins.length - 1].focus(); });
           list.appendChild(add);
           // 선택과목을 내 정보에서 새로 고른 경우 불러오기
-          if (key === '2-1' || key === '2-2') {
-            var picks = (prefLoad()[key === '2-1' ? 'el1' : 'el2'] || []).filter(function (n) { return !rows.some(function (r) { return r.n === n; }); });
+          if (key === '2-1' || key === '2-2' || key === '3-1') {
+            var picks = (prefLoad()[key === '2-1' ? 'el1' : key === '3-1' ? 'y3s1' : 'el2'] || []).filter(function (n) { return !rows.some(function (r) { return r.n === n; }); });
             if (picks.length) {
               var imp = h('button', { class: 'linkbtn', type: 'button', text: '내 선택과목 ' + picks.length + '개 불러오기' });
               imp.addEventListener('click', function () { picks.forEach(function (n) { rows.push({ n: n, cr: 3, g: 0, x: 0 }); }); save(); drawRows(); });
