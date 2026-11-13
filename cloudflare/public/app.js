@@ -72,6 +72,15 @@
     var hot = upcoming.filter(function (e) { return diffDays(e.date, TODAY) <= 7; });
     var rest = upcoming.filter(function (e) { return diffDays(e.date, TODAY) > 7; });
 
+    // 포스터식 요소: 오늘 체크 띠 + 스타버스트(가장 가까운 일정)
+    var nx = upcoming[0], burst = document.getElementById('burst');
+    if (nx) {
+      var nd = diffDays(nx.date, TODAY), nb = ddayBadge(nx);
+      burst.hidden = false; clear(burst);
+      burst.appendChild(h('b', { text: nb ? nb.textContent : '' }));
+      burst.appendChild(h('span', { text: nx.title.length > 14 ? nx.title.slice(0, 13) + '…' : nx.title }));
+    } else burst.hidden = true;
+
     function evRow(e) {
       var d = diffDays(e.date, TODAY);
       var when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
@@ -88,6 +97,7 @@
     }
 
     var body = [];
+    if (nx) body.push(h('div', { class: 'check' }, [h('b', { text: '오늘 체크!' }), ' ' + (diffDays(nx.date, TODAY) === 1 ? '내일 ' : '') + nx.title]));
     if (hot.length) { body.push(h('div', { class: 'tag', text: '🔥 중요!!' })); hot.forEach(function (e) { body.push(evRow(e)); }); }
     if (rest.length) { body.push(h('div', { class: 'tag blue', text: '📌 좀중요' })); rest.forEach(function (e) { body.push(evRow(e)); }); }
     if (!upcoming.length) body.push(h('div', { class: 'empty', text: '예정된 일정이 없어요. 평화 ✌️' }));
