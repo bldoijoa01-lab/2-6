@@ -371,15 +371,32 @@
       DOW.forEach(function (d, i) { grid.appendChild(h('div', { class: 'cal-dow' + (i === 0 ? ' sun' : i === 6 ? ' sat' : ''), text: d })); });
       var first = new Date(Date.UTC(year, month, 1)).getUTCDay(), days = new Date(Date.UTC(year, month + 1, 0)).getUTCDate();
       for (var i = 0; i < first; i++) grid.appendChild(h('div', { class: 'cal-cell blank' }));
+      // 이번 달 일정을 줄(레인)에 배치: 여러 날 일정은 같은 줄에서 이어진 배너로 보이게
+      var mStart = iso(year, month, 1), mEnd = iso(year, month, days);
+      var mEvs = allEvents().filter(function (e) { return (e.end || e.date) >= mStart && e.date <= mEnd; })
+        .sort(function (x, y) { return x.date < y.date ? -1 : x.date > y.date ? 1 : ((y.end || y.date) > (x.end || x.date) ? 1 : -1); });
+      var laneEnd = [];
+      mEvs.forEach(function (e) { var l = 0; while (laneEnd[l] !== undefined && laneEnd[l] >= e.date) l++; laneEnd[l] = e.end || e.date; e.__lane = l; });
+      var LANES = 2;
+      function kindOf(e) { return e.mine ? 'mine' : /기말|중간|고사|수능/.test(e.title) ? 'exam' : (diffDays(e.date, TODAY) <= 7 && diffDays(e.date, TODAY) >= 0 ? 'hot' : 'norm'); }
       for (var d = 1; d <= days; d++) (function (d) {
-        var key = iso(year, month, d), evs = eventsOn(key), dow = (first + d - 1) % 7;
-        var cls = 'cal-cell' + (key === iso(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate()) ? ' today' : '') + (key === sel ? ' sel' : '') + (dow === 0 ? ' sun' : dow === 6 ? ' sat' : '');
-        var cell = h('button', { class: cls, type: 'button' }, [h('span', { class: 'cal-d', text: String(d) })]);
-        if (evs.length) {
-          var dots = h('span', { class: 'cal-dots' });
-          evs.slice(0, 3).forEach(function (e) { dots.appendChild(h('i', { class: (e.mine ? 'mine' : /기말|중간|고사/.test(e.title) ? 'exam' : diffDays(e.date, TODAY) <= 7 && diffDays(e.date, TODAY) >= 0 ? 'hot' : '') })); });
-          cell.appendChild(dots);
+        var key = iso(year, month, d), dow = (first + d - 1) % 7, todayKey = iso(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate());
+        var cls = 'cal-cell' + (key === todayKey ? ' today' : '') + (key === sel ? ' sel' : '') + (dow === 0 ? ' sun' : dow === 6 ? ' sat' : '');
+        var cell = h('button', { class: cls, type: 'button', 'aria-label': (month + 1) + '월 ' + d + '일' }, [h('span', { class: 'cal-d', text: String(d) })]);
+        var covering = mEvs.filter(function (e) { return key >= e.date && key <= (e.end || e.date); });
+        var bn = h('div', { class: 'cal-bns' });
+        var maxLane = -1; covering.forEach(function (e) { if (e.__lane < LANES && e.__lane > maxLane) maxLane = e.__lane; });
+        for (var L = 0; L <= maxLane; L++) {
+          var ev = covering.filter(function (e) { return e.__lane === L; })[0];
+          if (!ev) { bn.appendChild(h('span', { class: 'cal-bn spacer' })); continue; }
+          var en = ev.end || ev.date, isStart = key === ev.date || dow === 0 || d === 1, isEnd = key === en || dow === 6 || d === days;
+          var pos = (key === ev.date && key === en) ? 'single' : (!isStart || !isEnd) ? (isStart ? 'start' : isEnd ? 'end' : 'mid') : 'single';
+          if (key !== ev.date && dow === 0 && key !== en) pos = 'start';   // 주가 바뀌면 다시 시작 모양
+          bn.appendChild(h('span', { class: 'cal-bn k-' + kindOf(ev) + ' ' + pos, text: isStart ? (ev.short || ev.title.slice(0, 5)) : '' }));
         }
+        var hidden = covering.filter(function (e) { return e.__lane >= LANES; }).length;
+        if (hidden) bn.appendChild(h('span', { class: 'cal-more', text: '+' + hidden }));
+        cell.appendChild(bn);
         cell.addEventListener('click', function () { st.sel = key === sel ? null : key; draw(); });
         grid.appendChild(cell);
       })(d);

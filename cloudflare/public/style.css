@@ -595,3 +595,23 @@ body.teacher #tab-naesin{display:none !important}
 /* 배경: 화면에 고정된 그라데이션 층(iOS에서 background-attachment:fixed 가 안 돼 줄무늬가 생기던 문제 해결) */
 html{background-color:var(--bg2)}
 html::before{content:""; position:fixed; inset:0; z-index:-3; pointer-events:none; background:linear-gradient(135deg,var(--bg1),var(--bg2) 55%,var(--bg3))}
+
+/* 캘린더: 날짜 칸 안에 일정 배너 */
+.cal-grid{gap:4px 3px}
+.cal-cell{aspect-ratio:auto !important; min-height:72px; padding:5px 0 4px !important; justify-content:flex-start !important; align-items:stretch !important; gap:3px !important; overflow:hidden}
+.cal-cell .cal-d{align-self:center; font-size:13.5px}
+.cal-bns{display:flex; flex-direction:column; gap:2px; width:100%}
+.cal-bn{display:block; height:15px; line-height:15px; padding:0 3px; font-size:9.5px; font-weight:800; letter-spacing:-.04em; white-space:nowrap; overflow:hidden; text-overflow:clip; color:#fff; background:var(--blue)}
+.cal-bn.spacer{background:transparent}
+.cal-bn.single{margin:0 2px; border-radius:5px}
+.cal-bn.start{margin:0 0 0 2px; border-radius:5px 0 0 5px}
+.cal-bn.end{margin:0 2px 0 0; border-radius:0 5px 5px 0}
+.cal-bn.mid{margin:0; border-radius:0}
+.cal-bn.k-exam{background:var(--amber); color:#1A2040}
+.cal-bn.k-hot{background:var(--red)}
+.cal-bn.k-norm{background:var(--blue)}
+.cal-bn.k-mine{background:var(--indigo)}
+.cal-more{font-size:9px; font-weight:800; color:var(--mute); text-align:center; line-height:1}
+.cal-cell.sel .cal-bn{box-shadow:0 0 0 1.5px rgba(255,255,255,.85)}
+.cal-cell.sel .cal-more{color:#fff}
+@media (min-width:640px){ .cal-bn{height:18px; line-height:18px; font-size:11px; padding:0 5px} .cal-cell{min-height:92px} }
