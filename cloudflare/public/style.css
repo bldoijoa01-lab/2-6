@@ -143,3 +143,8 @@ body{
 @media (max-width:639px){ .scroll-hint{display:block} .tt{min-width:600px} }
 @media (min-width:640px){ .card-b{padding:20px 26px 22px} .tt{min-width:0} .tab{flex:1 1 0} }
 @media (prefers-reduced-motion:reduce){ *{transition:none !important} }
+
+/* 로그인 전에는 로그인 카드만 */
+body.locked .ribbon, body.locked .hero, body.locked .tabs, body.locked .foot, body.locked #panel-table, body.locked #panel-move, body.locked #panel-caution{display:none !important}
+body.locked .wrap{min-height:100vh; display:flex; flex-direction:column; justify-content:center; max-width:420px}
+body.locked #panel-today .card{margin:0}

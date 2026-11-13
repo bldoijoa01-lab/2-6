@@ -197,6 +197,7 @@
   // ---------- init ----------
   function init(data) {
     DATA = data;
+    document.body.classList.remove('locked');
     var d = new Date(TODAY);
     document.getElementById('todayLabel').textContent = (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + DOW[d.getUTCDay()] + ')';
     document.getElementById('updated').textContent = DATA.className + ' 알림장 · 마지막 업데이트 ' + fmt(DATA.updated);
@@ -213,7 +214,7 @@
     return fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
       .then(function (r) { return r.json().then(function (j) { j.status = r.status; return j; }); });
   }
-  function card(kids) { var p = document.getElementById('panel-today'); clear(p); p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, kids)])); }
+  function card(kids) { document.body.classList.add('locked'); var p = document.getElementById('panel-today'); p.hidden = false; clear(p); p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, kids)])); }
 
   function showLogin(msg, pre) {
     pre = pre || {};
