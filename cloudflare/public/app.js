@@ -655,7 +655,7 @@
     function close() {
       document.removeEventListener('keydown', onKey);
       wrap.classList.add('out'); setTimeout(function () { wrap.remove(); }, 350);
-      if (!opts.replay) { store('tutorial26', 'done'); setTimeout(showWelcomeModal, 600); }
+      if (!opts.replay) store('tutorial26', 'done');
     }
     function onKey(e) { if (e.key === 'ArrowRight') next.click(); else if (e.key === 'ArrowLeft' && i > 0) back.click(); else if (e.key === 'Escape') close(); }
     next.addEventListener('click', function () { if (i >= N - 1) { if (!busy) close(); } else go(i + 1); });
@@ -666,47 +666,6 @@
     card.addEventListener('touchend', function (e) { if (sx === null) return; var dx = e.changedTouches[0].clientX - sx; sx = null; if (dx < -50 && i < N - 1) go(i + 1); else if (dx > 50 && i > 0) go(i - 1); });
     document.addEventListener('keydown', onKey);
     paint(); document.body.appendChild(wrap);
-  }
-
-  // ---------- 첫 가입 환영 팝업: 부반장 메시지 + 선택과목 제출 칸 ----------
-  function fileToB64(file) {
-    return new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(String(fr.result).split(',')[1] || ''); }; fr.onerror = rej; fr.readAsDataURL(file); });
-  }
-  function showWelcomeModal() {
-    if (load('welcome26') !== '1' || PREVIEW || !DATA || !DATA.me || DATA.me.role === 'teacher') return;
-    if (DATA.official || myElectives().length >= 5) { store('welcome26', 'done'); return; }   // 이미 선택과목이 정해진 학생은 건너뜀
-    var w = DATA.welcome || {}, from = w.from || '부반장';
-    var text = w.text || '안녕! ' + from + '이야 👋 알림장이 내 선택과목에 맞춰서 시간표·자리·내신을 보여주려고 해. 네가 듣는 선택과목 목록(가능하면 A~E 반까지)을 아래 칸에 편하게 적어서 보내 줘. 아무 형식이어도 되고, 파일(사진·엑셀 등)도 괜찮아!';
-    var ta = h('textarea', { class: 'field', rows: '5', placeholder: '예) 세포와 물질대사 A, 기하 B, 경제 C, 윤리와 사상 D, 일본어 회화 E  (반을 모르면 과목만 적어도 돼요)', 'aria-label': '내 선택과목 목록' });
-    var fi = h('input', { type: 'file', class: 'field', 'aria-label': '파일 첨부(아무 형식)' });
-    var msg = h('div', { class: 'badmsg' }), send = h('button', { class: 'btn', type: 'button', text: '보내기' });
-    var pick = h('button', { class: 'btn out', type: 'button', text: '직접 고르러 가기 →' }), later = h('button', { class: 'linkbtn', type: 'button', text: '나중에 할게요' });
-    var card = h('div', { class: 'modal-card welcome' });
-    var wrap = h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' }, [card]);
-    function close() { store('welcome26', 'done'); wrap.classList.add('out'); setTimeout(function () { wrap.remove(); }, 300); }
-    card.appendChild(h('div', { class: 'wl-head' }, [h('span', { class: 'wl-av', text: '🧑‍🎓' }), h('div', null, [h('b', { text: from + '의 메시지' }), h('small', { text: '2-6 알림장' })])]));
-    card.appendChild(h('div', { class: 'wl-bubble', text: text }));
-    card.appendChild(ta); card.appendChild(h('label', { class: 'af-l' }, ['파일도 보낼 수 있어요 (사진·엑셀·PDF 등, 5MB까지)', fi])); card.appendChild(msg);
-    card.appendChild(h('div', { class: 'af-btns' }, [send, pick])); card.appendChild(later);
-    send.addEventListener('click', function () {
-      msg.textContent = '';
-      var f = fi.files && fi.files[0], t = ta.value.trim();
-      if (!t && !f) { msg.textContent = '목록을 적거나 파일을 골라 주세요.'; return; }
-      if (f && f.size > 5 * 1024 * 1024) { msg.textContent = '파일이 너무 커요 (5MB까지).'; return; }
-      send.disabled = true; send.textContent = '보내는 중…';
-      (f ? fileToB64(f) : Promise.resolve(null)).then(function (b64) {
-        return fetch('/api/submit', { method: 'POST', headers: { authorization: 'Bearer ' + load('tok26'), 'content-type': 'application/json' }, body: JSON.stringify({ text: t, file: f ? { name: f.name, type: f.type, b64: b64 } : undefined }) });
-      }).then(function (r) {
-        if (!r.ok) throw new Error(r.status);
-        clear(card); card.appendChild(h('div', { class: 'gate-ic', text: '🙌' }));
-        card.appendChild(h('div', { class: 'wl-bubble', text: '보내 줘서 고마워! 확인해서 시간표·자리를 내 과목에 맞게 바로 반영해 둘게.' }));
-        var ok = h('button', { class: 'btn', type: 'button', text: '닫기' }); ok.addEventListener('click', close); card.appendChild(ok);
-        store('welcome26', 'done');
-      }).catch(function () { send.disabled = false; send.textContent = '보내기'; msg.textContent = '보내지 못했어요. 잠시 후 다시 눌러 주세요.'; });
-    });
-    pick.addEventListener('click', function () { close(); goTab('me'); });
-    later.addEventListener('click', close);
-    document.body.appendChild(wrap);
   }
 
   // ---------- 선택과목 명단 읽기 (엑셀·CSV·붙여넣기) ----------
@@ -1898,7 +1857,7 @@
     renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
     tagExamCards();
     pushShare();
-    setTimeout(function () { if (load('tutorial26') === '1') showTutorial(); else showWelcomeModal(); }, 1100);
+    setTimeout(function () { if (load('tutorial26') === '1') showTutorial(); }, 1100);
     var start = (location.hash || '').replace('#', '');
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
     selectTab(['home', 'today', 'exam', 'grade', 'naesin', 'me', 'more', 'admin'].indexOf(start) >= 0 && (start !== 'admin' || DATA.me.admin) ? start : 'home');
@@ -1947,7 +1906,7 @@
       if (p1.value !== p2.value) { err.textContent = '두 번 입력한 비밀번호가 달라요.'; return; }
       btn.disabled = true;
       api('/api/setpw', { token: setupToken, password: p1.value }).then(function (j) {
-        if (j.status === 200) { store('tok26', j.token); store('pwlen26', String(p1.value.length)); store('welcome26', '1'); store('tutorial26', '1'); rememberKey(p1.value, num).then(loadData); }
+        if (j.status === 200) { store('tok26', j.token); store('pwlen26', String(p1.value.length)); store('tutorial26', '1'); rememberKey(p1.value, num).then(loadData); }
         else { btn.disabled = false; err.textContent = '시간이 지났어요. 처음부터 다시 입장하세요.'; }
       }).catch(function () { btn.disabled = false; err.textContent = '연결에 실패했어요.'; });
     }
