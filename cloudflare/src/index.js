@@ -86,16 +86,10 @@ export default {
       const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]');
       const me = roster.find((s) => s.n === tok.w);
       if (!me) return json({ error: 'unauthorized' }, 401);
-      // 계정별 맞춤 데이터: 내 특별실 응시/내 프로젝트 조만 내려보냄 (다른 학생 이름은 보내지 않음)
+      // 계정별 맞춤 데이터: 특별실 응시는 내 것만, 행사 참여자 명단은 반 공지라 전체 공개 (로그인한 학생만)
       const d = JSON.parse(await env.CLASS_KV.get('data') || '{}');
       d.me = { n: me.n, name: me.name };
       d.special = (d.special || []).filter((s) => (s.members || []).includes(me.name)).map((s) => ({ ...s, members: [me.name] }));
-      d.events = (d.events || []).map((e) => {
-        if (!e.tracks) return e;
-        const mine = e.tracks.filter((t) => (t.members || []).includes(me.name));
-        const { tracks, ...rest } = e;
-        return mine.length ? { ...rest, tracks: mine } : rest;
-      });
       return json(d);
     }
     if (url.pathname === '/api/scores') {

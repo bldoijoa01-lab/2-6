@@ -371,3 +371,17 @@ body.locked #panel-today .card{animation:rise .7s cubic-bezier(.2,.8,.2,1) .15s 
 /* 선택과목 잠금 */
 .gate-ic{font-size:44px; text-align:center}
 .el-cta{margin:0 22px 20px; width:calc(100% - 44px)}
+
+/* 행사 참여자/링크/공고 */
+.part{margin-top:8px; display:flex; flex-direction:column; gap:6px}
+.part-l{font-size:12px; font-weight:800; color:var(--blue); letter-spacing:.04em}
+.part-btn{align-self:flex-start; padding:2px 0}
+.evlink{display:inline-flex; align-items:center; align-self:flex-start; margin-top:8px; min-height:40px; padding:0 16px; font-size:14px; text-decoration:none}
+.evinfo{margin-top:8px}
+.evinfo-t{margin:8px 0; font-size:13px; font-weight:800; color:var(--ink)}
+.evinfo-s{margin-bottom:10px} .evinfo-s b{font-size:13.5px}
+.evinfo-s ul{margin:4px 0 0; padding-left:18px; color:var(--sub); font-size:13.5px; line-height:1.55}
+.myev{appearance:none; display:block; width:100%; text-align:left; font:inherit; color:var(--ink); cursor:pointer; margin-bottom:14px; padding:16px 18px; border-radius:22px;
+  background:var(--blue-t); border:1px solid color-mix(in srgb,var(--blue) 28%,transparent)}
+.myev .stat-big{font-size:20px} .myev-s{white-space:normal}
+.ev{align-items:flex-start} .ev .dday{margin-top:2px}

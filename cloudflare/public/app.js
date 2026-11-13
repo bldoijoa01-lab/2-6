@@ -68,6 +68,44 @@
     });
   })();
 
+  // ---------- 행사: 내 분야 / 참여자 보기 / 링크 / 공고 ----------
+  function trackRow(t, meName) {
+    var cls = { '물리': 'phys', '의생명': 'bio', '화학': 'chem' }[t.name] || 'phys';
+    return h('div', { class: 'track' }, [h('span', { class: 'chip ' + cls, text: t.name }),
+      h('div', null, [h('div', { text: t.topic || '' }),
+        h('div', { class: 'names' }, t.members.map(function (m, i) { return h('span', { class: m === meName ? 'hl' : '' }, [m + (i < t.members.length - 1 ? ' ' : '')]); }))])]);
+  }
+  function participantsBlock(e) {
+    var me = DATA.me.name, mine = e.tracks.filter(function (t) { return t.members.indexOf(me) >= 0; });
+    var total = e.tracks.reduce(function (s, t) { return s + t.members.length; }, 0);
+    var wrap = h('div', { class: 'part' });
+    var mineBox = h('div', { class: 'tracks' });
+    if (mine.length) { mineBox.appendChild(h('div', { class: 'part-l', text: '내 분야' })); mine.forEach(function (t) { mineBox.appendChild(trackRow(t, me)); }); }
+    else mineBox.appendChild(h('div', { class: 'note-sm', text: '이 행사는 내가 참여하는 행사가 아니에요.' }));
+    var all = h('div', { class: 'tracks' }); all.hidden = true;
+    e.tracks.forEach(function (t) { all.appendChild(trackRow(t, me)); });
+    var btn = h('button', { class: 'linkbtn part-btn', type: 'button', text: '참여자 보기 (' + total + '명) ▾' });
+    btn.addEventListener('click', function () {
+      all.hidden = !all.hidden; mineBox.hidden = !all.hidden;
+      btn.textContent = all.hidden ? '참여자 보기 (' + total + '명) ▾' : '참여자 접기 ▴';
+    });
+    wrap.appendChild(mineBox); wrap.appendChild(btn); wrap.appendChild(all);
+    return wrap;
+  }
+  function infoBlock(info) {
+    return h('details', { class: 'gc-more evinfo' }, [h('summary', { text: '공고 자세히 보기' }),
+      h('div', { class: 'evinfo-t', text: info.title || '' })].concat(info.sections.map(function (s) {
+      return h('div', { class: 'evinfo-s' }, [h('b', { text: s.t }), h('ul', null, s.items.map(function (x) { return h('li', { text: x }); }))]);
+    })));
+  }
+  function evExtras(e) {
+    var out = [];
+    if (e.tracks) out.push(participantsBlock(e));
+    if (e.link) out.push(h('a', { class: 'btn evlink', href: e.link.url, target: '_blank', rel: 'noopener', text: (e.link.label || '열기') + ' ↗' }));
+    if (e.info) out.push(infoBlock(e.info));
+    return out;
+  }
+
   // ---------- 홈 ----------
   function goTab(name) { selectTab(name); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   function renderHome() {
@@ -103,6 +141,14 @@
       var nudge = h('button', { class: 'nudge', type: 'button' }, [h('b', { text: '📝 선택과목을 먼저 골라 주세요' }), h('small', { text: '고르면 등급컷과 기말 목표 계산기가 열려요 →' })]);
       nudge.addEventListener('click', function () { goTab('me'); });
       p.appendChild(nudge);
+    }
+    var myEv = upcoming.filter(function (e) { return e.tracks && e.tracks.some(function (t) { return t.members.indexOf(me.name) >= 0; }); })[0];
+    if (myEv) {
+      var mt = myEv.tracks.filter(function (t) { return t.members.indexOf(me.name) >= 0; })[0], dd2 = diffDays(myEv.date, TODAY);
+      var mc = h('button', { class: 'myev', type: 'button' }, [h('div', { class: 'stat-l', text: '내 행사 · ' + fmt(myEv.date) + (dd2 >= 0 ? ' · D' + (dd2 ? '-' + dd2 : '-DAY') : '') }),
+        h('div', { class: 'stat-big', text: myEv.title }), h('div', { class: 'stat-s myev-s', text: '내 분야: ' + mt.name + ' · ' + (mt.topic || '') })]);
+      mc.addEventListener('click', function () { goTab('today'); });
+      p.appendChild(mc);
     }
     p.appendChild(h('div', { class: 'stats' }, grid));
 
@@ -152,7 +198,7 @@
       var title = sel ? fmt(sel) : (month + 1) + '월 일정';
       var rows = shown.length ? shown.map(function (e) {
         var when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
-        return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: e.title }), h('div', { class: 'ev-sub' }, [h('b', { text: when }), e.note ? ' · ' + e.note : ''])]), ddayBadge(e)]);
+        return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: e.title }), h('div', { class: 'ev-sub' }, [h('b', { text: when }), e.note ? ' · ' + e.note : ''])].concat(evExtras(e))), ddayBadge(e)]);
       }) : [h('div', { class: 'empty', text: '이 날은 일정이 없어요.' })];
       wrap.appendChild(top);
       wrap.appendChild(h('div', { class: 'card-b' }, [grid, h('div', { class: 'cal-list-t', text: title })].concat(rows)));
@@ -559,13 +605,7 @@
       var when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
       var sub = h('div', { class: 'ev-sub' }, [h('b', { text: d === 0 ? '오늘 ' + when : when }), e.note ? ' · ' + e.note : '']);
       var main = h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: e.title }), sub]);
-      if (e.tracks) {
-        main.appendChild(h('div', { class: 'tracks' }, e.tracks.map(function (t) {
-          var cls = { '물리': 'phys', '의생명': 'bio', '화학': 'chem' }[t.name] || 'phys';
-          return h('div', { class: 'track' }, [h('span', { class: 'chip ' + cls, text: t.name }),
-            h('div', null, [h('div', { text: t.topic }), h('div', { class: 'names', text: t.members.join(' ') })])]);
-        })));
-      }
+      evExtras(e).forEach(function (x) { main.appendChild(x); });
       return h('div', { class: 'ev' }, [main, ddayBadge(e)]);
     }
 
