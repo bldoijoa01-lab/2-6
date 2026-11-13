@@ -426,12 +426,42 @@
     }).catch(function () {});
   }
   // 교사: 내 키쌍 준비 (비밀키는 내 비밀번호로 잠가서 서버에 둠 → 운영자도 못 풂) + 학생 사본 풀기
-  var TKEY = null, TSHARES = {};
+  var TKEY = null, TSHARES = {}, SETUP_CODE = null;   // SETUP_CODE: 교사가 첫 로그인에 쓴 교사 코드 (메모리에만, 열쇠 교체 후 지움)
+  function newTeacherKeypair(wrap) {
+    return crypto.subtle.generateKey({ name: 'RSA-OAEP', modulusLength: 2048, publicExponent: new Uint8Array([1, 0, 1]), hash: 'SHA-256' }, true, ['encrypt', 'decrypt']).then(function (kp) {
+      return Promise.all([crypto.subtle.exportKey('jwk', kp.publicKey), crypto.subtle.exportKey('pkcs8', kp.privateKey)]).then(function (r) {
+        var iv = crypto.getRandomValues(new Uint8Array(12));
+        return crypto.subtle.encrypt({ name: 'AES-GCM', iv: iv }, wrap, r[1]).then(function (ct) { return tApi('keys', { pub: r[0], priv: { iv: b64e(iv), data: b64e(ct) } }); }).then(function () { return kp; });
+      });
+    });
+  }
+  // 학생이 먼저 쓴 경우: 사전 열쇠(교사 코드로 잠금)를 열어 두고, 내 비밀번호용 새 열쇠로 교체한 뒤 학생 사본의 감싼 열쇠를 다시 감쌈
+  function adoptProvisional(rec, wrap) {
+    if (!SETUP_CODE) return Promise.reject(new Error('code'));
+    return crypto.subtle.importKey('raw', te.encode(SETUP_CODE), 'PBKDF2', false, ['deriveKey']).then(function (km) {
+      return crypto.subtle.deriveKey({ name: 'PBKDF2', salt: te.encode('class26-tkey-code|' + DATA.me.n), iterations: 200000, hash: 'SHA-256' }, km, { name: 'AES-GCM', length: 256 }, false, ['decrypt']);
+    }).then(function (ck) { return crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(rec.priv.iv) }, ck, b64d(rec.priv.data)); })
+      .then(function (pk) { return crypto.subtle.importKey('pkcs8', pk, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']); })
+      .then(function (oldPriv) {
+        return newTeacherKeypair(wrap).then(function (kp) {
+          return tApi('shares').then(function (j) {
+            var me = String(DATA.me.n);
+            return Promise.all(Object.keys(j.shares || {}).map(function (n) {
+              var w = j.shares[n].keys && j.shares[n].keys[me]; if (!w) return null;
+              return crypto.subtle.decrypt({ name: 'RSA-OAEP' }, oldPriv, b64d(w))
+                .then(function (raw) { return crypto.subtle.encrypt({ name: 'RSA-OAEP' }, kp.publicKey, raw); })
+                .then(function (nw) { return tApi('rewrap', { n: parseInt(n, 10), key: b64e(nw) }); }).catch(function () {});
+            }));
+          }).then(function () { SETUP_CODE = null; return kp.privateKey; });
+        });
+      });
+  }
   function ensureTeacherKeys() {
     if (TKEY) return Promise.resolve(TKEY);
     return storedKey().then(function (wrap) {
       if (!wrap) return null;
       return tApi('mykey').then(function (rec) {
+        if (rec && rec.provisional) return adoptProvisional(rec, wrap).catch(function () { return null; });   // 미리 만들어 둔 열쇠: 교사 코드로 열어서 내 비밀번호용으로 교체
         var open = rec && rec.priv ? crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(rec.priv.iv) }, wrap, b64d(rec.priv.data))
           .then(function (pk) { return crypto.subtle.importKey('pkcs8', pk, { name: 'RSA-OAEP', hash: 'SHA-256' }, false, ['decrypt']); }) : Promise.reject(new Error('none'));
         return open.catch(function () {   // 처음이거나 비밀번호가 바뀐 경우: 새 키쌍 (이전 사본은 학생이 다시 로그인하면 새로 만들어짐)
@@ -1488,7 +1518,7 @@
       api('/api/login', { name: nameIn.value, number: numIn.value, secret: pwIn.value }).then(function (j) {
         if (j.status === 429) { btn.disabled = false; err.textContent = '많이 틀렸어요. 10분 뒤에 다시 시도하세요.'; }
         else if (j.status !== 200) { btn.disabled = false; err.textContent = '이름·번호·비밀번호가 맞지 않아요.'; }
-        else if (j.setup) showSetup(j.token, parseInt(numIn.value, 10));
+        else if (j.setup) { SETUP_CODE = pwIn.value; showSetup(j.token, parseInt(numIn.value, 10)); }
         else { store('tok26', j.token); store('pwlen26', String(pwIn.value.length)); rememberKey(pwIn.value, parseInt(numIn.value, 10)).then(loadData); }
       }).catch(function () { btn.disabled = false; err.textContent = '연결에 실패했어요. 다시 시도하세요.'; });
     }

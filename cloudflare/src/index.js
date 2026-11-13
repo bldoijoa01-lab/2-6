@@ -162,6 +162,13 @@ export default {
         await env.CLASS_KV.put('tkey:' + me.n, JSON.stringify({ pub: b.pub, priv: b.priv }));
         return json({ ok: true });
       }
+      if (sub === 'rewrap' && request.method === 'POST') {   // 교사 열쇠 교체 후, 학생 사본의 감싼 열쇠만 새 공개키로 바꿈 (사본 내용은 그대로)
+        const st = JSON.parse(await env.CLASS_KV.get('share:' + b.n) || 'null');
+        if (!st || typeof b.key !== 'string') return json({ error: 'not_found' }, 404);
+        st.keys = st.keys && typeof st.keys === 'object' ? st.keys : {}; st.keys[String(me.n)] = b.key;
+        await env.CLASS_KV.put('share:' + b.n, JSON.stringify(st));
+        return json({ ok: true });
+      }
       if (sub === 'shares' && request.method === 'GET') {
         const out = {};
         const list = await env.CLASS_KV.list({ prefix: 'share:' });
