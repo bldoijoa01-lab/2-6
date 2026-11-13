@@ -655,7 +655,10 @@
     function close() {
       document.removeEventListener('keydown', onKey);
       wrap.classList.add('out'); setTimeout(function () { wrap.remove(); }, 350);
-      if (!opts.replay) store('tutorial26', 'done');
+      if (!opts.replay) {
+        store('tutorial26', 'done');
+        if (DATA && DATA.tutorial) { DATA.tutorial = false; fetch('/api/tutorial-done', { method: 'POST', headers: { authorization: 'Bearer ' + load('tok26') } }).catch(function () {}); }   // 서버 표시 지우기
+      }
     }
     function onKey(e) { if (e.key === 'ArrowRight') next.click(); else if (e.key === 'ArrowLeft' && i > 0) back.click(); else if (e.key === 'Escape') close(); }
     next.addEventListener('click', function () { if (i >= N - 1) { if (!busy) close(); } else go(i + 1); });
@@ -1857,7 +1860,7 @@
     renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
     tagExamCards();
     pushShare();
-    setTimeout(function () { if (load('tutorial26') === '1') showTutorial(); }, 1100);
+    setTimeout(function () { if (load('tutorial26') === '1' || DATA.tutorial) showTutorial(); }, 1100);
     var start = (location.hash || '').replace('#', '');
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
     selectTab(['home', 'today', 'exam', 'grade', 'naesin', 'me', 'more', 'admin'].indexOf(start) >= 0 && (start !== 'admin' || DATA.me.admin) ? start : 'home');

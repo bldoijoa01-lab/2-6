@@ -63,6 +63,7 @@ async function personalized(env, me) {
       if (!Array.isArray(e.audience)) return e; const { audience, ...rest } = e; return { ...rest, target: true };
     });
   }
+  if (me.role !== 'teacher' && await env.CLASS_KV.get('tut:' + me.n)) d.tutorial = true;   // 다음 로그인 때 가이드를 보여 달라고 표시된 학생
   const off = JSON.parse(await env.CLASS_KV.get('official:' + me.n) || 'null');   // 선생님이 올린 학교 기준 선택과목(암호화 대상 아님)
   if (off) d.official = off;
   return d;
@@ -162,6 +163,13 @@ export default {
         file = { name: fname, type: String(f.type || '').slice(0, 80), size: bin.length };
       }
       await env.CLASS_KV.put(key, JSON.stringify({ n: me.n, name: me.name, text: msg, file, at: ts }));
+      return json({ ok: true });
+    }
+    if (url.pathname === '/api/tutorial-done' && request.method === 'POST') {
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      await env.CLASS_KV.delete('tut:' + tok.w);
       return json({ ok: true });
     }
     if (url.pathname === '/api/teacherkeys' && request.method === 'GET') {
