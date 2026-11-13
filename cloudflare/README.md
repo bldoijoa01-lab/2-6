@@ -76,3 +76,7 @@ Pretendard(OFL)를 서브셋해서 `src/pretendard.woff2`로 Worker에 내장 (�
 
 ## 특정 학생에게 가이드(튜토리얼) 다시 띄우기
 - `npx wrangler kv key put --namespace-id=<KV> --remote tut:<번호> 1` → 그 학생이 **다음 로그인 때 한 번** 가이드가 뜸 (끝내거나 건너뛰면 서버 표시가 자동으로 지워짐, 기기와 상관없음)
+
+## 9등급제 환산 (내신 탭)
+- 5등급제 평균(1.00~5.00, 0.01 단위)을 9등급제 범위로 환산: `public/conv9.js` (충청남도교육청 진학정보 `jinhakai.pen.go.kr` 내신 변환 규칙표, 2026 기준)
+- 기준연도가 바뀌면 `python3 tools/update-conv9.py <연도>` 로 갱신 (해당 사이트 API에 접속 가능한 곳에서)

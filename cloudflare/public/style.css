@@ -734,3 +734,11 @@ body{background:transparent}
 .tabs .tab[aria-selected="true"]{box-shadow:inset 0 1px 0 rgba(255,255,255,.38), inset 0 -2px 6px rgba(40,50,160,.18) !important}
 /* 같은 이유로 스크롤되는 칩 줄도 그림자 없음 */
 .jump .jump-b,.jump .jump-b[aria-pressed="true"]{box-shadow:none !important}
+
+/* 9등급제 환산 */
+.c9{margin-top:12px; padding:14px 16px; border-radius:18px; background:linear-gradient(135deg,var(--blue-t),var(--indigo-t)); display:flex; flex-direction:column; gap:6px}
+.c9-main small{display:block; font-size:12px; font-weight:800; color:var(--sub)} .c9-main b{font-size:26px; font-weight:800; letter-spacing:-.04em; color:var(--blue)}
+.c9-in{width:100%; max-width:none; margin:8px 0 4px} .c9-out{font-size:14px; font-weight:700; margin-bottom:6px}
+.c9-tbl{display:flex; flex-direction:column; gap:2px; margin-top:6px}
+.c9-row{display:flex; justify-content:space-between; padding:5px 10px; border-radius:10px; font-size:13px} .c9-row:nth-child(odd){background:var(--gray-t)} .c9-row.hd{font-weight:800; color:var(--mute); background:transparent}
+.c9-src{font-size:11.5px; color:var(--mute)} .c9-what{color:var(--sub); font-size:12px}

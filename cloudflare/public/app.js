@@ -314,7 +314,7 @@
       grid.push(stat(x.title, n === 0 ? 'D-DAY' : 'D-' + n, d3.getUTCFullYear() + '/' + (d3.getUTCMonth() + 1) + '/' + d3.getUTCDate() + '(' + DOW[d3.getUTCDay()] + ')', function () { goTab('today'); setTimeout(function () { var b = document.querySelectorAll('#panel-today .seg-b'); if (b[1]) b[1].click(); }, 60); }));
     });
     var ns = nsStat();
-    if (ns) grid.push(stat('내신 평균', nsFmt(ns.avg), ns.sems + '개 학기 · 반영 ' + ns.credits + '단위', function () { goTab('naesin'); }));
+    if (ns) grid.push(stat('내신 평균', nsFmt(ns.avg), '9등급제 ' + c9txt(ns.avg), function () { goTab('naesin'); }));
     var moveTxt = me.n <= mv.frontCount ? mv.otherRoom + '로 이동' : '우리 교실 그대로';
     grid.push(stat('내 원반', moveTxt, me.n + '번 · ' + (me.n <= mv.frontCount ? '앞번호 ' + mv.frontCount + '명 이동' : mv.ownRoom + ' 응시'), function () { goTab('exam'); setTimeout(function () { jumpTo('sec-move'); }, 60); }));
     grid.push(stat('특별실 응시', DATA.special.length ? DATA.special.length + '과목' : '없음',
@@ -1061,6 +1061,29 @@
     return { avg: c ? s / c : null, credits: c, sems: n, sum: s, c: c };
   }
   function nsStat() { var t = nsTotal(nsLoad()); return t.avg == null ? null : t; }
+  var nsFmtPre = 0;
+  // 5등급제 평균 → 9등급제 환산 범위 (충청남도교육청 진학정보 내신 변환 규칙표, 2026 기준)
+  function conv9(avg) {
+    if (avg == null || !window.CONV9) return null;
+    var x = Math.round(avg * 100); if (x < 100 || x > 500) return null;
+    var r = window.CONV9.rows[x - 100]; return r ? { min: r[1], max: r[2] } : null;
+  }
+  function c9txt(avg) { var c = conv9(avg); return c ? c.min.toFixed(2) + ' ~ ' + c.max.toFixed(2) + '등급' : '-'; }
+  function c9card(avg) {
+    var by = (window.CONV9 && window.CONV9.baseYear) || '2026';
+    var main = h('div', { class: 'c9-main' }, [h('small', { text: '9등급제로 환산 (참고)' }), h('b', { text: avg == null ? '-' : c9txt(avg) })]);
+    var inp = h('input', { class: 'field c9-in', type: 'text', inputmode: 'decimal', placeholder: '5등급제 평균 (1.00~5.00)', 'aria-label': '5등급제 평균 직접 입력' }), out = h('div', { class: 'c9-out', text: '숫자를 넣으면 9등급제 범위가 나와요.' });
+    inp.addEventListener('input', function () {
+      var v = inp.value.trim(); if (!v) { out.textContent = '숫자를 넣으면 9등급제 범위가 나와요.'; return; }
+      if (!/^\d+(\.\d{1,2})?$/.test(v) || +v < 1 || +v > 5) { out.textContent = '1.00~5.00 사이 숫자(소수 둘째 자리까지)로 넣어 주세요.'; return; }
+      out.textContent = '5등급제 ' + (+v).toFixed(2) + ' → 9등급제 ' + c9txt(+v) + ' 사이';
+    });
+    var tbl = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map(function (g) { return h('div', { class: 'c9-row' }, [h('span', { text: g.toFixed(2) }), h('b', { text: c9txt(g) })]); });
+    return h('div', { class: 'c9' }, [main,
+      h('div', { class: 'note-sm', text: avg == null ? '내신 등급을 넣으면 9등급제 환산 범위가 나와요.' : '5등급제 평균 ' + nsFmt(avg) + '은 9등급제로 ' + c9txt(avg) + ' 사이예요.' }),
+      h('details', { class: 'gc-more' }, [h('summary', { text: '직접 입력해서 환산 · 대표값 표' }), inp, out, h('div', { class: 'c9-tbl' }, [h('div', { class: 'c9-row hd' }, [h('span', { text: '5등급제' }), h('span', { text: '9등급제 범위' })])].concat(tbl))]),
+      h('div', { class: 'note-sm c9-src', text: '대학마다 환산 방식이 달라서 참고용이에요. 출처: 충청남도교육청 진학정보(jinhakai.pen.go.kr) 내신 변환 · ' + by + ' 기준' })]);
+  }
   var nsFmt = function (v) { return v == null ? '-' : (Math.round(v * 100) / 100).toFixed(2); };
 
   function renderNaesin() {
@@ -1086,14 +1109,14 @@
       var t = nsTotal(sems);
       var per = NS_SEMS.map(function (sm) { var r = semAvg(nsRows(sems, sm[0])); return h('div', { class: 'ns-per' }, [h('small', { text: sm[1] }), h('b', { text: r.avg == null ? '-' : nsFmt(r.avg) })]); });
       var kids = [h('div', { class: 'eyebrow', text: '총 내신 평균 (단위수 가중)' }), h('div', { class: 'ns-avg', text: nsFmt(t.avg) }),
-        h('div', { class: 'note-sm', text: t.avg == null ? '아래에 등급을 넣으면 계산돼요.' : t.sems + '개 학기 · 반영 ' + t.credits + '단위' }), h('div', { class: 'ns-pers' }, per)];
+        h('div', { class: 'note-sm', text: t.avg == null ? '아래에 등급을 넣으면 계산돼요.' : t.sems + '개 학기 · 반영 ' + t.credits + '단위' }), h('div', { class: 'ns-pers' }, per), c9card(t.avg)];
       // 이번 학기(2-2) 가정: 아직 등급이 없는 학기의 평균을 가정해서 총 평균을 미리 보기
       var r22 = nsRows(sems, '2-2'), cr22 = r22.reduce(function (a, r) { return a + (!r.x && r.cr > 0 ? r.cr : 0); }, 0), has22 = semAvg(r22).credits > 0;
       if (!has22 && cr22 > 0) {
         var base = nsTotal(sems), out = h('div', { class: 'ns-what-v' }), rng = h('input', { class: 'semrange', type: 'range', min: '1', max: '5', step: '0.1', value: '2.5', 'aria-label': '2학년 2학기 가정 평균 등급' });
         var upd = function () {
           var x = parseFloat(rng.value), c = base.c + cr22, tot = (base.sum + x * cr22) / c;
-          clear(out); out.appendChild(h('div', null, ['2학년 2학기를 평균 ', h('b', { text: x.toFixed(1) }), '등급으로 받으면 → 총 평균 ', h('b', { class: 'ns-accent', text: nsFmt(tot) })]));
+          clear(out); out.appendChild(h('div', null, ['2학년 2학기를 평균 ', h('b', { text: x.toFixed(1) }), '등급으로 받으면 → 총 평균 ', h('b', { class: 'ns-accent', text: nsFmt(tot) }), h('small', { class: 'c9-what', text: ' (9등급제 ' + c9txt(tot) + ')' })]));
         };
         rng.addEventListener('input', upd); upd();
         kids.push(h('div', { class: 'ns-what' }, [h('div', { class: 'needs-h', text: '🎚 이번 학기(2-2) 가정해 보기' }), rng, h('div', { class: 'rr' }, [h('span', { text: '1등급' }), h('span', { text: '5등급' })]), out,
