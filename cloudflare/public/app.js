@@ -1968,6 +1968,12 @@
     renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
     tagExamCards();
     pushShare();
+    syncScores().then(function (ok) {   // 다른 기기에서 저장한 선택과목·성적을 불러와 화면 갱신
+      if (!ok || PREVIEW) return;
+      clear(document.getElementById('panel-exam'));
+      renderMe(); renderNaesin(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution(); tagExamCards();
+      if (GC_STATE === 'done') GC_STATE = 'dirty';
+    });
     setTimeout(function () { if (load('tutorial26') === '1' || DATA.tutorial) showTutorial(); }, 1100);
     var start = (location.hash || '').replace('#', '');
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
