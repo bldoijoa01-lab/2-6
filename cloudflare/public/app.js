@@ -568,6 +568,7 @@
           return decryptJSON(key, j.blob).then(function (obj) {
             var srvScores = obj && obj.v === 2 ? (obj.scores || {}) : (obj || {}), srvPrefs = obj && obj.v === 2 ? (obj.prefs || {}) : {};
             var mergedS = Object.assign({}, gcLoad(), srvScores), mergedP = Object.assign({}, prefLoad(), srvPrefs);
+            try { var ln = (prefLoad().naesin || {}).sems || {}, sn = (srvPrefs.naesin || {}).sems || {}; if (Object.keys(ln).length || Object.keys(sn).length) mergedP.naesin = { sems: Object.assign({}, ln, sn) }; } catch (e) {}   // 학기별로 합침
             gcSave(mergedS); try { localStorage.setItem(PKEY, JSON.stringify(mergedP)); } catch (e) {}
             if (!(obj && obj.v === 2) || JSON.stringify(mergedS) !== JSON.stringify(srvScores) || JSON.stringify(mergedP) !== JSON.stringify(srvPrefs)) pushScores();
             return true;
