@@ -247,6 +247,11 @@
       var big = dd > 0 ? 'D-' + dd : (end >= 0 ? (dd === 0 ? 'D-DAY' : '진행 중') : '');
       grid.push(stat('기말고사', big, fmt(exam.date) + (exam.end ? ' ~ ' + fmt(exam.end) : ''), function () { goTab('exam'); }, 'hot'));
     }
+    (DATA.ddays || []).forEach(function (x) {
+      var n = diffDays(x.date, TODAY); if (n < 0) return;
+      var d3 = new Date(toUTC(x.date));
+      grid.push(stat(x.title, n === 0 ? 'D-DAY' : 'D-' + n, d3.getUTCFullYear() + '/' + (d3.getUTCMonth() + 1) + '/' + d3.getUTCDate() + '(' + DOW[d3.getUTCDay()] + ')', function () { goTab('today'); setTimeout(function () { var b = document.querySelectorAll('#panel-today .seg-b'); if (b[1]) b[1].click(); }, 60); }));
+    });
     var moveTxt = me.n <= mv.frontCount ? mv.otherRoom + '로 이동' : '우리 교실 그대로';
     grid.push(stat('내 원반', moveTxt, me.n + '번 · ' + (me.n <= mv.frontCount ? '앞번호 ' + mv.frontCount + '명 이동' : mv.ownRoom + ' 응시'), function () { goTab('exam'); setTimeout(function () { jumpTo('sec-move'); }, 60); }));
     grid.push(stat('특별실 응시', DATA.special.length ? DATA.special.length + '과목' : '없음',
