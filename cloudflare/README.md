@@ -17,3 +17,10 @@ npx wrangler kv key put --namespace-id=3b0183b8c07e4dbea43c84c455d0bc5e --remote
 npx wrangler kv key put --namespace-id=3b0183b8c07e4dbea43c84c455d0bc5e --remote data --path=data.json
 node build-assets.js && npx wrangler deploy
 ```
+
+## 로그인 방식
+- 첫 로그인: 이름 + 번호 + **반 코드**(Worker secret `CLASS_CODE`) → 나만의 비밀번호 설정
+- 이후: 이름 + 번호 + 내 비밀번호
+- 비밀번호는 솔트+PBKDF2 해시로만 KV(`pw:<번호>`)에 저장 → 원문은 관리자도 볼 수 없음
+- 반 코드 변경: `echo 새코드 | npx wrangler secret put CLASS_CODE`
+- 비밀번호 초기화(잊어버린 학생): `npx wrangler kv key delete --namespace-id=3b0183b8c07e4dbea43c84c455d0bc5e --remote pw:<번호>` → 반 코드로 다시 설정

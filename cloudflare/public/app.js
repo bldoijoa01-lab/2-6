@@ -209,29 +209,52 @@
   function store(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
   function load(k) { try { return localStorage.getItem(k); } catch (e) { return null; } }
 
-  function showLogin(msg) {
-    var p = document.getElementById('panel-today'); clear(p);
-    var nameIn = h('input', { type: 'text', class: 'login-in', placeholder: '이름', autocomplete: 'name' });
+  function api(path, body) {
+    return fetch(path, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) })
+      .then(function (r) { return r.json().then(function (j) { j.status = r.status; return j; }); });
+  }
+  function card(kids) { var p = document.getElementById('panel-today'); clear(p); p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, kids)])); }
+
+  function showLogin(msg, pre) {
+    pre = pre || {};
+    var nameIn = h('input', { type: 'text', class: 'login-in', placeholder: '이름', autocomplete: 'username' });
     var numIn = h('input', { type: 'number', class: 'login-in', placeholder: '번호', inputmode: 'numeric' });
+    var pwIn = h('input', { type: 'password', class: 'login-in', placeholder: '비밀번호 (처음이면 반 코드)', autocomplete: 'current-password' });
+    nameIn.value = pre.name || ''; numIn.value = pre.number || '';
     var err = h('div', { class: 'empty', text: msg || '' });
     var btn = h('button', { class: 'tab', type: 'button', text: '입장' });
     function go() {
-      if (!nameIn.value || !numIn.value) return;
+      if (!nameIn.value || !numIn.value || !pwIn.value) return;
       btn.disabled = true; err.textContent = '확인 중…';
-      fetch('/api/login', { method: 'POST', headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ name: nameIn.value, number: numIn.value }) })
-        .then(function (r) {
-          if (r.status === 429) throw new Error('많이 틀렸어요. 10분 뒤에 다시 시도하세요.');
-          if (!r.ok) throw new Error('이름이나 번호가 맞지 않아요.');
-          return r.json();
-        })
-        .then(function (j) { store('tok26', j.token); loadData(); })
-        .catch(function (e) { btn.disabled = false; err.textContent = e.message; });
+      api('/api/login', { name: nameIn.value, number: numIn.value, secret: pwIn.value }).then(function (j) {
+        if (j.status === 429) { btn.disabled = false; err.textContent = '많이 틀렸어요. 10분 뒤에 다시 시도하세요.'; }
+        else if (j.status !== 200) { btn.disabled = false; err.textContent = '이름·번호·비밀번호가 맞지 않아요.'; }
+        else if (j.setup) showSetup(j.token);
+        else { store('tok26', j.token); loadData(); }
+      }).catch(function () { btn.disabled = false; err.textContent = '연결에 실패했어요. 다시 시도하세요.'; });
     }
     btn.addEventListener('click', go);
-    numIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
-    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, [
-      h('div', { text: '🔒 우리 반 전용이에요. 이름과 번호를 입력하세요.' }), nameIn, numIn, btn, err])]));
+    pwIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    card([h('div', { text: '🔒 우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), nameIn, numIn, pwIn, btn, err]);
+  }
+
+  function showSetup(setupToken) {
+    var p1 = h('input', { type: 'password', class: 'login-in', placeholder: '새 비밀번호 (6자 이상)', autocomplete: 'new-password' });
+    var p2 = h('input', { type: 'password', class: 'login-in', placeholder: '새 비밀번호 확인', autocomplete: 'new-password' });
+    var err = h('div', { class: 'empty', text: '' });
+    var btn = h('button', { class: 'tab', type: 'button', text: '비밀번호 정하고 입장' });
+    function go() {
+      if (p1.value.length < 6) { err.textContent = '6자 이상으로 정하세요.'; return; }
+      if (p1.value !== p2.value) { err.textContent = '두 번 입력한 비밀번호가 달라요.'; return; }
+      btn.disabled = true;
+      api('/api/setpw', { token: setupToken, password: p1.value }).then(function (j) {
+        if (j.status === 200) { store('tok26', j.token); loadData(); }
+        else { btn.disabled = false; err.textContent = '시간이 지났어요. 처음부터 다시 입장하세요.'; }
+      }).catch(function () { btn.disabled = false; err.textContent = '연결에 실패했어요.'; });
+    }
+    btn.addEventListener('click', go);
+    p2.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    card([h('div', { text: '✅ 반 코드 확인! 이제 나만의 비밀번호를 정하세요. 다음부터는 이 비밀번호로 입장해요. (잊어버리면 담당자에게 초기화 요청)' }), p1, p2, btn, err]);
   }
 
   function loadData() {
