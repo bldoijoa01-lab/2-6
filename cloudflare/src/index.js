@@ -2,6 +2,7 @@
 // KV: "roster" = [{"n":1,"name":"홍길동"}, ...], "data" = data.json 내용
 // Secret: SESSION_SECRET
 import ASSETS from './assets.js';
+import FONT from './pretendard.woff2';
 const enc = new TextEncoder();
 const TTL = 60 * 60 * 24 * 30;
 
@@ -82,6 +83,8 @@ export default {
       if (!await verifyToken(env, auth, 'full')) return json({ error: 'unauthorized' }, 401);
       return new Response(await env.CLASS_KV.get('data') || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
     }
+    if (url.pathname === '/fonts/pretendard-1.woff2')
+      return new Response(FONT, { headers: { 'content-type': 'font/woff2', 'cache-control': 'public, max-age=31536000, immutable' } });
     if (url.pathname.startsWith('/api/')) return json({ error: 'not_found' }, 404);
     const a = ASSETS[url.pathname === '/' ? '/index.html' : url.pathname];
     if (!a) return new Response('Not found', { status: 404 });

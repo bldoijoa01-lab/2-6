@@ -24,3 +24,6 @@ node build-assets.js && npx wrangler deploy
 - 비밀번호는 솔트+PBKDF2 해시로만 KV(`pw:<번호>`)에 저장 → 원문은 관리자도 볼 수 없음
 - 반 코드 변경: `echo 새코드 | npx wrangler secret put CLASS_CODE`
 - 비밀번호 초기화(잊어버린 학생): `npx wrangler kv key delete --namespace-id=3b0183b8c07e4dbea43c84c455d0bc5e --remote pw:<번호>` → 반 코드로 다시 설정
+
+## 글꼴
+Pretendard(OFL)를 서브셋해서 `src/pretendard.woff2`로 Worker에 내장 (외부 CDN 없음). 새 글자(희귀 한글)가 자주 깨지면 `fonts/chars.txt` 에 추가해 pyftsubset 으로 다시 만들고 `/fonts/pretendard-N.woff2` 번호를 올리세요.
