@@ -55,7 +55,7 @@ async function limited(env, key, max) {
 // 계정별 맞춤 데이터: 특별실 응시는 내 것만, 행사 참여자 명단은 반 공지라 전체 공개 (로그인한 사람만)
 async function personalized(env, me) {
   const d = JSON.parse(await env.CLASS_KV.get('data') || '{}');
-  d.me = { n: me.n, name: me.name, role: me.role === 'teacher' ? 'teacher' : 'student' };
+  d.me = { n: me.n, name: me.name, role: me.role === 'teacher' ? 'teacher' : 'student', admin: !!me.admin };
   d.special = (d.special || []).filter((x) => (x.members || []).includes(me.name)).map((x) => ({ ...x, members: [me.name] }));
   // 대상자가 정해진 일정(audience)은 대상 학생에게만 내려보냄 (다른 학생 이름은 노출하지 않음). 교사는 전체 확인
   if (me.role !== 'teacher') {
@@ -66,6 +66,18 @@ async function personalized(env, me) {
   const off = JSON.parse(await env.CLASS_KV.get('official:' + me.n) || 'null');   // 선생님이 올린 학교 기준 선택과목(암호화 대상 아님)
   if (off) d.official = off;
   return d;
+}
+
+async function saveOfficial(env, roster, rows) {
+  const valid = new Set(roster.filter((x) => x.role !== 'teacher').map((x) => x.n));
+  let saved = 0;
+  for (const r of rows) {
+    if (!valid.has(r.n) || !Array.isArray(r.el2) || r.el2.length > 10) continue;
+    const el2 = r.el2.map((x) => String(x).slice(0, 40)), blocks = {};
+    for (const [k, v] of Object.entries(r.blocks || {})) if (el2.includes(k) && /^[A-E]$/.test(v)) blocks[k] = v;
+    await env.CLASS_KV.put('official:' + r.n, JSON.stringify({ el2, blocks, at: Date.now() })); saved++;
+  }
+  return saved;
 }
 
 export default {
@@ -174,6 +186,49 @@ export default {
       if (typeof b.iv !== 'string' || typeof b.data !== 'string' || !b.keys || typeof b.keys !== 'object') return json({ error: 'bad' }, 400);
       await env.CLASS_KV.put('share:' + tok.w, JSON.stringify({ iv: b.iv, data: b.data, keys: b.keys, at: Date.now() }));
       return json({ ok: true });
+    }
+    if (url.pathname.startsWith('/api/admin/')) {
+      // 관리자(운영자 학생 계정) 전용: 가입 현황 · 학생이 보낸 선택과목 · 업로드 파일. 암호화된 성적·내신은 볼 수 없음
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]');
+      const me = roster.find((x) => x.n === tok.w);
+      if (!me || !me.admin) return json({ error: 'forbidden' }, 403);
+      const sub = url.pathname.slice('/api/admin/'.length);
+      if (sub === 'overview' && request.method === 'GET') {
+        const names = async (prefix) => (await env.CLASS_KV.list({ prefix })).keys;
+        const [pw, sh, off, subs, ups] = await Promise.all([names('pw:'), names('share:'), names('official:'), names('submit:'), names('upload:')]);
+        const num = (k, pre) => parseInt(k.name.slice(pre.length), 10);
+        const active = new Set(pw.map((k) => num(k, 'pw:'))), shared = new Set(sh.map((k) => num(k, 'share:'))), official = new Set(off.map((k) => num(k, 'official:')));
+        const subCount = {}; subs.forEach((k) => { const n = parseInt(k.name.split(':')[1], 10); subCount[n] = (subCount[n] || 0) + 1; });
+        const students = roster.filter((x) => x.role !== 'teacher').map((x) => ({ n: x.n, name: x.name, active: active.has(x.n), shared: shared.has(x.n), official: official.has(x.n), subs: subCount[x.n] || 0 }));
+        const teachers = roster.filter((x) => x.role === 'teacher').map((x) => ({ name: x.name, loggedIn: active.has(x.n) }));
+        const submissions = [];
+        for (const k of subs) { const v = await env.CLASS_KV.get(k.name); if (v) submissions.push({ key: k.name, ...JSON.parse(v) }); }
+        submissions.sort((a, b) => b.at - a.at);
+        return json({ students, teachers, submissions, uploads: ups.map((k) => ({ key: k.name, ...(k.metadata || {}) })), at: Date.now() });
+      }
+      if (sub === 'file' && request.method === 'GET') {
+        const key = url.searchParams.get('key') || '';
+        const isUp = key.startsWith('upload:'), kvKey = isUp ? key : 'submitfile:' + key.replace(/^submit:/, '');
+        if (!isUp && !key.startsWith('submit:')) return json({ error: 'bad' }, 400);
+        const r = await env.CLASS_KV.getWithMetadata(kvKey, 'arrayBuffer');
+        if (!r.value) return json({ error: 'not_found' }, 404);
+        const md = r.metadata || {};
+        return new Response(r.value, { headers: { 'content-type': md.type || 'application/octet-stream', 'content-disposition': "attachment; filename*=UTF-8''" + encodeURIComponent(md.name || 'file'), 'cache-control': 'no-store' } });
+      }
+      let b = {}; if (request.method === 'POST') { try { b = await request.json(); } catch { return json({ error: 'bad' }, 400); } }
+      if (sub === 'official' && request.method === 'POST') {
+        if (!Array.isArray(b.rows) || b.rows.length > 100) return json({ error: 'bad' }, 400);
+        return json({ ok: true, saved: await saveOfficial(env, roster, b.rows) });
+      }
+      if (sub === 'submission-delete' && request.method === 'POST') {
+        const key = String(b.key || '').replace(/^submit:/, '');
+        await env.CLASS_KV.delete('submit:' + key); await env.CLASS_KV.delete('submitfile:' + key);
+        return json({ ok: true });
+      }
+      return json({ error: 'not_found' }, 404);
     }
     if (url.pathname.startsWith('/api/teacher/')) {
       // 교사 전용: 학생 현황 · 비밀번호 초기화 · 일정/공지 관리

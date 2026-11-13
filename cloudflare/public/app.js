@@ -58,6 +58,7 @@
     });
     if (name === 'naesin') { applyNsSub(); if (nsSub === 'grade') loadGrade(); else renderNaesin(); }
     if (name === 'me') renderMe();
+    if (name === 'admin') renderAdmin();
     try { history.replaceState(null, '', '#' + (name === 'naesin' && nsSub === 'grade' ? 'grade' : name)); } catch (e) {}
   }
   Array.prototype.forEach.call(document.querySelectorAll('#ns-seg .seg-b'), function (b) {
@@ -581,7 +582,7 @@
       if (!d || !d.me) return;
       PREVIEW = { n: n, name: name, scores: sh ? sh.scores || {} : {}, prefs: sh ? sh.prefs || {} : {}, shared: !!sh }; DATA = d;
       GC_STATE = GC_STATE === 'loading' ? GC_STATE : (GC ? 'dirty' : 'idle');
-      document.body.classList.remove('teacher'); document.body.classList.add('preview');
+      document.body.classList.remove('teacher'); document.body.classList.remove('admin'); document.body.classList.add('preview');
       var bar = document.getElementById('previewBar'); bar.hidden = false;
       document.getElementById('previewWho').textContent = '👀 ' + name + '(' + n + '번) 학생 화면 · 읽기 전용' + (sh ? ' · 성적 공유됨' : ' · 아직 공유 데이터 없음(학생이 한 번 로그인하면 생겨요)');
       document.getElementById('who').textContent = name + ' · ' + n + '번';
@@ -723,6 +724,84 @@
     return file.arrayBuffer().then(function (buf) {
       return fetch('/api/teacher/upload', { method: 'POST', headers: { authorization: 'Bearer ' + load('tok26'), 'x-filename': encodeURIComponent(file.name), 'content-type': file.type || 'application/octet-stream' }, body: buf }).then(function (r) { return r.json().then(function (j) { j._ok = r.ok; return j; }); });
     });
+  }
+
+  // ---------- 관리자 대시보드 (가입 현황 · 받은 제출 · 업로드 파일) ----------
+  function aApi(path, body) {
+    return fetch('/api/admin/' + path, { method: body ? 'POST' : 'GET', headers: { authorization: 'Bearer ' + (load('tok26') || ''), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
+      .then(function (r) { return r.json().then(function (j) { j._ok = r.ok; return j; }); });
+  }
+  function dlFile(key, name) {
+    fetch('/api/admin/file?key=' + encodeURIComponent(key), { headers: { authorization: 'Bearer ' + load('tok26') } }).then(function (r) { return r.blob(); }).then(function (bl) {
+      var u = URL.createObjectURL(bl), l = document.createElement('a'); l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
+    });
+  }
+  function renderAdmin() {
+    var p = document.getElementById('panel-admin'); if (!p || !DATA || !DATA.me.admin) return; clear(p);
+    var onlyNo = false, last = null;
+    var top = h('div', { class: 'card' }, [head('ADMIN', '관리자 대시보드'), h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '불러오는 중…' })])]);
+    var body = h('div'); p.appendChild(top); p.appendChild(body);
+    function load2() {
+      return aApi('overview').then(function (j) { if (!j._ok) throw new Error('x'); last = j; draw(); }).catch(function () { clear(top.lastChild); top.lastChild.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요. 다시 눌러 주세요.' })); });
+    }
+    function draw() {
+      var j = last, S = j.students, cnt = function (f) { return S.filter(f).length; };
+      var refresh = h('button', { class: 'linkbtn', type: 'button', text: '↻ 새로고침' });
+      refresh.addEventListener('click', function () { refresh.textContent = '불러오는 중…'; load2(); });
+      var stat = function (l, v, s) { return h('div', { class: 'adm-stat' }, [h('small', { text: l }), h('b', { text: v }), s ? h('em', { text: s }) : null]); };
+      var t = j.teachers[0];
+      clear(top.lastChild);
+      top.lastChild.appendChild(h('div', { class: 'adm-stats' }, [
+        stat('가입', cnt(function (s) { return s.active; }) + ' / ' + S.length, '명'),
+        stat('선생님 공유', String(cnt(function (s) { return s.shared; })), '명'),
+        stat('학교 명단 반영', String(cnt(function (s) { return s.official; })), '명'),
+        stat('받은 제출', String(j.submissions.length), '건'),
+        stat('선생님 로그인', t ? (t.loggedIn ? '완료' : '아직') : '-', t ? t.name : '')]));
+      top.lastChild.appendChild(h('div', { class: 'note-sm', text: '관리자는 암호화된 성적·내신은 볼 수 없어요. 가입 여부, 공유 여부, 학생이 보낸 선택과목·파일만 보여요.  마지막 갱신 ' + new Date(j.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) }));
+      top.lastChild.appendChild(refresh);
+      clear(body);
+
+      // 학생 표
+      var tgl = h('button', { class: 'linkbtn', type: 'button', text: onlyNo ? '전체 보기' : '미가입만 보기' });
+      tgl.addEventListener('click', function () { onlyNo = !onlyNo; draw(); });
+      var rows = S.filter(function (s) { return !onlyNo || !s.active; }).map(function (s) {
+        var ok = function (v, t) { return h('span', { class: 'adm-dot' + (v ? ' on' : ''), title: t, text: v ? '●' : '○' }); };
+        return h('div', { class: 'adm-row' + (s.active ? '' : ' off') }, [h('span', { class: 'srow-n', text: s.n + '번' }), h('span', { class: 'srow-name', text: s.name }), ok(s.active, '가입'), ok(s.shared, '선생님 공유'), ok(s.official, '학교 명단'), h('span', { class: 'adm-sub', text: s.subs ? '✉' + s.subs : '' })]);
+      });
+      body.appendChild(h('div', { class: 'card' }, [head('STUDENTS', '학생 현황'), h('div', { class: 'card-b' }, [
+        h('div', { class: 'adm-legend' }, [h('span', { text: '가입' }), h('span', { text: '공유' }), h('span', { text: '명단' }), h('span', { text: '제출' })]), tgl].concat(rows))]));
+
+      // 받은 제출
+      var inbox = j.submissions.length ? j.submissions.map(function (s) {
+        var when = new Date(s.at).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' });
+        var kids = [h('div', { class: 'ev-title' }, [s.n + '번 ' + s.name, h('span', { class: 'chip', text: when })])];
+        if (s.text) kids.push(h('div', { class: 'sub-text', text: s.text }));
+        if (s.file) { var d1 = h('button', { class: 'linkbtn', type: 'button', text: '📎 ' + s.file.name + ' (' + Math.max(1, Math.round(s.file.size / 1024)) + 'KB) 받기' }); d1.addEventListener('click', function () { dlFile(s.key, s.file.name); }); kids.push(d1); }
+        if (s.text) {
+          var ap = h('button', { class: 'linkbtn', type: 'button', text: '글 읽어서 적용' });
+          ap.addEventListener('click', function () {
+            var cells = s.text.split(/[\n,;、\/·]+/).map(function (x) { return x.trim(); }).filter(Boolean), m = mapOfficial([[s.name].concat(cells)], S), r0 = m.rows[0];
+            if (!r0 || !r0.el2.length) { alert('과목을 찾지 못했어요. 직접 확인해 주세요.'); return; }
+            if (!confirm(s.n + '번 ' + s.name + '의 선택과목을 이렇게 적용할까요?\n' + r0.el2.map(function (n) { return n + (r0.blocks[n] ? '(' + r0.blocks[n] + ')' : ''); }).join(', ') + (r0.el2.length !== 5 ? '\n⚠ ' + r0.el2.length + '과목만 읽었어요' : ''))) return;
+            aApi('official', { rows: [{ n: r0.n, el2: r0.el2, blocks: r0.blocks }] }).then(function (r) { alert(r._ok ? '적용했어요.' : '적용하지 못했어요.'); load2(); });
+          });
+          kids.push(ap);
+        }
+        var del = h('button', { class: 'linkbtn del-b', type: 'button', text: '삭제' });
+        del.addEventListener('click', function () { if (confirm('이 제출을 지울까요?')) aApi('submission-delete', { key: s.key }).then(load2); });
+        kids.push(del);
+        return h('div', { class: 'sub-item' }, kids);
+      }) : [h('div', { class: 'empty', text: '아직 받은 제출이 없어요.' })];
+      body.appendChild(h('div', { class: 'card' }, [head('INBOX', '학생이 보낸 선택과목'), h('div', { class: 'card-b' }, inbox)]));
+
+      // 업로드된 파일 (선생님이 올린 명단 원본)
+      var ups = j.uploads.length ? j.uploads.map(function (u) {
+        var d2 = h('button', { class: 'linkbtn', type: 'button', text: '받기' }); d2.addEventListener('click', function () { dlFile(u.key, u.name || 'file'); });
+        return h('div', { class: 'srow adm-up' }, [h('span', { class: 'srow-name', text: u.name || u.key }), h('span', { class: 'srow-st', text: Math.max(1, Math.round((u.size || 0) / 1024)) + 'KB' }), h('span', { class: 'srow-st', text: u.by || '' }), d2]);
+      }) : [h('div', { class: 'empty', text: '올라온 파일이 없어요.' })];
+      body.appendChild(h('div', { class: 'card' }, [head('FILES', '올라온 명단 파일'), h('div', { class: 'card-b' }, ups)]));
+    }
+    load2();
   }
 
   // ---------- 교사 도구 ----------
@@ -1733,6 +1812,7 @@
     var isT = DATA.me.role === 'teacher';
     who.textContent = isT ? DATA.me.name + ' 선생님' : DATA.me.name + ' · ' + DATA.me.n + '번';
     document.body.classList.toggle('teacher', isT);
+    document.body.classList.toggle('admin', !!DATA.me.admin);
     var d = new Date(TODAY);
     document.getElementById('todayLabel').textContent = (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + DOW[d.getUTCDay()] + ')';
     document.getElementById('updated').textContent = DATA.className + ' 알림장 · 마지막 업데이트 ' + fmt(DATA.updated);
@@ -1750,7 +1830,7 @@
     setTimeout(showWelcomeModal, 1100);
     var start = (location.hash || '').replace('#', '');
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
-    selectTab(['home', 'today', 'exam', 'grade', 'naesin', 'me', 'more'].indexOf(start) >= 0 ? start : 'home');
+    selectTab(['home', 'today', 'exam', 'grade', 'naesin', 'me', 'more', 'admin'].indexOf(start) >= 0 && (start !== 'admin' || DATA.me.admin) ? start : 'home');
   }
 
   // ---------- 로그인 (서버: 이름+번호) ----------

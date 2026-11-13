@@ -632,3 +632,13 @@ textarea.field{width:100%; max-width:none; min-height:96px; resize:vertical}
 .sub-item .linkbtn{align-self:flex-start; padding:2px 0}
 
 .chip.target{margin-left:6px; background:var(--red-t); color:var(--red); vertical-align:middle}
+
+/* 관리자 대시보드 */
+.tab-admin{display:none} body.admin .tab-admin{display:inline-block}
+.adm-stats{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.adm-stat{padding:10px 8px; border-radius:14px; background:var(--gray-t); text-align:center; display:flex; flex-direction:column; gap:1px}
+.adm-stat small{font-size:11px; color:var(--mute); font-weight:700} .adm-stat b{font-size:20px; font-weight:800; letter-spacing:-.03em} .adm-stat em{font-style:normal; font-size:11px; color:var(--sub)}
+.adm-legend{display:grid; grid-template-columns:40px 1fr 34px 34px 34px 34px; gap:6px; font-size:11px; font-weight:800; color:var(--mute); text-align:center; padding:0 0 2px} .adm-legend span:first-child{grid-column:3}
+.adm-row{display:grid; grid-template-columns:40px 1fr 34px 34px 34px 34px; gap:6px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); font-size:14.5px} .adm-row:last-child{border-bottom:0} .adm-row.off{opacity:.6}
+.adm-dot{text-align:center; color:var(--mute); font-size:15px} .adm-dot.on{color:var(--green)} .adm-sub{text-align:center; font-size:12px; font-weight:800; color:var(--blue)}
+.adm-up{grid-template-columns:1fr 54px 52px 40px !important}
