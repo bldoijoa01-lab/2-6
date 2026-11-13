@@ -56,6 +56,7 @@
       t.setAttribute('aria-selected', on ? 'true' : 'false');
       document.getElementById('panel-' + t.getAttribute('data-tab')).hidden = !on;
     });
+    if (name === 'home' && DATA && DATA.me && DATA.me.role !== 'teacher') renderHome();   // 내신·선택과목 등 바뀐 값이 홈에도 바로 반영되게
     if (name === 'naesin') { applyNsSub(); if (nsSub === 'grade') loadGrade(); else renderNaesin(); }
     if (name === 'me') renderMe();
     if (name === 'admin') renderAdmin();
@@ -1069,19 +1070,23 @@
     var r = window.CONV9.rows[x - 100]; return r ? { min: r[1], max: r[2] } : null;
   }
   function c9txt(avg) { var c = conv9(avg); return c ? c.min.toFixed(2) + ' ~ ' + c.max.toFixed(2) + '등급' : '-'; }
+  var c9State = { open: false, val: '' };   // 직접 입력 칸 상태(내신을 고쳐서 카드가 다시 그려져도 유지)
   function c9card(avg) {
     var by = (window.CONV9 && window.CONV9.baseYear) || '2026';
     var main = h('div', { class: 'c9-main' }, [h('small', { text: '9등급제로 환산 (참고)' }), h('b', { text: avg == null ? '-' : c9txt(avg) })]);
     var inp = h('input', { class: 'field c9-in', type: 'text', inputmode: 'decimal', placeholder: '5등급제 평균 (1.00~5.00)', 'aria-label': '5등급제 평균 직접 입력' }), out = h('div', { class: 'c9-out', text: '숫자를 넣으면 9등급제 범위가 나와요.' });
-    inp.addEventListener('input', function () {
-      var v = inp.value.trim(); if (!v) { out.textContent = '숫자를 넣으면 9등급제 범위가 나와요.'; return; }
+    function calcManual() {
+      var v = inp.value.trim().replace(',', '.'); c9State.val = inp.value;
+      if (!v) { out.textContent = '숫자를 넣으면 9등급제 범위가 나와요.'; return; }
       if (!/^\d+(\.\d{1,2})?$/.test(v) || +v < 1 || +v > 5) { out.textContent = '1.00~5.00 사이 숫자(소수 둘째 자리까지)로 넣어 주세요.'; return; }
       out.textContent = '5등급제 ' + (+v).toFixed(2) + ' → 9등급제 ' + c9txt(+v) + ' 사이';
-    });
+    }
+    inp.addEventListener('input', calcManual);
+    inp.value = c9State.val; if (c9State.val) calcManual();
     var tbl = [1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map(function (g) { return h('div', { class: 'c9-row' }, [h('span', { text: g.toFixed(2) }), h('b', { text: c9txt(g) })]); });
     return h('div', { class: 'c9' }, [main,
       h('div', { class: 'note-sm', text: avg == null ? '내신 등급을 넣으면 9등급제 환산 범위가 나와요.' : '5등급제 평균 ' + nsFmt(avg) + '은 9등급제로 ' + c9txt(avg) + ' 사이예요.' }),
-      h('details', { class: 'gc-more' }, [h('summary', { text: '직접 입력해서 환산 · 대표값 표' }), inp, out, h('div', { class: 'c9-tbl' }, [h('div', { class: 'c9-row hd' }, [h('span', { text: '5등급제' }), h('span', { text: '9등급제 범위' })])].concat(tbl))]),
+      (function () { var d = h('details', { class: 'gc-more' }, [h('summary', { text: '직접 입력해서 환산 · 대표값 표' }), inp, out, h('div', { class: 'c9-tbl' }, [h('div', { class: 'c9-row hd' }, [h('span', { text: '5등급제' }), h('span', { text: '9등급제 범위' })])].concat(tbl))]); if (c9State.open) d.setAttribute('open', ''); d.addEventListener('toggle', function () { c9State.open = d.open; }); return d; })(),
       h('div', { class: 'note-sm c9-src', text: '대학마다 환산 방식이 달라서 참고용이에요. 출처: 충청남도교육청 진학정보(jinhakai.pen.go.kr) 내신 변환 · ' + by + ' 기준' })]);
   }
   var nsFmt = function (v) { return v == null ? '-' : (Math.round(v * 100) / 100).toFixed(2); };
