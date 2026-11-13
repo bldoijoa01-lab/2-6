@@ -1034,6 +1034,50 @@
     p.appendChild(h('div', { class: 'card' }, [head('CREDITS', '만든 사람'), h('div', { class: 'card-b' }, people.concat(notes))]));
   }
 
+  // ---------- 내신 추이 그래프 (SVG) ----------
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  function sv(tag, attrs, kids) {
+    var el = document.createElementNS(SVGNS, tag);
+    if (attrs) for (var k in attrs) el.setAttribute(k, attrs[k]);
+    (kids || []).forEach(function (c) { if (c != null) el.appendChild(typeof c === 'string' ? document.createTextNode(c) : c); });
+    return el;
+  }
+  function nsChart(sems, mode) {   // mode: 'g5' (5등급제) | 'g9' (9등급제 환산 범위의 가운데 값)
+    var W = 340, H = 214, L = 34, R = 14, T = 20, B = 40, iw = W - L - R, ih = H - T - B;
+    var is9 = mode === 'g9', lo = 1, hi = is9 ? 9 : 5, ticks = is9 ? [1, 3, 5, 7, 9] : [1, 2, 3, 4, 5];
+    var conv = function (v) { if (v == null) return null; if (!is9) return v; var c = conv9(v); return c ? (c.min + c.max) / 2 : null; };
+    var X = function (i) { return L + (NS_SEMS.length === 1 ? iw / 2 : iw * i / (NS_SEMS.length - 1)); };
+    var Y = function (v) { return T + ih * (v - lo) / (hi - lo); };   // 위쪽이 1등급(좋음)
+    var cs = 0, cc = 0, pts = [], cum = [];
+    NS_SEMS.forEach(function (sm, i) {
+      var r = semAvg(nsRows(sems, sm[0])); if (r.credits) { cs += r.sum; cc += r.credits; }
+      var v = conv(r.avg), cv = conv(cc ? cs / cc : null);
+      pts.push(v == null ? null : { x: X(i), y: Y(v), v: v, i: i });
+      cum.push(cv == null ? null : { x: X(i), y: Y(cv), v: cv, i: i });
+    });
+    function path(arr) { var d = '', pen = false; arr.forEach(function (p) { if (!p) { pen = false; return; } d += (pen ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1) + ' '; pen = true; }); return d.trim(); }
+    var svg = sv('svg', { viewBox: '0 0 ' + W + ' ' + H, class: 'chart', role: 'img', 'aria-label': '학기별 내신 추이 그래프' });
+    svg.appendChild(sv('defs', null, [sv('linearGradient', { id: 'cg1', x1: '0', x2: '1', y1: '0', y2: '0' }, [sv('stop', { offset: '0', 'stop-color': '#3B6CF5' }), sv('stop', { offset: '.55', 'stop-color': '#8A5BE6' }), sv('stop', { offset: '1', 'stop-color': '#E85AA0' })])]));
+    ticks.forEach(function (t) {   // 눈금과 가로선
+      svg.appendChild(sv('line', { x1: L, x2: W - R, y1: Y(t), y2: Y(t), class: 'ch-grid' }));
+      svg.appendChild(sv('text', { x: L - 8, y: Y(t) + 3.5, class: 'ch-ytxt', 'text-anchor': 'end' }, [String(t)]));
+    });
+    NS_SEMS.forEach(function (sm, i) { svg.appendChild(sv('text', { x: X(i), y: H - 20, class: 'ch-xtxt', 'text-anchor': 'middle' }, [sm[1].replace('학년 ', '-').replace('학기', '').replace('1학', '1').replace('2학', '2')])); });
+    NS_SEMS.forEach(function (sm, i) { svg.appendChild(sv('text', { x: X(i), y: H - 6, class: 'ch-xtxt sub', 'text-anchor': 'middle' }, [sm[1].indexOf('1학년') === 0 ? '1학년' : '2학년'])); });
+    var dc = path(cum);
+    if (dc) svg.appendChild(sv('path', { d: dc, class: 'ch-cum', pathLength: '1' }));      // 누적 평균(점선)
+    var dl = path(pts);
+    if (dl) svg.appendChild(sv('path', { d: dl, class: 'ch-line', pathLength: '1', stroke: 'url(#cg1)' }));   // 학기 평균(실선)
+    pts.forEach(function (p) {
+      if (!p) return;
+      svg.appendChild(sv('circle', { cx: p.x, cy: p.y, r: 5, class: 'ch-dot', style: 'animation-delay:' + (0.25 + p.i * 0.18) + 's' }));
+      svg.appendChild(sv('text', { x: p.x, y: Math.max(12, p.y - 11), class: 'ch-val', 'text-anchor': 'middle', style: 'animation-delay:' + (0.3 + p.i * 0.18) + 's' }, [(Math.round(p.v * 100) / 100).toFixed(2)]));
+    });
+    var any = pts.some(Boolean);
+    if (!any) svg.appendChild(sv('text', { x: W / 2, y: H / 2 - 6, class: 'ch-empty', 'text-anchor': 'middle' }, ['등급을 넣으면 그래프가 그려져요']));
+    return svg;
+  }
+
   // ---------- 내신 (학기별 등급 입력 → 총 내신 평균) ----------
   var NS_SEMS = [['1-1', '1학년 1학기'], ['1-2', '1학년 2학기'], ['2-1', '2학년 1학기'], ['2-2', '2학년 2학기']];
   var NS_BASE = {   // 편성표의 공통·일반 과목 (이름, 단위, 내신 반영 기본값). 반영 여부는 학교 기준에 맞게 직접 바꿀 수 있어요
@@ -1106,9 +1150,22 @@
     var sems = nsLoad(), summary = h('div', { class: 'card ns-sum' }), cards = h('div');
     p.appendChild(h('div', { class: 'note-sm ns-intro', text: '학기별로 과목의 등급(1~5)과 단위수를 넣으면 단위수 가중 평균을 계산해요. 체육·예술·과학탐구실험 등은 기본으로 평균에서 빼 뒀고, 학교 기준에 맞게 "반영"을 켜고 끌 수 있어요.' }));
     p.appendChild(secureNote(!!load('gk26')));
-    p.appendChild(summary); p.appendChild(cards);
+    var chartCard = h('div', { class: 'card ns-chart' }), chartMode = 'g5';
+    p.appendChild(summary); p.appendChild(chartCard); p.appendChild(cards);
+    function drawChart() {
+      clear(chartCard);
+      var seg = h('div', { class: 'seg' });
+      [['5등급제', 'g5'], ['9등급제 환산', 'g9']].forEach(function (m) {
+        var b = h('button', { class: 'seg-b', type: 'button', text: m[0], 'aria-pressed': chartMode === m[1] ? 'true' : 'false' });
+        b.addEventListener('click', function () { chartMode = m[1]; drawChart(); });
+        seg.appendChild(b);
+      });
+      chartCard.appendChild(h('div', { class: 'card-b' }, [h('div', { class: 'ns-ch-h' }, [h('div', null, [h('div', { class: 'eyebrow', text: 'TREND' }), h('h2', { text: '학기별 추이' })]), seg]),
+        nsChart(sems, chartMode),
+        h('div', { class: 'ch-legend' }, [h('span', { class: 'lg' }, [h('i', { class: 'ln' }), '학기 평균']), h('span', { class: 'lg' }, [h('i', { class: 'ln dash' }), '누적 평균']), h('span', { class: 'ch-note', text: '위쪽일수록 좋은 등급' + (chartMode === 'g9' ? ' · 9등급제는 환산 범위의 가운데 값' : '') })])]));
+    }
 
-    function persist() { nsSave(sems); drawSummary(); }
+    function persist() { nsSave(sems); drawSummary(); drawChart(); }
     function drawSummary() {
       clear(summary);
       var t = nsTotal(sems);
@@ -1197,7 +1254,7 @@
         cards.appendChild(box);
       });
     }
-    drawSummary(); drawCards();
+    drawSummary(); drawChart(); drawCards();
   }
 
   // ---------- 보안 안내 문구 ----------
