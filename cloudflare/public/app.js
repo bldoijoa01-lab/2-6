@@ -1053,7 +1053,7 @@
     NS_SEMS.forEach(function (sm, i) {
       var r = semAvg(nsRows(sems, sm[0])); if (r.credits) { cs += r.sum; cc += r.credits; }
       var v = conv(r.avg), cv = conv(cc ? cs / cc : null);
-      pts.push(v == null ? null : { x: X(i), y: Y(v), v: v, i: i });
+      pts.push(v == null ? null : { x: X(i), y: Y(v), v: v, i: i, f: !!NS_FUT[sm[0]] });
       cum.push(cv == null ? null : { x: X(i), y: Y(cv), v: cv, i: i });
     });
     function path(arr) { var d = '', pen = false; arr.forEach(function (p) { if (!p) { pen = false; return; } d += (pen ? 'L' : 'M') + p.x.toFixed(1) + ' ' + p.y.toFixed(1) + ' '; pen = true; }); return d.trim(); }
@@ -1071,8 +1071,8 @@
     if (dl) svg.appendChild(sv('path', { d: dl, class: 'ch-line', pathLength: '1', stroke: 'url(#cg1)' }));   // 학기 평균(실선)
     pts.forEach(function (p) {
       if (!p) return;
-      svg.appendChild(sv('circle', { cx: p.x, cy: p.y, r: 5, class: 'ch-dot', style: 'animation-delay:' + (0.25 + p.i * 0.18) + 's' }));
-      svg.appendChild(sv('text', { x: p.x, y: Math.max(12, p.y - 11), class: 'ch-val', 'text-anchor': 'middle', style: 'animation-delay:' + (0.3 + p.i * 0.18) + 's' }, [(Math.round(p.v * 100) / 100).toFixed(2)]));
+      svg.appendChild(sv('circle', { cx: p.x, cy: p.y, r: 5, class: 'ch-dot' + (p.f ? ' fut' : ''), style: 'animation-delay:' + (0.25 + p.i * 0.18) + 's' }));
+      svg.appendChild(sv('text', { x: p.x, y: Math.max(12, p.y - 11), class: 'ch-val' + (p.f ? ' fut' : ''), 'text-anchor': 'middle', style: 'animation-delay:' + (0.3 + p.i * 0.18) + 's' }, [(Math.round(p.v * 100) / 100).toFixed(2)]));
     });
     var any = pts.some(Boolean);
     if (!any) svg.appendChild(sv('text', { x: W / 2, y: H / 2 - 6, class: 'ch-empty', 'text-anchor': 'middle' }, ['등급을 넣으면 그래프가 그려져요']));
@@ -1081,6 +1081,7 @@
 
   // ---------- 내신 (학기별 등급 입력 → 총 내신 평균) ----------
   var NS_SEMS = [['1-1', '1학년 1학기'], ['1-2', '1학년 2학기'], ['2-1', '2학년 1학기'], ['2-2', '2학년 2학기'], ['3-1', '3학년 1학기']];
+  var NS_FUT = { '2-2': 1, '3-1': 1 };   // 아직 성적이 안 나온 학기: 흐리게, 재미로 해보는 용도
   var NS_BASE = {   // 편성표의 공통·일반 과목 (이름, 단위, 내신 반영 기본값). 반영 여부는 학교 기준에 맞게 직접 바꿀 수 있어요
     '1-1': [['공통국어1', 4], ['공통수학1', 4], ['공통영어1', 4], ['한국사1', 3], ['통합사회1', 4], ['통합과학1', 4], ['과학탐구실험1', 1, 1], ['체육Ⅰ', 2, 1], ['음악/미술', 2, 1], ['기술·가정/정보', 3]],
     '1-2': [['공통국어2', 4], ['공통수학2', 4], ['공통영어2', 4], ['한국사2', 3], ['통합사회2', 4], ['통합과학2', 4], ['과학탐구실험2', 1, 1], ['체육Ⅱ', 2, 1], ['음악/미술', 2, 1], ['정보/기술·가정', 3]],
@@ -1179,7 +1180,7 @@
     function drawSummary() {
       clear(summary);
       var t = nsTotal(sems);
-      var per = NS_SEMS.map(function (sm) { var r = semAvg(nsRows(sems, sm[0])), c9 = conv9(r.avg); return h('div', { class: 'ns-per' }, [h('small', { text: sm[1] }), h('b', { text: r.avg == null ? '-' : nsFmt(r.avg) }), h('em', { text: c9 ? '9등급 ' + c9.min.toFixed(2) + '~' + c9.max.toFixed(2) : '' })]); });
+      var per = NS_SEMS.map(function (sm) { var r = semAvg(nsRows(sems, sm[0])), c9 = conv9(r.avg); return h('div', { class: 'ns-per' + (NS_FUT[sm[0]] ? ' fut' : '') }, [h('small', { text: sm[1] }), h('b', { text: r.avg == null ? '-' : nsFmt(r.avg) }), h('em', { text: c9 ? '9등급 ' + c9.min.toFixed(2) + '~' + c9.max.toFixed(2) : '' })]); });
       var kids = [h('div', { class: 'eyebrow', text: '총 내신 평균 (단위수 가중)' }), h('div', { class: 'ns-avg', text: nsFmt(t.avg) }),
         h('div', { class: 'note-sm', text: t.avg == null ? '아래에 등급을 넣으면 계산돼요.' : t.sems + '개 학기 · 반영 ' + t.credits + '단위' }), h('div', { class: 'ns-pers' }, per), c9card(t.avg)];
       // 이번 학기(2-2) 가정: 아직 등급이 없는 학기의 평균을 가정해서 총 평균을 미리 보기
@@ -1265,7 +1266,7 @@
           }
         }
         head2(); drawRows();
-        var box = h('details', { class: 'card el-card' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: key + ' · 평균' }), h('h2', null, [sm[1] + ' ', avgEl]), c9El]), meta]), h('div', { class: 'el-body' }, [list])]);
+        var box = h('details', { class: 'card el-card' + (NS_FUT[key] ? ' fut' : '') }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: key + ' · 평균' + (NS_FUT[key] ? ' · 아직 성적 전 · 재미로 해보기 ✨' : '') }), h('h2', null, [sm[1] + ' ', avgEl]), c9El]), meta]), h('div', { class: 'el-body' }, [list])]);
         if (si >= 2) box.setAttribute('open', '');
         cards.appendChild(box);
       });

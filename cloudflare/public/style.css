@@ -769,3 +769,9 @@ body{background:transparent}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .ch-dot{fill:#1b2140}}
 
 .ns-nr{font-size:11.5px; font-weight:700; color:var(--mute); margin:-2px 0 2px 4px}
+
+/* 아직 성적 안 나온 학기: 흐릿하게 (재미로 해보는 용도) */
+.el-card.fut{opacity:.62; border-style:dashed; transition:opacity .25s} .el-card.fut:hover,.el-card.fut[open],.el-card.fut:focus-within{opacity:.92}
+.ns-per.fut{opacity:.55} .ns-per.fut b{font-style:italic}
+.ch-dot.fut{stroke-dasharray:3 2.2; fill-opacity:.5}
+.ch-val.fut{fill-opacity:.55; font-style:italic}
