@@ -174,6 +174,56 @@
     var box = h('div'); card.appendChild(box); weeklyBox = box; fillWeekly(box); return card;
   }
   function refreshWeekly() { if (weeklyBox && weeklyBox.parentNode) fillWeekly(weeklyBox); }
+  // 일과표(주간 시간표)를 사진으로 저장/공유
+  function saveWeeklyImage() {
+    var W = DATA.weekly, me = DATA.me, dark = document.documentElement.getAttribute('data-theme') === 'dark';
+    var Wd = 1080, pad = 44, labW = 118, gap = 8, nd = W.days.length, np = W.rows.length;
+    var cw = (Wd - pad * 2 - labW - gap * nd) / nd, ch = 118, headH = 56, top = 190, H = top + headH + np * (ch + gap) + 100;
+    var cv = document.createElement('canvas'); cv.width = Wd; cv.height = H; var x = cv.getContext('2d');
+    var C = dark ? { ink: '#EAEEFB', sub: '#A6B0CB', head: '#262C3A', lab: '#222735', common: '#1D2A4A', commonT: '#9DB8FF', el: '#173326', self: '#222735', selfT: '#7C8496', dash: '#7C8496' }
+                 : { ink: '#1A2040', sub: '#566078', head: '#1A2040', lab: '#E7EAF3', common: '#DCE6FE', commonT: '#2E58D6', el: '#DDF2E8', self: '#ECEEF4', selfT: '#8590A8', dash: '#8590A8' };
+    var F = 'PretendardL, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif', blocks = myBlocks();
+    function rr(px, py, w, h2, r, fill, stroke) { x.beginPath(); x.moveTo(px + r, py); x.arcTo(px + w, py, px + w, py + h2, r); x.arcTo(px + w, py + h2, px, py + h2, r); x.arcTo(px, py + h2, px, py, r); x.arcTo(px, py, px + w, py, r); x.closePath(); if (fill) { x.fillStyle = fill; x.fill(); } if (stroke) { x.setLineDash([8, 6]); x.lineWidth = 2.5; x.strokeStyle = stroke; x.stroke(); x.setLineDash([]); } }
+    function cellInfo(c) {
+      if (!c) return null;
+      if (c.k === 'block') return blocks[c.b] ? { t: blocks[c.b], sub: c.b + '반', k: 'elective' } : { t: c.b, sub: '선택', k: 'block' };
+      return { t: c.t, sub: c.who || '', k: c.k };
+    }
+    (document.fonts && document.fonts.load ? Promise.all([document.fonts.load('800 40px PretendardL'), document.fonts.load('500 28px PretendardL')]) : Promise.resolve()).catch(function () {}).then(function () {
+      var g = x.createLinearGradient(0, 0, Wd, H);
+      if (dark) { g.addColorStop(0, '#0A0F22'); g.addColorStop(1, '#190F26'); } else { g.addColorStop(0, '#DCE8FF'); g.addColorStop(0.55, '#F0E4FF'); g.addColorStop(1, '#FFE6EE'); }
+      x.fillStyle = g; x.fillRect(0, 0, Wd, H); x.textBaseline = 'middle'; x.textAlign = 'left';
+      x.fillStyle = C.sub; x.font = '700 26px ' + F; x.fillText('2-6 알림장  ·  ' + DATA.className, pad, 70);
+      x.fillStyle = C.ink; x.font = '800 58px ' + F; x.fillText('내 일과표', pad, 128);
+      x.textAlign = 'right'; x.fillStyle = C.commonT; x.font = '800 32px ' + F; x.fillText(me.name + ' · ' + me.n + '번', Wd - pad, 128);
+      x.textAlign = 'center';
+      W.days.forEach(function (d, i) { var px = pad + labW + gap + i * (cw + gap); rr(px, top, cw, headH, 16, C.head); x.fillStyle = dark ? '#EAEEFB' : '#FFFFFF'; x.font = '800 27px ' + F; x.fillText(d, px + cw / 2, top + headH / 2); });
+      W.rows.forEach(function (r, ri) {
+        var py = top + headH + gap + ri * (ch + gap);
+        rr(pad, py, labW, ch, 16, C.lab); x.fillStyle = C.ink; x.font = '800 26px ' + F; x.fillText(r.n + '교시', pad + labW / 2, py + ch / 2 - 14);
+        x.fillStyle = C.sub; x.font = '500 19px ' + F; x.fillText(r.time, pad + labW / 2, py + ch / 2 + 18);
+        r.cells.forEach(function (c, di) {
+          var ci = cellInfo(c), px = pad + labW + gap + di * (cw + gap);
+          if (!ci) { rr(px, py, cw, ch, 16, C.self); return; }
+          if (ci.k === 'block') rr(px, py, cw, ch, 16, null, C.dash); else rr(px, py, cw, ch, 16, ci.k === 'common' ? C.common : ci.k === 'elective' ? C.el : C.self);
+          x.fillStyle = ci.k === 'common' ? C.commonT : ci.k === 'block' || ci.k === 'self' ? C.selfT : C.ink;
+          var big = ci.t.length > 6 ? 21 : ci.t.length > 4 ? 24 : 28;
+          x.font = '800 ' + big + 'px ' + F; x.fillText(ci.t, px + cw / 2, py + ch / 2 - (ci.sub ? 13 : 0), cw - 12);
+          if (ci.sub) { x.fillStyle = C.sub; x.font = '600 18px ' + F; x.fillText(ci.sub, px + cw / 2, py + ch / 2 + 22, cw - 12); }
+        });
+      });
+      x.textAlign = 'right'; x.fillStyle = C.sub; x.font = '500 22px ' + F; x.fillText('class-26.bldoijoa01.workers.dev', Wd - pad, H - 44);
+      cv.toBlob(function (blob) {
+        if (!blob) return;
+        var name = '내-일과표-' + me.name + '.png', file = null;
+        try { file = new File([blob], name, { type: 'image/png' }); } catch (e) {}
+        if (file && navigator.canShare && navigator.canShare({ files: [file] })) navigator.share({ files: [file], title: '내 일과표' }).catch(function () {});
+        else { var u = URL.createObjectURL(blob), l = document.createElement('a'); l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000); }
+      }, 'image/png');
+    });
+  }
+  function showWeekly() { goTab('today'); setTimeout(function () { var b = document.querySelectorAll('#panel-today .seg-b'); if (b[2]) b[2].click(); }, 60); }
+
   // 홈: 오늘 시간표
   function todayTimetableCard() {
     var W = DATA.weekly, dow = todayDow(); if (!W) return null;
@@ -852,6 +902,13 @@
           });
           row.appendChild(chips); body.appendChild(row);
         });
+      }
+      if (mine.length >= 5 && blocksAssigned() >= mine.length) {   // 반을 다 정하면: 일과표 보러가기 / 저장
+        var see = h('button', { class: 'btn', type: 'button', text: '일과표 보러 가기 →' });
+        see.addEventListener('click', showWeekly);
+        var save = h('button', { class: 'btn out', type: 'button', text: '📷 사진으로 저장' });
+        save.addEventListener('click', saveWeeklyImage);
+        body.appendChild(h('div', { class: 'blk-done' }, [h('div', { class: 'note-sm', text: '✅ 선택과목 반을 모두 정했어요. 내용은 자동으로 저장돼요.' }), h('div', { class: 'af-btns' }, [see, save])]));
       }
       blkCard.appendChild(body);
     }

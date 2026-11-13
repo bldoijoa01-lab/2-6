@@ -583,3 +583,6 @@ body.teacher #tab-naesin{display:none !important}
 
 .ns-subseg{margin-bottom:14px}
 #panel-grade:not([hidden]),#ns-main:not([hidden]){animation:fade .3s ease both}
+
+.blk-done{margin-top:12px; display:flex; flex-direction:column; gap:10px}
+.blk-done .btn.out{margin-top:0}
