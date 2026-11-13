@@ -601,6 +601,73 @@
   }
   document.getElementById('previewExit').addEventListener('click', exitPreview);
 
+  // ---------- 첫 가입 튜토리얼 (카드뉴스 스타일 · 한 장씩 스르륵 나타났다 사라짐) ----------
+  var TUT_STEPS = [
+    { k: 'WELCOME', e: '👋', c1: '#DCE8FF', c2: '#E9DEFF', t: '2-6 **알림장**에\n오신 걸 환영해요', d: '일정, 시험, 시간표, 내신까지.\n내 선택과목에 맞춰 한곳에서 볼 수 있는 우리 반 전용 공간이에요.', l: ['우리반전용', '내시간표', '내신계산', '공지·일정'] },
+    { k: 'HOME', e: '🏠', c1: '#FFE9D6', c2: '#FFD6E0', t: '들어오면 제일 먼저,\n**홈**', d: '오늘 챙길 것만 쏙 모아서 보여줘요.', l: ['기말고사_D-day', '수능_D-day', '내원반·특별실', '오늘시간표', '내행사'] },
+    { k: 'CALENDAR', e: '📅', c1: '#D8F3E8', c2: '#D6EEFF', t: '일정은\n**캘린더**로 한눈에', d: '날짜 칸에 일정이 배너로 보이고, 나만의 일정도 직접 추가할 수 있어요.', l: ['일정배너', '＋내일정추가', '주간시간표', '자동정리'] },
+    { k: 'EXAM', e: '📝', c1: '#FFF1C9', c2: '#FFE0D2', t: '시험 준비는\n**기말고사** 탭에서', d: '내 선택과목만 모은 시간표를 사진으로 저장하고, 이동교실과 내 고사장 자리도 확인해요.', l: ['내시간표', '사진저장', '이동교실', '내자리', '유의사항'] },
+    { k: 'GRADES', e: '📊', c1: '#E2DEFF', c2: '#D3E4FF', t: '학기별 등급 넣으면\n**총 내신**이 짠!', d: '1학년부터 입력해서 평균을 계산하고, 등급컷과 기말 목표 계산기도 쓸 수 있어요.', l: ['총내신평균', '등급컷', '내예상등급', '기말목표계산기'] },
+    { k: 'FIRST STEP', e: '🎒', c1: '#FFD9E4', c2: '#FFE9C7', t: '제일 먼저 할 일,\n**내 정보**!', d: '2학기 선택과목 5개를 고르고 A~E 반을 정하면 시간표가 내 과목으로 바뀌고 내신이 열려요.', l: ['선택과목5개', 'A~E반정하기', '일과표사진저장'] },
+    { k: 'SAFE', e: '🔒', c1: '#D5F2E3', c2: '#D9E8FF', t: '내 성적은\n**안전**해요', d: '점수와 내신은 암호화돼요. 관리자는 볼 수 없고, 나와 담임 선생님만 볼 수 있어요.', l: ['비밀번호는나만', '친구는못봐요', '잊으면선생님께'] },
+    { k: 'START', e: '🚀', c1: '#6A7BFF', c2: '#9A6BF0', t: '준비 끝!\n**시작**해 볼까요?', d: '먼저 내 정보에서 선택과목을 골라 주세요.', l: [], final: true }
+  ];
+  function richTitle(t) {   // **강조** 를 형광펜 처리, 줄바꿈 유지
+    var out = [];
+    t.split('\n').forEach(function (line, li) {
+      if (li) out.push(h('br'));
+      line.split(/\*\*(.+?)\*\*/).forEach(function (seg, k) { if (!seg) return; out.push(k % 2 ? h('mark', { text: seg }) : document.createTextNode(seg)); });
+    });
+    return out;
+  }
+  function showTutorial(opts) {
+    opts = opts || {};
+    var N = TUT_STEPS.length, i = 0, busy = false;
+    var bars = h('div', { class: 'cn-bars' }); TUT_STEPS.forEach(function () { bars.appendChild(h('i', null, [h('b')])); });
+    var num = h('div', { class: 'cn-num' }), skip = h('button', { class: 'cn-skip', type: 'button', text: '건너뛰기' });
+    var stage = h('div', { class: 'cn-stage' });
+    var brand = h('div', { class: 'cn-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '2-6 알림장' })]);
+    var back = h('button', { class: 'cn-arrow', type: 'button', 'aria-label': '이전', text: '‹' }), next = h('button', { class: 'cn-next', type: 'button', text: '다음' });
+    var card = h('div', { class: 'cn' }, [bars, h('div', { class: 'cn-top' }, [num, skip]), stage, h('div', { class: 'cn-foot' }, [brand, h('div', { class: 'cn-nav' }, [back, next])])]);
+    var wrap = h('div', { class: 'modal cn-modal', role: 'dialog', 'aria-modal': 'true', 'aria-label': '사용 안내' }, [card]);
+    function paint() {
+      var s = TUT_STEPS[i];
+      card.style.setProperty('--c1', s.c1); card.style.setProperty('--c2', s.c2); card.classList.toggle('final', !!s.final);
+      num.innerHTML = ''; num.appendChild(h('b', { text: ('0' + (i + 1)).slice(-2) })); num.appendChild(h('span', { text: ' / ' + ('0' + N).slice(-2) }));
+      Array.prototype.forEach.call(bars.children, function (el, k) { el.className = k < i ? 'done' : (k === i ? 'on' : ''); });
+      clear(stage);
+      stage.appendChild(h('div', { class: 'cn-water', text: ('0' + (i + 1)).slice(-2) }));
+      stage.appendChild(h('div', { class: 'cn-e', text: s.e }));
+      stage.appendChild(h('div', { class: 'cn-k', text: s.k }));
+      stage.appendChild(h('div', { class: 'cn-t' }, richTitle(s.t)));
+      stage.appendChild(h('div', { class: 'cn-d', text: s.d }));
+      var tags = h('div', { class: 'cn-tags' }); s.l.forEach(function (x, k) { var tg = h('span', { text: '#' + x }); tg.style.animationDelay = (0.4 + k * 0.12) + 's'; tags.appendChild(tg); });
+      stage.appendChild(tags);
+      back.style.visibility = i === 0 ? 'hidden' : 'visible'; skip.style.visibility = i === N - 1 ? 'hidden' : 'visible';
+      next.textContent = i === N - 1 ? '시작하기' : '다음 →';
+      stage.className = 'cn-stage in';
+    }
+    function go(to) {
+      if (busy) return; busy = true;
+      stage.className = 'cn-stage out';                                   // 스르륵 사라지고
+      setTimeout(function () { i = to; paint(); setTimeout(function () { busy = false; }, 450); }, 380);   // 다음 장이 스르륵 나타남
+    }
+    function close() {
+      document.removeEventListener('keydown', onKey);
+      wrap.classList.add('out'); setTimeout(function () { wrap.remove(); }, 350);
+      if (!opts.replay) { store('tutorial26', 'done'); setTimeout(showWelcomeModal, 600); }
+    }
+    function onKey(e) { if (e.key === 'ArrowRight') next.click(); else if (e.key === 'ArrowLeft' && i > 0) back.click(); else if (e.key === 'Escape') close(); }
+    next.addEventListener('click', function () { if (i >= N - 1) { if (!busy) close(); } else go(i + 1); });
+    back.addEventListener('click', function () { if (i > 0) go(i - 1); });
+    skip.addEventListener('click', close);
+    // 좌우 스와이프
+    var sx = null; card.addEventListener('touchstart', function (e) { sx = e.touches[0].clientX; }, { passive: true });
+    card.addEventListener('touchend', function (e) { if (sx === null) return; var dx = e.changedTouches[0].clientX - sx; sx = null; if (dx < -50 && i < N - 1) go(i + 1); else if (dx > 50 && i > 0) go(i - 1); });
+    document.addEventListener('keydown', onKey);
+    paint(); document.body.appendChild(wrap);
+  }
+
   // ---------- 첫 가입 환영 팝업: 부반장 메시지 + 선택과목 제출 칸 ----------
   function fileToB64(file) {
     return new Promise(function (res, rej) { var fr = new FileReader(); fr.onload = function () { res(String(fr.result).split(',')[1] || ''); }; fr.onerror = rej; fr.readAsDataURL(file); });
@@ -995,6 +1062,10 @@
         return h('div', { class: 'up' }, [h('div', { class: 'up-top' }, [h('span', { class: 'up-k ' + k[1], text: k[0] }), h('span', { class: 'up-d', text: (d.getUTCMonth() + 1) + '/' + d.getUTCDate() })]),
           h('div', { class: 'up-t', text: u.title }), u.detail ? h('div', { class: 'up-s', text: u.detail }) : null]);
       }) : [h('div', { class: 'empty', text: '아직 업데이트 기록이 없어요.' })])]));
+    if (DATA.me.role !== 'teacher') {
+      var again = h('button', { class: 'btn', type: 'button', text: '📖 사용 가이드 다시 보기' }); again.addEventListener('click', function () { showTutorial({ replay: true }); });
+      p.appendChild(h('div', { class: 'card' }, [head('GUIDE', '사용 가이드'), h('div', { class: 'card-b' }, [h('div', { class: 'note-sm', text: '처음 들어왔을 때 본 안내를 다시 볼 수 있어요.' }), again])]));
+    }
     var people = (about.people || []).map(function (x) { return h('div', { class: 'me-row' }, [h('span', { text: x.role }), h('b', { text: x.name })]); });
     var notes = (about.notes || []).map(function (n) { return h('div', { class: 'note-sm', text: n }); });
     p.appendChild(h('div', { class: 'card' }, [head('CREDITS', '만든 사람'), h('div', { class: 'card-b' }, people.concat(notes))]));
@@ -1827,7 +1898,7 @@
     renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
     tagExamCards();
     pushShare();
-    setTimeout(showWelcomeModal, 1100);
+    setTimeout(function () { if (load('tutorial26') === '1') showTutorial(); else showWelcomeModal(); }, 1100);
     var start = (location.hash || '').replace('#', '');
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
     selectTab(['home', 'today', 'exam', 'grade', 'naesin', 'me', 'more', 'admin'].indexOf(start) >= 0 && (start !== 'admin' || DATA.me.admin) ? start : 'home');
@@ -1876,7 +1947,7 @@
       if (p1.value !== p2.value) { err.textContent = '두 번 입력한 비밀번호가 달라요.'; return; }
       btn.disabled = true;
       api('/api/setpw', { token: setupToken, password: p1.value }).then(function (j) {
-        if (j.status === 200) { store('tok26', j.token); store('pwlen26', String(p1.value.length)); store('welcome26', '1'); rememberKey(p1.value, num).then(loadData); }
+        if (j.status === 200) { store('tok26', j.token); store('pwlen26', String(p1.value.length)); store('welcome26', '1'); store('tutorial26', '1'); rememberKey(p1.value, num).then(loadData); }
         else { btn.disabled = false; err.textContent = '시간이 지났어요. 처음부터 다시 입장하세요.'; }
       }).catch(function () { btn.disabled = false; err.textContent = '연결에 실패했어요.'; });
     }

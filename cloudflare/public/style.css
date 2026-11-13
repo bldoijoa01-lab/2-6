@@ -642,3 +642,54 @@ textarea.field{width:100%; max-width:none; min-height:96px; resize:vertical}
 .adm-row{display:grid; grid-template-columns:40px 1fr 34px 34px 34px 34px; gap:6px; align-items:center; padding:7px 0; border-bottom:1px solid var(--line); font-size:14.5px} .adm-row:last-child{border-bottom:0} .adm-row.off{opacity:.6}
 .adm-dot{text-align:center; color:var(--mute); font-size:15px} .adm-dot.on{color:var(--green)} .adm-sub{text-align:center; font-size:12px; font-weight:800; color:var(--blue)}
 .adm-up{grid-template-columns:1fr 54px 52px 40px !important}
+
+
+/* 첫 가입 튜토리얼: 카드뉴스 스타일 */
+@property --c1{syntax:'<color>'; inherits:true; initial-value:#DCE8FF}
+@property --c2{syntax:'<color>'; inherits:true; initial-value:#E9DEFF}
+.cn-modal{padding:14px}
+.cn{--c1:#DCE8FF; --c2:#E9DEFF; position:relative; width:min(100%,380px); aspect-ratio:4/5.6; max-height:92vh; display:flex; flex-direction:column; padding:14px 22px 18px; border-radius:30px; overflow:hidden; color:#1A2040;
+  background:linear-gradient(150deg,var(--c1),var(--c2)); box-shadow:0 34px 80px rgba(10,12,40,.45); transition:--c1 .7s ease, --c2 .7s ease; animation:rise .5s cubic-bezier(.2,.8,.2,1) both}
+.cn.final{color:#fff}
+.cn-bars{display:flex; gap:4px; padding:2px 0 10px}
+.cn-bars i{flex:1; height:3px; border-radius:3px; background:rgba(26,32,64,.14); overflow:hidden} .cn.final .cn-bars i{background:rgba(255,255,255,.3)}
+.cn-bars b{display:block; height:100%; width:0; background:#1A2040; border-radius:3px; transition:width .5s ease} .cn.final .cn-bars b{background:#fff}
+.cn-bars i.done b{width:100%} .cn-bars i.on b{width:100%; transition:width 1.2s ease}
+.cn-top{display:flex; align-items:center; justify-content:space-between; min-height:28px}
+.cn-num{font-size:13px; font-weight:700; opacity:.6; letter-spacing:.04em} .cn-num b{font-size:15px; font-weight:800; opacity:1}
+.cn-skip{border:0; background:rgba(255,255,255,.55); color:inherit; font:inherit; font-size:12px; font-weight:800; padding:6px 12px; border-radius:999px; cursor:pointer} .cn.final .cn-skip{background:rgba(255,255,255,.22)}
+.cn-stage{position:relative; flex:1; display:flex; flex-direction:column; justify-content:center; gap:8px; min-height:0; transition:opacity .38s ease, transform .38s ease, filter .38s ease}
+.cn-stage.out{opacity:0; transform:translateX(-14px); filter:blur(3px)}
+.cn-water{position:absolute; right:-6px; top:-4px; font-size:132px; font-weight:800; letter-spacing:-.06em; line-height:1; opacity:.1; pointer-events:none}
+.cn-e{width:68px; height:68px; border-radius:24px; display:flex; align-items:center; justify-content:center; font-size:38px; background:rgba(255,255,255,.7); box-shadow:0 12px 28px rgba(30,40,100,.14); margin-bottom:2px} .cn.final .cn-e{background:rgba(255,255,255,.22)}
+.cn-k{font-size:11.5px; font-weight:800; letter-spacing:.22em; opacity:.55}
+.cn-t{font-size:25.5px; font-weight:800; letter-spacing:-.045em; line-height:1.28}
+.cn-t mark{background:linear-gradient(transparent 58%, rgba(255,214,90,.85) 58%); color:inherit; padding:0 2px} .cn.final .cn-t mark{background:linear-gradient(transparent 58%, rgba(255,255,255,.3) 58%)}
+.cn-d{font-size:14px; line-height:1.58; opacity:.82; white-space:pre-line; max-width:310px}
+.cn-tags{display:flex; flex-wrap:wrap; gap:6px; margin-top:2px}
+.cn-tags span{padding:5px 11px; border-radius:999px; background:rgba(255,255,255,.62); font-size:12.5px; font-weight:800; opacity:0}
+.cn-stage.in .cn-e{animation:tutPop .7s cubic-bezier(.2,.9,.3,1.2) both}
+.cn-stage.in .cn-k{animation:tutRise .5s ease .05s both} .cn-stage.in .cn-t{animation:tutRise .6s ease .12s both} .cn-stage.in .cn-d{animation:tutRise .6s ease .24s both}
+.cn-stage.in .cn-tags span{animation:tutRise .5s ease both}
+.cn-stage.in .cn-water{animation:waterIn .9s ease both}
+@keyframes waterIn{from{opacity:0; transform:translateY(8px)} to{opacity:.1; transform:none}}
+.cn-foot{display:flex; align-items:center; justify-content:space-between; padding-top:8px}
+.cn-brand{display:flex; align-items:center; gap:8px; font-size:13px} .cn-brand .logo{width:24px; height:24px; border-radius:8px; font-size:12px; box-shadow:none}
+.cn-nav{display:flex; align-items:center; gap:8px}
+.cn-arrow{width:40px; height:40px; border-radius:50%; border:0; background:rgba(255,255,255,.6); color:inherit; font-size:24px; line-height:1; cursor:pointer} .cn.final .cn-arrow{background:rgba(255,255,255,.22)}
+.cn-next{height:40px; padding:0 20px; border:0; border-radius:999px; background:#1A2040; color:#fff; font:inherit; font-size:14px; font-weight:800; cursor:pointer} .cn.final .cn-next{background:#fff; color:#5B4BE0}
+@keyframes tutPop{0%{opacity:0; transform:scale(.55)} 60%{opacity:1; transform:scale(1.08)} 100%{opacity:1; transform:scale(1)}}
+@keyframes tutRise{from{opacity:0; transform:translateY(14px)} to{opacity:1; transform:none}}
+/* 다크 모드: 카드 색을 어둡게 */
+:root[data-theme="dark"] .cn:not(.final){color:#EAEEFB; background:linear-gradient(150deg,color-mix(in srgb,var(--c1) 30%,#11152B),color-mix(in srgb,var(--c2) 24%,#11152B))}
+:root[data-theme="dark"] .cn:not(.final) .cn-e,:root[data-theme="dark"] .cn:not(.final) .cn-arrow,:root[data-theme="dark"] .cn:not(.final) .cn-skip,:root[data-theme="dark"] .cn:not(.final) .cn-tags span{background:rgba(255,255,255,.1)}
+:root[data-theme="dark"] .cn:not(.final) .cn-bars i{background:rgba(255,255,255,.16)} :root[data-theme="dark"] .cn:not(.final) .cn-bars b{background:#EAEEFB}
+:root[data-theme="dark"] .cn:not(.final) .cn-next{background:#EAEEFB; color:#11152B}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .cn:not(.final){color:#EAEEFB; background:linear-gradient(150deg,color-mix(in srgb,var(--c1) 30%,#11152B),color-mix(in srgb,var(--c2) 24%,#11152B))}
+  :root:not([data-theme="light"]) .cn:not(.final) .cn-e,:root:not([data-theme="light"]) .cn:not(.final) .cn-arrow,:root:not([data-theme="light"]) .cn:not(.final) .cn-skip,:root:not([data-theme="light"]) .cn:not(.final) .cn-tags span{background:rgba(255,255,255,.1)}
+  :root:not([data-theme="light"]) .cn:not(.final) .cn-bars i{background:rgba(255,255,255,.16)} :root:not([data-theme="light"]) .cn:not(.final) .cn-bars b{background:#EAEEFB}
+  :root:not([data-theme="light"]) .cn:not(.final) .cn-next{background:#EAEEFB; color:#11152B}
+}
+@media (prefers-reduced-motion:reduce){ .cn,.cn-stage,.cn-stage *{animation:none !important; transition:none !important} .cn-tags span{opacity:1} }
+
