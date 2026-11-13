@@ -80,7 +80,7 @@
     if (rest.length) { body.push(h('div', { class: 'tag blue', text: '📌 좀중요' })); rest.forEach(function (e) { body.push(evRow(e)); }); }
     if (!upcoming.length) body.push(h('div', { class: 'empty', text: '예정된 일정이 없어요. 평화 ✌️' }));
     body.push(h('div', { class: 'elect', text: '📣 ' + DATA.electiveNote }));
-    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-h', text: '★ 수행·시험 일정 ★' }), h('div', { class: 'card-b' }, body)]));
+    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-h', text: '수행·시험 일정' }), h('div', { class: 'card-b' }, body)]));
   }
 
   // ---------- 기말 시간표 ----------
@@ -110,7 +110,7 @@
       ]),
       h('div', { class: 'note-sm' }, [morning + ' · 점심 있음 (', h('b', { text: fmt(ex.noLunchDate) + '만 점심 없음' }), ')'])
     ];
-    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-h', text: '★ 2학기 기말고사 시간표 (2학년) ★' }), h('div', { class: 'card-b' }, body)]));
+    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-h', text: '2학기 기말고사 시간표 (2학년)' }), h('div', { class: 'card-b' }, body)]));
   }
 
   // ---------- 이동교실 ----------
@@ -188,7 +188,7 @@
   // ---------- 유의사항 ----------
   function renderCaution() {
     var p = document.getElementById('panel-caution'); clear(p);
-    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-h green', text: '★ 시험 유의사항 ★' }), h('div', { class: 'card-b' },
+    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-h green', text: '시험 유의사항' }), h('div', { class: 'card-b' },
       DATA.cautions.map(function (c) {
         return h('div', { class: 'cau' }, [h('div', null, [h('div', { class: 'cau-t', text: c.t }), h('div', { class: 'cau-s', text: c.s })])]);
       }))]));
