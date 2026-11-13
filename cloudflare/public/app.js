@@ -43,17 +43,26 @@
 
   // ---------- tabs ----------
   var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+  var nsSub = 'main';
+  function applyNsSub() {
+    var g = document.getElementById('panel-grade'), m = document.getElementById('ns-main');
+    if (g) g.hidden = nsSub !== 'grade'; if (m) m.hidden = nsSub !== 'main';
+    Array.prototype.forEach.call(document.querySelectorAll('#ns-seg .seg-b'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-sub') === nsSub ? 'true' : 'false'); });
+  }
   function selectTab(name) {
+    if (name === 'grade') { nsSub = 'grade'; name = 'naesin'; }   // 등급컷은 내신 탭 안의 하위 페이지
     tabs.forEach(function (t) {
       var on = t.getAttribute('data-tab') === name;
       t.setAttribute('aria-selected', on ? 'true' : 'false');
       document.getElementById('panel-' + t.getAttribute('data-tab')).hidden = !on;
     });
-        if (name === 'grade') loadGrade();
+    if (name === 'naesin') { applyNsSub(); if (nsSub === 'grade') loadGrade(); else renderNaesin(); }
     if (name === 'me') renderMe();
-    if (name === 'naesin') renderNaesin();
-    try { history.replaceState(null, '', '#' + name); } catch (e) {}
+    try { history.replaceState(null, '', '#' + (name === 'naesin' && nsSub === 'grade' ? 'grade' : name)); } catch (e) {}
   }
+  Array.prototype.forEach.call(document.querySelectorAll('#ns-seg .seg-b'), function (b) {
+    b.addEventListener('click', function () { nsSub = b.getAttribute('data-sub'); applyNsSub(); if (nsSub === 'grade') loadGrade(); else renderNaesin(); });
+  });
   tabs.forEach(function (t) { t.addEventListener('click', function () { selectTab(t.getAttribute('data-tab')); }); });
 
   document.getElementById('logoutBtn').addEventListener('click', function () { store('tok26', null); store('gk26', null); store('pwlen26', null); store('gcscore26', null); store('pref26', null); location.hash = ''; location.reload(); });
@@ -480,7 +489,7 @@
       document.getElementById('previewWho').textContent = '👀 ' + name + '(' + n + '번) 학생 화면 · 읽기 전용' + (sh ? ' · 성적 공유됨' : ' · 아직 공유 데이터 없음(학생이 한 번 로그인하면 생겨요)');
       document.getElementById('who').textContent = name + ' · ' + n + '번';
       clear(document.getElementById('panel-exam'));
-      renderMe(); renderNaesin(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderSeat(); renderCaution(); tagExamCards();
+      renderMe(); renderNaesin(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution(); tagExamCards();
       selectTab('home'); window.scrollTo({ top: 0 });
     });
   }
@@ -621,7 +630,17 @@
   var nsFmt = function (v) { return v == null ? '-' : (Math.round(v * 100) / 100).toFixed(2); };
 
   function renderNaesin() {
-    var p = document.getElementById('panel-naesin'); if (!p || !DATA) return; clear(p);
+    var p = document.getElementById('ns-main'); if (!p || !DATA) return; clear(p);
+    var nPicked = myElectives().length;
+    if (nPicked < 5) {   // 선택과목을 먼저 골라야 성적(내신)을 입력할 수 있음
+      var go = h('button', { class: 'btn', type: 'button', text: '선택과목 고르러 가기 →' });
+      go.addEventListener('click', function () { goTab('me'); });
+      p.appendChild(h('div', { class: 'card' }, [head('LOCKED', '먼저 선택과목을 골라 주세요'), h('div', { class: 'card-b' }, [
+        h('div', { class: 'gate-ic', text: '🔐' }),
+        h('div', { class: 'note-sm', text: '내신(학기별 성적)은 2학기 선택과목(택5)을 먼저 고른 뒤에 입력할 수 있어요. 지금 ' + nPicked + ' / 5 선택했어요.' }),
+        go])]));
+      return;
+    }
     var sems = nsLoad(), summary = h('div', { class: 'card ns-sum' }), cards = h('div');
     p.appendChild(h('div', { class: 'note-sm ns-intro', text: '학기별로 과목의 등급(1~5)과 단위수를 넣으면 단위수 가중 평균을 계산해요. 체육·예술·과학탐구실험 등은 기본으로 평균에서 빼 뒀고, 학교 기준에 맞게 "반영"을 켜고 끌 수 있어요.' }));
     p.appendChild(secureNote(!!load('gk26')));
@@ -699,7 +718,7 @@
   // ---------- 보안 안내 문구 ----------
   function secureBanner(compact) {
     var rows = [['🙅', '관리자', '저장된 내용을 볼 수 없어요'], ['👤', '나', '내 비밀번호로 볼 수 있어요'], ['👩‍🏫', '담임 선생님', '선생님 전용 열쇠로 볼 수 있어요'], ['🚫', '다른 친구들', '볼 수 없어요']];
-    var det = h('details', { class: 'secure-det' }, [h('summary', { text: '어떻게 암호화되나요? (자세히)' }), h('ul', null, [
+    var det = h('details', { class: 'secure-det' }, [h('summary', { text: '자세히 보기' }), h('ul', null, [
       h('li', null, [h('b', { text: '암호 방식 ' }), 'AES-256-GCM(변조까지 감지하는 인증 암호화) + 선생님 공유용 RSA-OAEP']),
       h('li', null, [h('b', { text: '열쇠 ' }), '내 비밀번호 + PBKDF2-SHA256 20만 회로 내 기기 안에서만 만들어요. 비밀번호와 열쇠는 서버로 보내지 않아요.']),
       h('li', null, [h('b', { text: '서버 저장 ' }), '점수·내신·선택과목은 저장되기 전에 이미 내 기기에서 암호화돼, 서버에는 읽을 수 없는 암호문만 있어요.']),
@@ -707,9 +726,8 @@
       h('li', null, [h('b', { text: '비밀번호 분실 ' }), '열쇠를 복구할 수 없어서, 초기화하면 저장된 점수는 사라져요.']),
       h('li', null, [h('b', { text: '주의 ' }), '내 비밀번호를 아는 사람은 볼 수 있어요. 짧은 비밀번호(6자 미만)는 암호가 약해요. 비밀번호는 나만 알고 있어야 해요.'])
         ].concat(parseInt(load('pwlen26') || '99', 10) < 6 ? [h('li', { class: 'weak' }, [h('b', { text: '⚠ 약한 비밀번호 ' }), '지금 비밀번호가 6자 미만이라 암호가 약해요. 6자 이상으로 바꾸는 걸 권장해요. (담임 선생님께 초기화 요청 후 다시 설정)'])] : []))]);
-    return h('div', { class: 'secure-big' + (compact ? ' compact' : '') }, [
+    return h('div', { class: 'secure-big compact' }, [
       h('div', { class: 'sb-head' }, [h('span', { class: 'sb-ic', text: '🔒' }), h('div', null, [h('div', { class: 'sb-t', text: '내 성적은 암호화돼요' }), h('div', { class: 'sb-s', text: '관리자는 볼 수 없고, 나와 담임 선생님만 볼 수 있어요' })])]),
-      h('div', { class: 'sb-grid' }, rows.map(function (r, k) { return h('div', { class: 'sb-cell' + (k === 0 || k === 3 ? ' no' : ' yes') }, [h('span', { text: r[0] }), h('b', { text: r[1] }), h('small', { text: r[2] })]); })),
       det]);
   }
   function secureNote(synced) {
@@ -743,8 +761,7 @@
     p.appendChild(h('div', { class: 'card' }, [head('MY ACCOUNT', '내 정보'), h('div', { class: 'card-b' }, [
       h('div', { class: 'me-row' }, [h('span', { text: '이름' }), h('b', { text: me.name })]),
       h('div', { class: 'me-row' }, [h('span', { text: '번호' }), h('b', { text: me.n + '번' })]),
-      h('div', { class: 'me-row' }, [h('span', { text: '반' }), h('b', { text: DATA.className })]),
-      secureNote(!!load('gk26'))
+      h('div', { class: 'me-row' }, [h('span', { text: '반' }), h('b', { text: DATA.className })])
     ])]));
 
     // 한 학기 = 한 카드. 선택과목·교양(예술)은 칸을 나눠서 따로 고름
@@ -1069,14 +1086,14 @@
   function jumpTo(id) { var el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
   function renderExamJump() {
     var p = document.getElementById('panel-exam');
-    var items = [['sec-table', '시간표'], ['sec-move', '이동교실'], ['sec-special', '특별실'], ['sec-seat', '자리배치'], ['sec-caution', '유의사항']];
+    var items = [['sec-table', '시간표'], ['sec-move', '이동교실'], ['sec-special', '특별실'], ['sec-caution', '유의사항']];
     p.appendChild(h('div', { class: 'jump' }, items.map(function (it) {
       var b = h('button', { class: 'jump-b', type: 'button', text: it[1] });
       b.addEventListener('click', function () { jumpTo(it[0]); }); return b;
     })));
   }
   function tagExamCards() {
-    var map = { 'EXAM TIMETABLE': 'sec-table', 'MOVING ROOM': 'sec-move', 'SPECIAL ROOM': 'sec-special', 'SEAT MAP': 'sec-seat', 'NOTICE': 'sec-caution' };
+    var map = { 'EXAM TIMETABLE': 'sec-table', 'MOVING ROOM': 'sec-move', 'SPECIAL ROOM': 'sec-special', 'NOTICE': 'sec-caution' };
     Array.prototype.forEach.call(document.querySelectorAll('#panel-exam .card'), function (c) {
       var e = c.querySelector('.eyebrow'); if (e && map[e.textContent]) c.id = map[e.textContent];
     });
@@ -1290,7 +1307,7 @@
       numOut.appendChild(document.createTextNode('1학년 6반 앞번호 ' + mv.frontCount + '명이 우리 교실로 와요.'));
     }
     p.appendChild(h('div', { class: 'card' }, [head('MOVING ROOM', '① 내 원반 이동'), h('div', { class: 'card-b' }, [
-      numOut,
+      numOut, seatBlock(),
       h('ul', { class: 'rules' }, mv.rules.map(function (r) { return h('li', { text: r }); }))
     ])]));
 
@@ -1310,9 +1327,9 @@
     p.appendChild(h('div', { class: 'card' }, [head('SPECIAL ROOM', '② 내 특별실(4층) 응시'), h('div', { class: 'card-b' }, kids)]));
   }
 
-  // ---------- 내 고사장 자리배치도 (5열 · 66676, 홀수열=원반 · 짝수열=이동반, 번호순) ----------
-  function renderSeat() {
-    var p = document.getElementById('panel-exam'), mv = DATA.move, me = DATA.me;
+  // ---------- 내 고사장 자리배치도 (이동 공지 카드 안에 작게: 5열 · 66676, 홀수열=원반 · 짝수열=이동반, 번호순) ----------
+  function seatBlock() {
+    var mv = DATA.move, me = DATA.me;
     var cols = (mv.seats && mv.seats.cols) || [6, 6, 6, 7, 6], front = mv.frontCount, rows = Math.max.apply(null, cols);
     function seq(isOdd) {   // 열 순서대로 앞(칠판)에서 뒤로 채움
       var out = [];
@@ -1322,24 +1339,18 @@
     var odd = seq(true), even = seq(false);   // odd: 원반 18명, even: 이동반 13명
     var moved = me.n <= front, room = moved ? mv.otherRoom : mv.ownRoom;
     var mine = moved ? even[me.n - 1] : odd[me.n - front - 1];
-    // 이 고사장에서 홀수열 = 그 교실의 원반(학년 다름), 짝수열 = 이동해 온 학생
-    var oddLab = moved ? '1학년' : '2학년', evenLab = moved ? '2학년' : '1학년';
-    var grid = h('div', { class: 'seat-grid', style: 'grid-template-columns:repeat(' + cols.length + ',1fr)' });
-    cols.forEach(function (n, ci) { grid.appendChild(h('div', { class: 'seat-col', text: (ci + 1) + '열' })); });
+    var grid = h('div', { class: 'seat-grid sm', style: 'grid-template-columns:repeat(' + cols.length + ',1fr)' });
     for (var r = 0; r < rows; r++) cols.forEach(function (n, ci) {
       if (r >= n) { grid.appendChild(h('div', { class: 'seat blank' })); return; }
       var isOdd = ci % 2 === 0, list = isOdd ? odd : even, idx = list.findIndex(function (s) { return s.c === ci && s.r === r; });
-      var num = isOdd ? (moved ? front + 1 + idx : front + 1 + idx) : idx + 1;   // 홀수열: 원반 뒷번호(14~) · 짝수열: 이동반 앞번호(1~13)
-      var isMe = mine && mine.c === ci && mine.r === r;
-      grid.appendChild(h('div', { class: 'seat ' + (isOdd ? 'own' : 'mv') + (isMe ? ' me' : '') }, [h('b', { text: isMe ? '★' : String(num) }), h('small', { text: isMe ? me.n + '번' : (isOdd ? oddLab : evenLab) })]));
+      var num = isOdd ? front + 1 + idx : idx + 1, isMe = mine && mine.c === ci && mine.r === r;
+      grid.appendChild(h('div', { class: 'seat ' + (isOdd ? 'own' : 'mv') + (isMe ? ' me' : '') }, [h('b', { text: isMe ? '★' : String(num) })]));
     });
-    var seatTxt = mine ? me.name + '(' + me.n + '번) → ' + room + ' · ' + (mine.c + 1) + '열 앞에서 ' + (mine.r + 1) + '번째' : '';
-    p.appendChild(h('div', { class: 'card', id: 'sec-seat' }, [head('SEAT MAP', '내 고사장 자리배치도'), h('div', { class: 'card-b' }, [
-      h('div', { class: 'result ' + (moved ? 'go' : 'stay') }, [h('strong', { text: room }), seatTxt]),
-      h('div', { class: 'seat-board', text: '칠판 · 교탁' }), grid,
-      h('div', { class: 'seat-side' }, [h('span', { text: '← 운동장쪽 창가' }), h('span', { text: '복도쪽 →' })]),
-      h('div', { class: 'legend' }, [h('span', { class: 'lg' }, [h('i', { style: 'background:var(--blue-t)' }), '홀수열 = 원반']), h('span', { class: 'lg' }, [h('i', { style: 'background:var(--amber-t)' }), '짝수열 = 이동반'])]),
-      h('div', { class: 'note-sm', text: '열마다 좌석 수는 ' + cols.join('') + '이고, 번호순으로 앞(칠판)에서 뒤로 앉아요. 빈 번호(자퇴·전출 등)가 있으면 자리가 밀릴 수 있어요. 시험 당일 칠판 좌석표를 꼭 확인하세요.' })])]));
+    return h('div', { class: 'seatbox' }, [
+      h('div', { class: 'seat-line' }, [h('b', { text: '내 자리' }), ' ' + room + ' · ' + (mine.c + 1) + '열 앞에서 ' + (mine.r + 1) + '번째']),
+      h('div', { class: 'seat-board', text: '칠판 · 교탁' }),
+      h('div', { class: 'seat-cols' }, cols.map(function (n, ci) { return h('span', { text: (ci + 1) + '열' }); })), grid,
+      h('div', { class: 'seat-leg' }, [h('span', { class: 'lg' }, [h('i', { style: 'background:var(--blue-t)' }), '홀수열 원반']), h('span', { class: 'lg' }, [h('i', { style: 'background:var(--amber-t)' }), '짝수열 이동반']), h('span', { text: '← 운동장쪽 창가' })])]);
   }
 
   // ---------- 유의사항 ----------
@@ -1370,10 +1381,9 @@
       return;
     }
     clear(document.getElementById('panel-exam'));
-    renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderSeat(); renderCaution();
+    renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
     tagExamCards();
     pushShare();
-    setTimeout(showSecureModal, 900);
     var start = (location.hash || '').replace('#', '');
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
     selectTab(['home', 'today', 'exam', 'grade', 'naesin', 'me', 'more'].indexOf(start) >= 0 ? start : 'home');
@@ -1409,7 +1419,7 @@
     }
     btn.addEventListener('click', go);
     pwIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
-    card([h('div', { class: 'login-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '2-6 알림장' })]), h('div', { class: 'login-sub', text: '우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), h('div', { class: 'login-lock', text: '🔒 내 성적은 암호화돼요 · 관리자는 볼 수 없고, 나와 담임 선생님만 볼 수 있어요' }), nameIn, numIn, pwIn, btn, err]);
+    card([h('div', { class: 'login-brand' }, [h('span', { class: 'logo', text: '6' }), h('b', { text: '2-6 알림장' })]), h('div', { class: 'login-sub', text: '우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), nameIn, numIn, pwIn, btn, err]);
   }
 
   function showSetup(setupToken, num) {

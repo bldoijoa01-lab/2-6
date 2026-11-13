@@ -479,7 +479,7 @@ body{overscroll-behavior-y:none}
 /* 교사 모드: 학생 전용 탭은 숨김 */
 .tab-t{display:none}
 body.teacher .tab-t{display:inline-block}
-body.teacher #tab-home,body.teacher #tab-exam,body.teacher #tab-grade,body.teacher #tab-me{display:none}
+body.teacher #tab-home,body.teacher #tab-exam,body.teacher #tab-me{display:none}
 .srow{display:grid; grid-template-columns:40px 1fr 48px 62px 48px; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid var(--line); font-size:14.5px}
 .srow:last-child{border-bottom:0}
 .srow-n{color:var(--mute); font-weight:700} .srow-name{font-weight:700}
@@ -560,3 +560,26 @@ body.teacher #tab-naesin{display:none !important}
 .modal-card{width:100%; max-width:460px; max-height:92vh; overflow:auto; border-radius:28px; padding:14px; background:var(--card); box-shadow:0 30px 80px rgba(0,0,0,.35); animation:rise .45s cubic-bezier(.2,.8,.2,1) both}
 .modal-card .secure-big{margin:0 0 12px; border:0}
 .modal-card .btn{width:100%}
+
+/* 암호화 안내: 성적 페이지 위쪽의 작은 카드 한 장 */
+.secure-big.compact{padding:12px 14px 4px; border-radius:18px; margin-bottom:12px}
+.secure-big.compact .sb-ic{font-size:26px}
+.secure-big.compact .sb-t{font-size:15.5px}
+.secure-big.compact .sb-s{font-size:12.5px; margin-top:1px}
+.secure-big.compact .secure-det summary{padding:6px 0 8px}
+
+/* 자리배치도(이동 공지 카드 안, 작게) */
+.seatbox{display:flex; flex-direction:column; gap:5px; padding:10px 12px; border-radius:16px; background:var(--gray-t); max-width:300px; margin:0 auto; width:100%}
+.seat-line{font-size:13px; text-align:center} .seat-line b{font-weight:800; color:var(--blue)}
+.seatbox .seat-board{padding:3px 22px; font-size:10.5px}
+.seat-cols{display:grid; grid-template-columns:repeat(5,1fr); gap:4px; text-align:center; font-size:10px; font-weight:800; color:var(--mute)}
+.seat-grid.sm{gap:4px}
+.seat-grid.sm .seat{aspect-ratio:auto; height:24px; border-radius:7px}
+.seat-grid.sm .seat b{font-size:11px; font-weight:800}
+.seat-grid.sm .seat.me{transform:none; box-shadow:0 4px 10px rgba(80,90,230,.35)}
+.seat-grid.sm .seat.me b{font-size:12px}
+.seat-leg{display:flex; flex-wrap:wrap; justify-content:center; gap:4px 10px; font-size:10.5px; color:var(--mute); font-weight:700}
+.seat-leg .lg i{width:9px; height:9px; border-radius:3px}
+
+.ns-subseg{margin-bottom:14px}
+#panel-grade:not([hidden]),#ns-main:not([hidden]){animation:fade .3s ease both}
