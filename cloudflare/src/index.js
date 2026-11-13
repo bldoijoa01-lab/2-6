@@ -80,8 +80,22 @@ export default {
     }
     if (url.pathname === '/api/data' && request.method === 'GET') {
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
-      if (!await verifyToken(env, auth, 'full')) return json({ error: 'unauthorized' }, 401);
-      return new Response(await env.CLASS_KV.get('data') || '{}', { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]');
+      const me = roster.find((s) => s.n === tok.w);
+      if (!me) return json({ error: 'unauthorized' }, 401);
+      // 계정별 맞춤 데이터: 내 특별실 응시/내 프로젝트 조만 내려보냄 (다른 학생 이름은 보내지 않음)
+      const d = JSON.parse(await env.CLASS_KV.get('data') || '{}');
+      d.me = { n: me.n, name: me.name };
+      d.special = (d.special || []).filter((s) => (s.members || []).includes(me.name)).map((s) => ({ ...s, members: [me.name] }));
+      d.events = (d.events || []).map((e) => {
+        if (!e.tracks) return e;
+        const mine = e.tracks.filter((t) => (t.members || []).includes(me.name));
+        const { tracks, ...rest } = e;
+        return mine.length ? { ...rest, tracks: mine } : rest;
+      });
+      return json(d);
     }
     if (url.pathname === '/fonts/pretendard-1.woff2')
       return new Response(FONT, { headers: { 'content-type': 'font/woff2', 'cache-control': 'public, max-age=31536000, immutable' } });

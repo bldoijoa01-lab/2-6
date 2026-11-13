@@ -44,6 +44,8 @@
   }
   tabs.forEach(function (t) { t.addEventListener('click', function () { selectTab(t.getAttribute('data-tab')); }); });
 
+  document.getElementById('logoutBtn').addEventListener('click', function () { store('tok26', null); location.hash = ''; location.reload(); });
+
   // ---------- 테마 ----------
   (function () {
     var btn = document.getElementById('themeBtn'), root = document.documentElement;
@@ -135,76 +137,41 @@
     p.appendChild(h('div', { class: 'card' }, [head('EXAM TIMETABLE', '2학기 기말고사 시간표 (2학년)'), h('div', { class: 'card-b' }, body)]));
   }
 
-  // ---------- 이동교실 ----------
+  // ---------- 이동교실 (로그인한 계정 기준 자동 판별) ----------
   function renderMove() {
     var p = document.getElementById('panel-move'); clear(p);
-    var mv = DATA.move;
+    var mv = DATA.move, me = DATA.me, n = me.n;
 
-    // 1) 원반 이동 계산기
-    var numIn = h('input', { class: 'field', id: 'numIn', type: 'number', inputmode: 'numeric', min: '1', max: '40', placeholder: '번호', 'aria-label': '내 번호' });
-    var numOut = h('div', { class: 'result none', id: 'numOut', 'aria-live': 'polite', text: '내 번호를 넣어봐 👆' });
-    function calcNum() {
-      var n = parseInt(numIn.value, 10);
-      numOut.className = 'result';
-      clear(numOut);
-      if (!n || n < 1) { numOut.className = 'result none'; numOut.textContent = '내 번호를 넣어봐 👆'; return; }
-      if (n <= mv.frontCount) {
-        numOut.classList.add('go');
-        numOut.appendChild(h('strong', { text: n + '번 → ' + mv.otherRoom + ' 교실로 이동!' }));
-        numOut.appendChild(document.createTextNode(mv.moveTime + ' 사이에 이동 (1교시 시작 10분 전까지 도착). 책상 번호순 착석.'));
-        numOut.appendChild(h('div', { class: 'note-sm', style: 'margin-top:6px', text: '※ 빈 번호(자퇴·전출 등)가 있으면 앞번호 컷이 밀려요. 애매하면 담임쌤께 확인!' }));
-      } else {
-        numOut.classList.add('stay');
-        numOut.appendChild(h('strong', { text: n + '번 → 우리 교실(' + mv.ownRoom + ') 그대로!' }));
-        numOut.appendChild(document.createTextNode('1학년 6반 앞번호 ' + mv.frontCount + '명이 우리 교실로 와요.'));
-      }
+    var numOut = h('div', { class: 'result' });
+    if (n <= mv.frontCount) {
+      numOut.classList.add('go');
+      numOut.appendChild(h('strong', { text: me.name + '(' + n + '번) → ' + mv.otherRoom + ' 교실로 이동!' }));
+      numOut.appendChild(document.createTextNode(mv.moveTime + ' 사이에 이동 (1교시 시작 10분 전까지 도착). 책상 번호순 착석.'));
+      numOut.appendChild(h('div', { class: 'note-sm', style: 'margin-top:6px', text: '※ 빈 번호(자퇴·전출 등)가 있으면 앞번호 컷이 밀려요. 애매하면 담임쌤께 확인!' }));
+    } else {
+      numOut.classList.add('stay');
+      numOut.appendChild(h('strong', { text: me.name + '(' + n + '번) → 우리 교실(' + mv.ownRoom + ') 그대로!' }));
+      numOut.appendChild(document.createTextNode('1학년 6반 앞번호 ' + mv.frontCount + '명이 우리 교실로 와요.'));
     }
-    numIn.addEventListener('input', calcNum);
-
-    p.appendChild(h('div', { class: 'card' }, [head('MOVING ROOM', '① 원반 이동 (2-6 ↔ 1-6)'), h('div', { class: 'card-b' }, [
-      h('div', { class: 'field-row' }, [h('label', { class: 'field-lab', for: 'numIn', text: '내 번호' }), numIn]),
+    p.appendChild(h('div', { class: 'card' }, [head('MOVING ROOM', '① 내 원반 이동'), h('div', { class: 'card-b' }, [
       numOut,
       h('ul', { class: 'rules' }, mv.rules.map(function (r) { return h('li', { text: r }); }))
     ])]));
 
-    // 2) 특별실 조회
-    var nameIn = h('input', { class: 'field wide', id: 'nameIn', type: 'search', placeholder: '내 이름 (예: 김가빈)', autocomplete: 'off', 'aria-label': '내 이름' });
-    var nameOut = h('div', { class: 'result none', id: 'nameOut', 'aria-live': 'polite', text: '이름을 넣으면 특별실 응시 여부를 알려줘요.' });
-    var list = h('div', { id: 'spList' });
-    function spRows(q) {
-      clear(list);
+    var kids = [];
+    if (!DATA.special.length) {
+      kids.push(h('div', { class: 'result none', text: me.name + ' → 특별실 응시 과목 없음 (원반 이동 규칙만 확인!)' }));
+    } else {
       DATA.special.forEach(function (s) {
-        var hit = q && s.members.some(function (m) { return m.indexOf(q) !== -1; });
         var chipCls = s.room.indexOf('외국어') === 0 ? 'ext' : 'pub';
-        list.appendChild(h('div', { class: 'sp-row' }, [
-          h('div', { class: 'sp-top' }, [h('span', { class: 'sp-sub', text: s.subject }), h('span', { class: 'chip ' + chipCls, text: s.room })]),
-          h('div', { class: 'sp-when', text: s.label + ' 시작' }),
-          h('div', { class: 'sp-names' }, s.members.map(function (m, i) {
-            var on = q && m.indexOf(q) !== -1;
-            return h('span', { class: on ? 'hl' : '' }, [m + (i < s.members.length - 1 ? ' ' : '')]);
-          }))
+        kids.push(h('div', { class: 'sp-row' }, [
+          h('div', { class: 'sp-top' }, [h('span', { class: 'sp-sub', text: s.subject }), h('span', { class: 'chip ' + chipCls, text: '4층 ' + s.room })]),
+          h('div', { class: 'sp-when', text: s.label + ' 시작' })
         ]));
       });
+      kids.push(h('div', { class: 'callout', text: DATA.specialNote }));
     }
-    function calcName() {
-      var q = nameIn.value.trim();
-      spRows(q);
-      clear(nameOut);
-      if (!q) { nameOut.className = 'result none'; nameOut.textContent = '이름을 넣으면 특별실 응시 여부를 알려줘요.'; return; }
-      var mine = DATA.special.filter(function (s) { return s.members.some(function (m) { return m.indexOf(q) !== -1; }); });
-      if (!mine.length) { nameOut.className = 'result none'; nameOut.textContent = q + ' → 특별실 응시 과목 없음 (원반 이동 규칙만 확인!)'; return; }
-      nameOut.className = 'result sp';
-      mine.forEach(function (s) {
-        nameOut.appendChild(h('strong', { text: s.subject + ' → 4층 ' + s.room }));
-        nameOut.appendChild(h('div', { text: s.label + ' 시작' }));
-      });
-    }
-    nameIn.addEventListener('input', calcName);
-    spRows('');
-
-    p.appendChild(h('div', { class: 'card' }, [head('SPECIAL ROOM', '② 특별실(4층) 응시 · 우리 반 명단'), h('div', { class: 'card-b' }, [
-      nameIn, nameOut, list, h('div', { class: 'callout', text: DATA.specialNote })
-    ])]));
+    p.appendChild(h('div', { class: 'card' }, [head('SPECIAL ROOM', '② 내 특별실(4층) 응시'), h('div', { class: 'card-b' }, kids)]));
   }
 
   // ---------- 유의사항 ----------
@@ -220,6 +187,7 @@
   function init(data) {
     DATA = data;
     document.body.classList.remove('locked');
+    var who = document.getElementById('who'); who.hidden = false; who.textContent = DATA.me.name + ' · ' + DATA.me.n + '번';
     var d = new Date(TODAY);
     document.getElementById('todayLabel').textContent = (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + DOW[d.getUTCDay()] + ')';
     document.getElementById('updated').textContent = DATA.className + ' 알림장 · 마지막 업데이트 ' + fmt(DATA.updated);
