@@ -1133,7 +1133,7 @@
       clear(cards);
       NS_SEMS.forEach(function (sm, si) {
         var key = sm[0], rows = nsRows(sems, key), avgEl = h('span', { class: 'ns-savg' }), meta = h('span', { class: 'el-gcount' });
-        var list = h('div', { class: 'ns-rows' });
+        var list = h('div', { class: 'ns-rows' }), panelOpen = null;   // 선택과목 추가 패널: 여러 개 고르는 동안 열린 채로 유지
         function head2() { var r = semAvg(rows); avgEl.textContent = r.avg == null ? '-' : nsFmt(r.avg); meta.textContent = r.credits + '단위'; }
         function save() { sems[key] = rows; persist(); head2(); }
         function drawRows() {
@@ -1155,7 +1155,30 @@
             del.addEventListener('click', function () { rows.splice(ri, 1); save(); drawRows(); });
             list.appendChild(h('div', { class: 'ns-row' + (r.x ? ' off' : '') }, [h('div', { class: 'ns-r1' }, [nm, cr, on]), h('div', { class: 'ns-r2' }, [gs, del])]));
           });
-          var add = h('button', { class: 'linkbtn', type: 'button', text: '＋ 과목 추가' });
+          // 2학년 선택과목은 내 정보에서 고르지 않았어도 여기서 바로 골라 추가할 수 있게
+          if (key === '2-1' || key === '2-2') {
+            var EL = window.ELECTIVES, opts = key === '2-1' ? EL.sem1.options.concat(EL.liberal.options.map(function (o) { return Object.assign({ lib: 1 }, o); })) : EL.sem2.options;
+            var have = function (n) { return rows.some(function (r) { return normName(r.n) === normName(n); }); };
+            var hasEl = opts.some(function (o) { return have(o.n); });
+            if (!hasEl) list.appendChild(h('div', { class: 'note-sm ns-hint', text: sm[1] + ' 선택과목이 아직 없어요. 아래에서 내가 들은 과목을 골라 추가해 주세요.' }));
+            var wrapC = h('div', { class: 'el-chips' }), byG = {}, order = [];
+            opts.forEach(function (o) { var g = o.lib ? '교양' : o.g; if (!byG[g]) { byG[g] = []; order.push(g); } byG[g].push(o); });
+            order.forEach(function (g) {
+              wrapC.appendChild(h('div', { class: 'el-g', text: g }));
+              var wg = h('div', { class: 'el-chips' });
+              byG[g].forEach(function (o) {
+                var on = have(o.n), b = h('button', { class: 'el-chip' + (on ? ' on dis' : ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', text: o.n });
+                b.addEventListener('click', function () { if (have(o.n)) return; rows.push({ n: o.n, cr: o.lib ? 2 : 3, g: 0, x: o.lib ? 1 : 0 }); panelOpen = true; save(); drawRows(); });
+                wg.appendChild(b);
+              });
+              wrapC.appendChild(wg);
+            });
+            var pan = h('details', { class: 'gc-more ns-addpanel' }, [h('summary', { text: '＋ 선택과목 골라서 추가' }), wrapC]);
+            if (panelOpen === null ? !hasEl : panelOpen) pan.setAttribute('open', '');
+            pan.addEventListener('toggle', function () { panelOpen = pan.open; });
+            list.appendChild(pan);
+          }
+          var add = h('button', { class: 'linkbtn', type: 'button', text: '＋ 과목 직접 추가' });
           add.addEventListener('click', function () { rows.push({ n: '', cr: 3, g: 0, x: 0 }); save(); drawRows(); var ins = list.querySelectorAll('.ns-name'); if (ins.length) ins[ins.length - 1].focus(); });
           list.appendChild(add);
           // 선택과목을 내 정보에서 새로 고른 경우 불러오기
