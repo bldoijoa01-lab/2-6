@@ -1096,6 +1096,17 @@
     return t;
   }
   function noRank(name) { var t = elTag(name); return !!t && t.indexOf('융합') >= 0; }   // 융합선택만 석차등급 없음 (진로선택은 석차등급 나옴)
+  // 3-1에 저장본이 있어도 공통 과목(독서와 작문·확률과 통계·심화 영어)이 빠졌으면 채움 (직접 삭제한 과목은 다시 넣지 않음)
+  function ensure31(sems) {
+    if (!sems['3-1']) return false;
+    var gone = Array.isArray(sems._d31) ? sems._d31 : [], ch = false;
+    NS_BASE['3-1'].slice().reverse().forEach(function (b) {
+      if (gone.indexOf(b[0]) >= 0) return;
+      if (!sems['3-1'].some(function (r) { return normName(r.n) === normName(b[0]); })) { sems['3-1'].unshift({ n: b[0], cr: b[1], g: 0, x: b[2] ? 1 : 0 }); ch = true; }
+    });
+    if (ch) nsSave(sems);
+    return ch;
+  }
   function nsLoad() { var s = (prefLoad().naesin || {}).sems; return s && typeof s === 'object' ? s : {}; }
   function nsSave(sems) { var p2 = prefLoad(); p2.naesin = { sems: sems }; prefSave(p2); }
   function nsDefault(key) {
@@ -1159,10 +1170,7 @@
       return;
     }
     var sems = nsLoad();
-    if (sems['3-1'] && !sems._m31) {   // 3-1을 예전에 저장한 사람: 공통 과목이 비어 있으면 채워 줌
-      NS_BASE['3-1'].slice().reverse().forEach(function (b) { if (!sems['3-1'].some(function (r) { return normName(r.n) === normName(b[0]); })) sems['3-1'].unshift({ n: b[0], cr: b[1], g: 0, x: b[2] ? 1 : 0 }); });
-      sems._m31 = 1; nsSave(sems);
-    }
+    ensure31(sems);
     var summary = h('div', { class: 'card ns-sum' }), cards = h('div');
     p.appendChild(h('div', { class: 'note-sm ns-intro', text: '학기별로 과목의 등급(1~5)과 단위수를 넣으면 단위수 가중 평균을 계산해요. 체육·예술·과학탐구실험 등은 기본으로 평균에서 빼 뒀고, 학교 기준에 맞게 "반영"을 켜고 끌 수 있어요.' }));
     p.appendChild(secureNote(!!load('gk26')));
@@ -1225,7 +1233,7 @@
               gs.appendChild(b);
             });
             var del = h('button', { class: 'linkbtn del-b', type: 'button', text: '삭제', 'aria-label': r.n + ' 삭제' });
-            del.addEventListener('click', function () { rows.splice(ri, 1); save(); drawRows(); });
+            del.addEventListener('click', function () { if (key === '3-1' && NS_BASE['3-1'].some(function (b) { return b[0] === r.n; })) { sems._d31 = (sems._d31 || []).concat([r.n]); } rows.splice(ri, 1); save(); drawRows(); });
             list.appendChild(h('div', { class: 'ns-row' + (r.x ? ' off' : '') }, [h('div', { class: 'ns-r1' }, [nm, cr, on]), noRank(r.n) ? h('div', { class: 'ns-nr', text: '석차등급 없음 · 융합선택 (성취도만)' }) : null, h('div', { class: 'ns-r2' }, [gs, del])]));
           });
           // 2학년 선택과목은 내 정보에서 고르지 않았어도 여기서 바로 골라 추가할 수 있게
