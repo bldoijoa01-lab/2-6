@@ -53,6 +53,25 @@ async function limited(env, key, max) {
 }
 
 // 계정별 맞춤 데이터: 특별실 응시는 내 것만, 행사 참여자 명단은 반 공지라 전체 공개 (로그인한 사람만)
+
+// 시험 대비 정보(범위·팁) 저장: 관리자/교사가 과목별로 올림. 학생은 /api/data 로 읽기만 함
+async function savePrep(env, b, who) {
+  const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  const subject = str(b.subject, 40);
+  if (!subject) return json({ error: 'subject' }, 400);
+  const data = JSON.parse(await env.CLASS_KV.get('data') || '{}');
+  data.prep = data.prep && typeof data.prep === 'object' ? data.prep : {};
+  if (b.op === 'delete') delete data.prep[subject];
+  else {
+    const tips = (Array.isArray(b.tips) ? b.tips : String(b.tips || '').split('\n')).map((t) => str(t, 160)).filter(Boolean).slice(0, 12);
+    const range = str(b.range, 400);
+    if (!range && !tips.length) delete data.prep[subject];
+    else data.prep[subject] = { range, tips, by: who, at: new Date().toISOString().slice(0, 10) };
+  }
+  await env.CLASS_KV.put('data', JSON.stringify(data));
+  return json({ ok: true });
+}
+
 async function personalized(env, me) {
   const d = JSON.parse(await env.CLASS_KV.get('data') || '{}');
   d.me = { n: me.n, name: me.name, role: me.role === 'teacher' ? 'teacher' : 'student', admin: !!me.admin };
@@ -204,6 +223,7 @@ export default {
       const me = roster.find((x) => x.n === tok.w);
       if (!me || !me.admin) return json({ error: 'forbidden' }, 403);
       const sub = url.pathname.slice('/api/admin/'.length);
+      if (sub === 'prep' && request.method === 'POST') return savePrep(env, await request.json().catch(() => ({})), me.name);
       if (sub === 'overview' && request.method === 'GET') {
         const names = async (prefix) => (await env.CLASS_KV.list({ prefix })).keys;
         const [pw, sh, off, subs, ups] = await Promise.all([names('pw:'), names('share:'), names('official:'), names('submit:'), names('upload:')]);
@@ -338,6 +358,7 @@ export default {
         await env.CLASS_KV.delete('rl:n:' + st.n);
         return json({ ok: true });
       }
+      if (sub === 'prep' && request.method === 'POST') return savePrep(env, b, '선생님');
       if (sub === 'content' && request.method === 'POST') {
         const data = JSON.parse(await env.CLASS_KV.get('data') || '{}');
         const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');

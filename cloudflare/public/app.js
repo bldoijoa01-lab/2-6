@@ -59,6 +59,7 @@
     if (name === 'home' && DATA && DATA.me && DATA.me.role !== 'teacher') renderHome();   // 내신·선택과목 등 바뀐 값이 홈에도 바로 반영되게
     if (name === 'naesin') { applyNsSub(); if (nsSub === 'grade') loadGrade(); else renderNaesin(); }
     if (name === 'me') renderMe();
+    if (name === 'prep') renderPrep();
     if (name === 'admin') renderAdmin();
     try { history.replaceState(null, '', '#' + (name === 'naesin' && nsSub === 'grade' ? 'grade' : name)); } catch (e) {}
   }
@@ -1839,6 +1840,91 @@
   }
   function renderTable() {
     ttCard = buildTableCard(); document.getElementById('panel-exam').appendChild(ttCard);
+  }
+
+
+  // ---------- 시험 대비 (과목별 시험 범위 · 팁) ----------
+  var prepMine = true;
+  function prepSubjects(mine) {   // 시간표 순서대로 과목 목록 (내 과목만 / 전체)
+    var ex = DATA.exam, out = [], seen = {};
+    ex.days.forEach(function (d) {
+      ex.periods.forEach(function (per, pi) {
+        var c = mine ? myCell(d.cells[pi]) : d.cells[pi];
+        if (c.k === 'self') return;
+        c.t.split('/').forEach(function (s) {
+          s = s.trim(); if (!s || s === '자습' || s === '시험 없음' || seen[s]) return; seen[s] = 1;
+          out.push({ name: s, date: d.date, label: d.label, period: per.name, time: per.time, kind: c.k });
+        });
+      });
+    });
+    return out;
+  }
+  function prepApi(body) {
+    var t = DATA.me.role === 'teacher';
+    return (t ? tApi('prep', body) : aApi('prep', body));
+  }
+  function renderPrep() {
+    var p = document.getElementById('panel-prep'); if (!p || !DATA || !DATA.exam) return; clear(p);
+    var canEdit = !PREVIEW && (DATA.me.role === 'teacher' || DATA.me.admin), hasMine = DATA.me.role !== 'teacher' && myElectives().length > 0;
+    var mine = hasMine && prepMine, prep = DATA.prep || {}, list = prepSubjects(mine);
+    var first = DATA.exam.days[0], dd = first ? diffDays(first.date, TODAY) : null;
+    var top = [h('div', { class: 'eyebrow', text: 'FINAL EXAM PREP' }), h('h2', { text: '기말고사 대비' }),
+      h('div', { class: 'pr-dd', text: dd == null ? '' : dd > 0 ? '첫 시험(' + first.label + ')까지 D-' + dd : dd === 0 ? '오늘 시험 시작!' : '시험 기간이에요' })];
+    var kids = [h('div', { class: 'card-b' }, top.concat([h('div', { class: 'note-sm', text: '과목별 시험 범위와 공부 팁이에요. ' + (canEdit ? '각 카드의 ✏️ 편집으로 직접 써 주세요.' : '관리자·선생님이 알게 된 대로 채워 가요. 정정이 있을 수 있으니 수업 시간 공지도 꼭 확인!') })]))];
+    if (hasMine) {
+      var seg = h('div', { class: 'seg' });
+      [['내 과목', true], ['전체', false]].forEach(function (v) {
+        var b = h('button', { class: 'seg-b', type: 'button', text: v[0], 'aria-pressed': prepMine === v[1] ? 'true' : 'false' });
+        b.addEventListener('click', function () { prepMine = v[1]; renderPrep(); });
+        seg.appendChild(b);
+      });
+      kids[0].appendChild(seg);
+    } else if (DATA.me.role !== 'teacher') {
+      var go = h('button', { class: 'linkbtn', type: 'button', text: '내 정보에서 선택과목을 고르면 내 과목만 볼 수 있어요 →' });
+      go.addEventListener('click', function () { goTab('me'); });
+      kids[0].appendChild(go);
+    }
+    p.appendChild(h('div', { class: 'card pr-top' }, kids));
+    var common = prep['전체'];
+    if (common || canEdit) p.appendChild(prepCard({ name: '전체', label: '모든 과목 공통', period: '', time: '', kind: 'common', common: true }, prep['전체'], canEdit));
+    if (!list.length) p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '표시할 과목이 없어요.' })])]));
+    list.forEach(function (s) { p.appendChild(prepCard(s, prep[s.name], canEdit)); });
+  }
+  function prepCard(s, info, canEdit) {
+    var body = h('div', { class: 'card-b pr-body' }), box = h('div', { class: 'card pr-card pk-' + s.kind });
+    function view() {
+      clear(body);
+      var d = s.date ? diffDays(s.date, TODAY) : null;
+      var meta = s.common ? '모두에게 해당' : s.label + ' ' + s.period + ' · ' + s.time;
+      body.appendChild(h('div', { class: 'pr-h' }, [h('div', null, [h('h3', { text: s.common ? '📌 전체 공지·팁' : s.name }), h('small', { text: meta })]), d != null && d >= 0 ? h('span', { class: 'pr-d' + (d <= 3 ? ' soon' : ''), text: d === 0 ? 'D-DAY' : 'D-' + d }) : null]));
+      if (info && info.range) body.appendChild(h('div', { class: 'pr-range' }, [h('b', { text: '시험 범위' }), h('p', { text: info.range })]));
+      if (info && info.tips && info.tips.length) body.appendChild(h('div', { class: 'pr-tips' }, [h('b', { text: '공부 팁' }), h('ul', null, info.tips.map(function (t) { return h('li', { text: t }); }))]));
+      if (!info) body.appendChild(h('div', { class: 'pr-empty', text: '아직 올라온 내용이 없어요. 범위가 나오면 채워질 거예요.' }));
+      else if (info.at) body.appendChild(h('div', { class: 'pr-by', text: info.at + ' 업데이트' + (info.by ? ' · ' + info.by : '') }));
+      if (canEdit) { var ed = h('button', { class: 'linkbtn', type: 'button', text: '✏️ 편집' }); ed.addEventListener('click', edit); body.appendChild(ed); }
+    }
+    function edit() {
+      clear(body);
+      var rg = h('textarea', { class: 'field pr-ta', rows: '3', placeholder: '시험 범위 (예: 교과서 3~5단원, 프린트 12~20쪽)', maxlength: '400' }), tp = h('textarea', { class: 'field pr-ta', rows: '4', placeholder: '공부 팁 — 한 줄에 하나씩', maxlength: '1200' });
+      rg.value = (info && info.range) || ''; tp.value = ((info && info.tips) || []).join('\n');
+      var save = h('button', { class: 'btn', type: 'button', text: '저장' }), cancel = h('button', { class: 'linkbtn', type: 'button', text: '취소' }), del = h('button', { class: 'linkbtn del-b', type: 'button', text: '내용 지우기' });
+      save.addEventListener('click', function () {
+        save.disabled = true;
+        prepApi({ op: 'set', subject: s.name, range: rg.value, tips: tp.value.split('\n') }).then(function (j) {
+          if (!j._ok) { save.disabled = false; alert('저장하지 못했어요.'); return; }
+          DATA.prep = DATA.prep || {};
+          var tips = tp.value.split('\n').map(function (t) { return t.trim(); }).filter(Boolean);
+          if (!rg.value.trim() && !tips.length) delete DATA.prep[s.name]; else DATA.prep[s.name] = { range: rg.value.trim(), tips: tips, by: DATA.me.role === 'teacher' ? '선생님' : DATA.me.name, at: new Date().toISOString().slice(0, 10) };
+          info = DATA.prep[s.name]; view();
+        });
+      });
+      cancel.addEventListener('click', view);
+      del.addEventListener('click', function () { if (!confirm('이 과목 내용을 지울까요?')) return; prepApi({ op: 'delete', subject: s.name }).then(function (j) { if (j._ok) { if (DATA.prep) delete DATA.prep[s.name]; info = null; view(); } }); });
+      body.appendChild(h('div', { class: 'pr-h' }, [h('div', null, [h('h3', { text: s.name })])]));
+      [rg, tp].forEach(function (x) { body.appendChild(x); });
+      body.appendChild(h('div', { class: 'pr-act' }, [save, cancel, del]));
+    }
+    view(); box.appendChild(body); return box;
   }
 
   // 시간표를 사진(PNG)으로: 캔버스에 직접 그려서 저장/공유

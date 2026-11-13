@@ -775,3 +775,15 @@ body{background:transparent}
 .ns-per.fut{opacity:.55} .ns-per.fut b{font-style:italic}
 .ch-dot.fut{stroke-dasharray:3 2.2; fill-opacity:.5}
 .ch-val.fut{fill-opacity:.55; font-style:italic}
+
+/* 시험 대비 */
+.pr-top .card-b{display:flex; flex-direction:column; gap:8px} .pr-top h2{margin:2px 0 0; font-size:22px; font-weight:800; letter-spacing:-.03em}
+.pr-dd{font-weight:800; color:var(--blue); font-size:15px} .pr-top .seg{align-self:flex-start}
+.pr-card{margin-top:12px; border-left:4px solid var(--blue)} .pr-card.pk-elective{border-left-color:var(--green)} .pr-card.pk-common{border-left-color:var(--indigo)}
+.pr-body{display:flex; flex-direction:column; gap:10px}
+.pr-h{display:flex; align-items:flex-start; justify-content:space-between; gap:10px} .pr-h h3{margin:0; font-size:17px; font-weight:800; letter-spacing:-.02em} .pr-h small{color:var(--sub); font-size:12.5px; font-weight:600}
+.pr-d{flex:none; padding:4px 10px; border-radius:999px; background:var(--glass-2); border:1px solid var(--glass-line); font-size:12px; font-weight:800; color:var(--sub)} .pr-d.soon{color:#fff; background:linear-gradient(135deg,#E85AA0,#F0824F); border-color:transparent}
+.pr-range,.pr-tips{background:var(--glass); border:1px solid var(--glass-line); border-radius:14px; padding:10px 12px} .pr-range b,.pr-tips b{font-size:12px; color:var(--sub); letter-spacing:.02em}
+.pr-range p{margin:4px 0 0; font-size:15px; line-height:1.55; font-weight:600; white-space:pre-wrap} .pr-tips ul{margin:4px 0 0; padding-left:18px} .pr-tips li{font-size:14.5px; line-height:1.55; margin:2px 0}
+.pr-empty{font-size:13.5px; color:var(--mute)} .pr-by{font-size:11.5px; color:var(--mute)}
+.pr-ta{width:100%; resize:vertical; font-family:inherit; line-height:1.5} .pr-act{display:flex; align-items:center; gap:14px}
