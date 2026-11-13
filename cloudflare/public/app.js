@@ -780,10 +780,26 @@
       h('div', { class: 'sb-head' }, [h('span', { class: 'sb-ic', text: '🔒' }), h('div', null, [h('div', { class: 'sb-t', text: '내 성적은 암호화돼요' }), h('div', { class: 'sb-s', text: '관리자는 볼 수 없고, 나와 담임 선생님만 볼 수 있어요' })])]),
       det]);
   }
+  // 열쇠가 없는 기기(이전 버전으로 로그인한 상태): 비밀번호를 한 번 넣으면 그 자리에서 열쇠를 만들어 암호화를 켬
+  function enableBox() {
+    var pw = h('input', { class: 'field', type: 'password', placeholder: '내 비밀번호', autocomplete: 'current-password', 'aria-label': '내 비밀번호' });
+    var btn = h('button', { class: 'btn', type: 'button', text: '암호화 켜기' }), err = h('div', { class: 'badmsg' });
+    function go() {
+      if (!pw.value || !DATA || !DATA.me) return;
+      btn.disabled = true; err.textContent = '확인 중…';
+      api('/api/login', { name: DATA.me.name, number: DATA.me.n, secret: pw.value }).then(function (j) {
+        if (j.status === 429) { btn.disabled = false; err.textContent = '많이 틀렸어요. 10분 뒤에 다시 시도하세요.'; return; }
+        if (j.status !== 200 || j.setup) { btn.disabled = false; err.textContent = '비밀번호가 맞지 않아요.'; return; }
+        store('tok26', j.token); store('pwlen26', String(pw.value.length));
+        return rememberKey(pw.value, DATA.me.n).then(function () { return syncScores(); }).then(function () { pushShare(); setTimeout(function () { location.reload(); }, 600); });
+      }).catch(function () { btn.disabled = false; err.textContent = '연결에 실패했어요.'; });
+    }
+    btn.addEventListener('click', go); pw.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    return h('div', { class: 'sb-enable' }, [h('div', { class: 'sb-warn', text: '이 기기는 아직 암호화 열쇠가 없어요. 비밀번호를 한 번 입력하면 열쇠를 만들어 암호화 저장과 동기화를 켜요.' }), h('div', { class: 'sb-enable-row' }, [pw, btn]), err]);
+  }
   function secureNote(synced) {
-    // 열쇠 유무와 상관없이 항상 같은 안내 카드를 보여 줌 (열쇠가 없으면 안내 한 줄만 추가)
     var card = secureBanner(true);
-    if (!synced) card.insertBefore(h('div', { class: 'sb-warn', text: '이 기기는 아직 다른 기기와의 동기화가 꺼져 있어요. 로그아웃 후 다시 로그인하면 켜져요.' }), card.lastChild);
+    if (!synced) card.insertBefore(enableBox(), card.lastChild);
     return card;
   }
   // 로그인 직후 한 번 크게 알려 주기
