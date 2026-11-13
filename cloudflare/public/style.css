@@ -35,13 +35,13 @@ html{-webkit-text-size-adjust:100%}
 body{
   margin:0; min-height:100vh; font-family:var(--sans); color:var(--ink); font-size:16px; line-height:1.55;
   word-break:keep-all; overflow-wrap:break-word; -webkit-font-smoothing:antialiased; letter-spacing:-.01em;
-  background:linear-gradient(135deg,var(--bg1),var(--bg2) 55%,var(--bg3)); background-attachment:fixed;
+  background:transparent;
 }
 /* 배경 블롭 */
-body::before,body::after{content:""; position:fixed; z-index:-1; border-radius:50%; filter:blur(70px); pointer-events:none}
+body::before,body::after{content:""; position:fixed; z-index:-1; border-radius:50%; pointer-events:none; will-change:transform}
 body::before{width:60vmax; height:60vmax; left:-20vmax; top:-18vmax; background:radial-gradient(circle,var(--blob1),transparent 65%)}
 body::after{width:55vmax; height:55vmax; right:-18vmax; bottom:-16vmax; background:radial-gradient(circle,var(--blob2),transparent 62%)}
-.wrap::before{content:""; position:fixed; z-index:-1; width:38vmax; height:38vmax; right:8vmax; top:10vh; border-radius:50%; filter:blur(80px); background:radial-gradient(circle,var(--blob3),transparent 65%); pointer-events:none}
+.wrap::before{content:""; position:fixed; z-index:-1; width:38vmax; height:38vmax; right:8vmax; top:10vh; border-radius:50%; background:radial-gradient(circle,var(--blob3),transparent 65%); pointer-events:none}
 
 button,input{font-family:inherit; letter-spacing:inherit}
 button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var(--blue) 40%,transparent); outline-offset:2px}
@@ -591,3 +591,7 @@ body.teacher #tab-naesin{display:none !important}
 
 .sb-enable{margin:8px 0 4px; display:flex; flex-direction:column; gap:8px}
 .sb-enable-row{display:flex; gap:8px} .sb-enable-row .field{flex:1; width:auto; min-height:44px} .sb-enable-row .btn{min-height:44px; padding:0 16px; font-size:14px; white-space:nowrap}
+
+/* 배경: 화면에 고정된 그라데이션 층(iOS에서 background-attachment:fixed 가 안 돼 줄무늬가 생기던 문제 해결) */
+html{background-color:var(--bg2)}
+html::before{content:""; position:fixed; inset:0; z-index:-3; pointer-events:none; background:linear-gradient(135deg,var(--bg1),var(--bg2) 55%,var(--bg3))}
