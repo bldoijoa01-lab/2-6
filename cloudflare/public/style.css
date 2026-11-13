@@ -99,7 +99,7 @@ button:focus-visible,input:focus-visible{outline:3px solid color-mix(in srgb,var
 .pill-live{display:inline-flex; align-items:center; gap:8px; padding:6px 14px; border-radius:999px; background:var(--glass-card); border:1px solid var(--glass-line); color:var(--sub); font-size:13px; font-weight:600}
 .pill-live i{width:8px; height:8px; border-radius:50%; background:var(--green); box-shadow:0 0 0 4px color-mix(in srgb,var(--green) 25%,transparent); animation:pulseDot 2.4s ease-in-out infinite}
 @keyframes pulseDot{0%,100%{transform:scale(1); opacity:1} 50%{transform:scale(1.18); opacity:.82}}
-.hero-title{margin:16px 0 8px; font-size:clamp(42px,10vw,68px); font-weight:800; letter-spacing:-.045em; line-height:1.08}
+.hero-title{margin:16px 0 8px; font-size:clamp(36px,9vw,64px); font-weight:800; letter-spacing:-.045em; line-height:1.08}
 .hero-title span{background:linear-gradient(100deg,#3B6CF5,#8A5BE6 55%,#E85AA0); -webkit-background-clip:text; background-clip:text; color:transparent}
 .hero-title em{font-style:normal; color:#E85AA0; margin-left:2px}
 .hero-date{display:inline-block; padding:4px 16px; border-radius:999px; background:var(--glass-card); border:1px solid var(--glass-line); color:var(--sub); font-size:15px; font-weight:600}
