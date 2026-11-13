@@ -58,3 +58,9 @@ Pretendard(OFL)를 서브셋해서 `src/pretendard.woff2`로 Worker에 내장 (�
 1. `npx wrangler kv key delete --namespace-id=3b0183b8c07e4dbea43c84c455d0bc5e --remote pw:101`
 2. 선생님이 교사 코드로 다시 로그인 → 새 비밀번호 설정 (새 교사 열쇠가 만들어짐)
 3. 이전 열쇠로 감싼 학생 사본은 못 풀지만, 학생이 앱을 열거나 점수를 저장할 때 새 열쇠로 다시 공유됨 (학생 데이터는 사라지지 않음)
+
+## 선택과목 명단(학교 기준) 올리기
+- 교사 도구 > "선택과목 명단 올리기": 엑셀(.xlsx)·CSV·텍스트·붙여넣기는 브라우저에서 읽어 미리보기 후 `official:<번호>` 로 저장 (암호화 안 함). 학생 화면은 그 명단 기준으로 선택과목·반(A~E)이 채워지고 잠김
+- PDF·사진·한글(hwp) 등 못 읽는 형식은 원본을 `upload:<시각>:<파일명>` (KV, 8MB 이하)으로 보관 → 운영자가 읽어서 반영
+  - 목록: `npx wrangler kv key list --namespace-id=<KV> --remote --prefix upload:`
+  - 받기: `npx wrangler kv key get --namespace-id=<KV> --remote --binary "<키>" > 파일`

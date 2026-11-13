@@ -600,6 +600,90 @@
   }
   document.getElementById('previewExit').addEventListener('click', exitPreview);
 
+  // ---------- 선택과목 명단 읽기 (엑셀·CSV·붙여넣기) ----------
+  function splitLine(line) {
+    var d = line.indexOf('\t') >= 0 ? '\t' : (line.indexOf(',') >= 0 ? ',' : null);
+    if (!d) return line.trim().split(/\s{2,}|\s+/);
+    var out = [], cur = '', q = false;
+    for (var i = 0; i < line.length; i++) { var ch = line[i]; if (ch === '"') { q = !q; } else if (ch === d && !q) { out.push(cur); cur = ''; } else cur += ch; }
+    out.push(cur); return out;
+  }
+  function parseText(text) { return text.replace(/\r/g, '').split('\n').filter(function (l) { return l.trim(); }).map(splitLine); }
+  function inflateRaw(u8) {
+    var ds = new DecompressionStream('deflate-raw'), w = ds.writable.getWriter(); w.write(u8); w.close();
+    return new Response(ds.readable).arrayBuffer().then(function (b) { return new Uint8Array(b); });
+  }
+  function readXlsx(buf) {   // .xlsx(zip) → 첫 시트의 2차원 표
+    var u8 = new Uint8Array(buf), dv = new DataView(buf), eocd = -1, i;
+    for (i = u8.length - 22; i >= 0; i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+    if (eocd < 0) return Promise.reject(new Error('zip'));
+    var cnt = dv.getUint16(eocd + 10, true), p = dv.getUint32(eocd + 16, true), files = {}, dec = new TextDecoder();
+    for (i = 0; i < cnt; i++) {
+      var comp = dv.getUint16(p + 10, true), csz = dv.getUint32(p + 20, true), nl = dv.getUint16(p + 28, true), el = dv.getUint16(p + 30, true), cl = dv.getUint16(p + 32, true), lho = dv.getUint32(p + 42, true);
+      files[dec.decode(u8.slice(p + 46, p + 46 + nl))] = { comp: comp, csz: csz, lho: lho }; p += 46 + nl + el + cl;
+    }
+    function get(name) {
+      var f = files[name]; if (!f) return Promise.resolve(null);
+      var ds0 = f.lho + 30 + dv.getUint16(f.lho + 26, true) + dv.getUint16(f.lho + 28, true), raw = u8.slice(ds0, ds0 + f.csz);
+      return (f.comp === 0 ? Promise.resolve(raw) : inflateRaw(raw)).then(function (b) { return dec.decode(b); });
+    }
+    var sheetName = Object.keys(files).filter(function (n) { return /^xl\/worksheets\/sheet\d+\.xml$/.test(n); }).sort()[0];
+    return Promise.all([get('xl/sharedStrings.xml'), get(sheetName)]).then(function (r) {
+      var P = new DOMParser(), ss = [];
+      if (r[0]) Array.prototype.forEach.call(P.parseFromString(r[0], 'text/xml').getElementsByTagName('si'), function (si) { ss.push(Array.prototype.map.call(si.getElementsByTagName('t'), function (t) { return t.textContent; }).join('')); });
+      var rows = [];
+      Array.prototype.forEach.call(P.parseFromString(r[1] || '<x/>', 'text/xml').getElementsByTagName('c'), function (c) {
+        var ref = c.getAttribute('r') || '', m = /^([A-Z]+)(\d+)$/.exec(ref); if (!m) return;
+        var col = 0; for (var k = 0; k < m[1].length; k++) col = col * 26 + (m[1].charCodeAt(k) - 64); col--;
+        var rI = parseInt(m[2], 10) - 1, t = c.getAttribute('t'), v = c.getElementsByTagName('v')[0], val = '';
+        if (t === 's' && v) val = ss[parseInt(v.textContent, 10)] || ''; else if (t === 'inlineStr') val = Array.prototype.map.call(c.getElementsByTagName('t'), function (x) { return x.textContent; }).join(''); else if (v) val = v.textContent;
+        (rows[rI] = rows[rI] || [])[col] = val;
+      });
+      return rows.filter(Boolean);
+    });
+  }
+  // 표 → 학생별 {n, name, el2[], blocks{}} (과목명은 교육과정 편성표 이름과 맞춤)
+  function mapOfficial(rows, students) {
+    var opts = window.ELECTIVES.sem2.options, byName = {}, out = [], skipped = 0;
+    students.forEach(function (s) { byName[normName(s.name)] = s; });
+    function matchOpt(txt) {
+      var n = normName(txt), ex = opts.filter(function (o) { return normName(o.n) === n; })[0];
+      if (ex) return ex;
+      var part = opts.filter(function (o) { return n.indexOf(normName(o.n)) >= 0; }).sort(function (x, y) { return y.n.length - x.n.length; });
+      return part[0] || null;
+    }
+    rows.forEach(function (row) {
+      var cells = row.map(function (c) { return String(c == null ? '' : c).trim(); }), st = null, nn = null;
+      cells.forEach(function (c) { var s = byName[normName(c)]; if (s && !st) st = s; });
+      cells.slice(0, 3).forEach(function (c) { if (nn === null && /^\d{1,3}$/.test(c)) nn = parseInt(c, 10); });
+      if (!st && nn) st = students.filter(function (s) { return s.n === nn; })[0] || null;
+      if (!st) { skipped++; return; }
+      var el = [], bl = {};
+      cells.forEach(function (c, ci) {
+        if (!c || normName(c) === normName(st.name) || /^\d{1,3}$/.test(c)) return;
+        var letter = null, name = c;
+        var m = /^(.*?)[\s(\[:\-·]*([A-E])\s*반?\s*[)\]]?$/.exec(c) || /^([A-E])\s*반?\s*[:\-·]?\s*(.+)$/.exec(c);
+        if (m) { if (/^[A-E]$/.test(m[1])) { letter = m[1]; name = m[2]; } else { name = m[1]; letter = m[2]; } }
+        var o = matchOpt(name);
+        if (o) { if (el.indexOf(o.n) < 0) el.push(o.n); if (letter) bl[o.n] = letter; return; }
+        if (/^[A-E]$/.test(c) && ci > 0) { var prev = matchOpt(cells[ci - 1]); if (prev) bl[prev.n] = c; }
+      });
+      out.push({ n: st.n, name: st.name, el2: el, blocks: bl });
+    });
+    return { rows: out, skipped: skipped };
+  }
+  function readUploadFile(file) {
+    var nm = file.name.toLowerCase();
+    if (/\.(xlsx|xlsm)$/.test(nm)) return file.arrayBuffer().then(readXlsx);
+    if (/\.(csv|tsv|txt)$/.test(nm) || /^text\//.test(file.type)) return file.text().then(parseText);
+    return Promise.resolve(null);   // 그 외(PDF·사진·한글 등)는 자동으로 못 읽음 → 원본 보관
+  }
+  function uploadRaw(file) {
+    return file.arrayBuffer().then(function (buf) {
+      return fetch('/api/teacher/upload', { method: 'POST', headers: { authorization: 'Bearer ' + load('tok26'), 'x-filename': encodeURIComponent(file.name), 'content-type': file.type || 'application/octet-stream' }, body: buf }).then(function (r) { return r.json().then(function (j) { j._ok = r.ok; return j; }); });
+    });
+  }
+
   // ---------- 교사 도구 ----------
   function tApi(path, body) {
     return fetch('/api/teacher/' + path, { method: body ? 'POST' : 'GET', headers: { authorization: 'Bearer ' + (load('tok26') || ''), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined })
@@ -608,6 +692,43 @@
   function renderTeacher() {
     var p = document.getElementById('panel-teacher'); clear(p);
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: DATA.me.name + ' 선생님, 안녕하세요 👋' }), h('div', { class: 'greet-s', text: DATA.className + ' 교사 도구' })]));
+
+
+    // 선택과목 명단 올리기 (엑셀·CSV·붙여넣기는 자동으로 읽고, 그 외 파일은 원본을 보관)
+    var fileIn = h('input', { type: 'file', class: 'field', 'aria-label': '명단 파일 (아무 형식)' });
+    var paste = h('textarea', { class: 'field', rows: '4', placeholder: '엑셀에서 복사해서 붙여넣어도 돼요 (번호, 이름, 선택과목 5개, 반)', 'aria-label': '명단 붙여넣기' });
+    var readBtn = h('button', { class: 'btn', type: 'button', text: '읽기 / 올리기' }), omsg = h('div', { class: 'note-sm' }), prev = h('div'), applyBtn = h('button', { class: 'btn', type: 'button', text: '학생 화면에 적용' });
+    applyBtn.hidden = true; var parsed = null;
+    readBtn.addEventListener('click', function () {
+      omsg.textContent = ''; clear(prev); applyBtn.hidden = true; parsed = null;
+      var f = fileIn.files && fileIn.files[0], txt = paste.value.trim();
+      if (!f && !txt) { omsg.textContent = '파일을 고르거나 명단을 붙여넣어 주세요.'; return; }
+      readBtn.disabled = true; omsg.textContent = '읽는 중…';
+      var rowsP = f ? readUploadFile(f).catch(function () { return null; }) : Promise.resolve(parseText(txt));
+      var rawP = f ? uploadRaw(f).catch(function () { return { _ok: false }; }) : Promise.resolve(null);   // 파일은 항상 원본도 보관
+      Promise.all([rowsP, rawP, tApi('students')]).then(function (res) {
+        readBtn.disabled = false;
+        var rows = res[0], saved = res[1], students = res[2].students || [];
+        if (!rows) { omsg.textContent = saved && saved._ok ? '이 형식은 자동으로 읽을 수 없어서 파일을 그대로 보관했어요. 운영자가 읽어서 반영해 줄게요. ✅' : '이 형식은 읽지 못했고 파일 보관도 실패했어요. 다른 형식으로 다시 올려 주세요.'; return; }
+        var m = mapOfficial(rows, students); parsed = m.rows;
+        if (!m.rows.length) { omsg.textContent = '학생을 찾지 못했어요. 이름이나 번호가 들어 있는지 확인해 주세요.' + (saved && saved._ok ? ' (파일은 보관했어요)' : ''); return; }
+        omsg.textContent = m.rows.length + '명 읽음' + (m.skipped ? ' · 학생이 아닌 줄 ' + m.skipped + '개 제외' : '') + '. 확인 후 [적용]을 눌러 주세요.' + (saved && saved._ok ? ' (원본 파일도 보관했어요)' : '');
+        m.rows.forEach(function (r) {
+          var bad = r.el2.length !== 5;
+          prev.appendChild(h('div', { class: 'srow-sum' + (bad ? ' warn' : ''), text: r.n + '번 ' + r.name + ' · ' + r.el2.length + '과목' + (bad ? ' ⚠' : '') + ' · ' + r.el2.map(function (n) { return n + (r.blocks[n] ? '(' + r.blocks[n] + ')' : ''); }).join(', ') }));
+        });
+        applyBtn.hidden = false;
+      }).catch(function () { readBtn.disabled = false; omsg.textContent = '읽는 중 문제가 생겼어요.'; });
+    });
+    applyBtn.addEventListener('click', function () {
+      if (!parsed) return; applyBtn.disabled = true;
+      tApi('official', { rows: parsed.map(function (r) { return { n: r.n, el2: r.el2, blocks: r.blocks }; }) }).then(function (j) {
+        applyBtn.disabled = false; omsg.textContent = j._ok ? j.saved + '명의 선택과목을 학생 화면에 반영했어요. ✅ (학생이 다시 열면 학교 명단 기준으로 바뀌어요)' : '적용하지 못했어요.'; if (j._ok) { applyBtn.hidden = true; clear(prev); }
+      });
+    });
+    p.appendChild(h('div', { class: 'card' }, [head('ROSTER', '선택과목 명단 올리기'), h('div', { class: 'card-b' }, [
+      h('div', { class: 'note-sm', text: '학교 수강 신청 결과를 아무 형식으로나 올려 주세요. 엑셀(.xlsx)·CSV·텍스트는 자동으로 읽고, PDF·사진·한글(hwp) 등은 파일을 그대로 보관해요. 선택과목은 암호화하지 않고 저장돼요.' }),
+      fileIn, paste, readBtn, omsg, prev, applyBtn])]));
 
     // 1) 일정·공지 올리기
     var kind = h('select', { class: 'field', 'aria-label': '종류' }, [h('option', { value: 'event', text: '일정 (날짜 있음)' }), h('option', { value: 'notice', text: '공지 (날짜 없음)' })]);
@@ -818,8 +939,9 @@
     var det = h('details', { class: 'secure-det' }, [h('summary', { text: '자세히 보기' }), h('ul', null, [
       h('li', null, [h('b', { text: '암호 방식 ' }), 'AES-256-GCM(변조까지 감지하는 인증 암호화) + 선생님 공유용 RSA-OAEP']),
       h('li', null, [h('b', { text: '열쇠 ' }), '내 비밀번호 + PBKDF2-SHA256 20만 회로 내 기기 안에서만 만들어요. 비밀번호와 열쇠는 서버로 보내지 않아요.']),
-      h('li', null, [h('b', { text: '서버 저장 ' }), '점수·내신·선택과목은 저장되기 전에 이미 내 기기에서 암호화돼, 서버에는 읽을 수 없는 암호문만 있어요.']),
-      h('li', null, [h('b', { text: '선생님 공유 ' }), '선생님이 학생 지도에 쓰도록, 같은 내용의 사본이 선생님 전용 열쇠로 암호화돼 함께 저장돼요. 개인 일정은 공유하지 않아요.']),
+      h('li', null, [h('b', { text: '서버 저장 ' }), '점수·내신은 저장되기 전에 이미 내 기기에서 암호화돼, 서버에는 읽을 수 없는 암호문만 있어요.']),
+      h('li', null, [h('b', { text: '선택과목 ' }), '학교 수강 명단 기준으로 선생님이 올린 선택과목·반 정보는 암호화 대상이 아니에요. (성적이 아닌 학교 명단 정보)']),
+      h('li', null, [h('b', { text: '선생님 공유 ' }), '선생님이 학생 지도에 쓰도록, 점수·내신·내가 고른 선택과목의 사본이 선생님 전용 열쇠로 암호화돼 함께 저장돼요. 개인 일정은 공유하지 않아요.']),
       h('li', null, [h('b', { text: '비밀번호 분실 ' }), '열쇠를 복구할 수 없어서, 초기화하면 저장된 점수는 사라져요.']),
       h('li', null, [h('b', { text: '주의 ' }), '내 비밀번호를 아는 사람은 볼 수 있어요. 짧은 비밀번호(6자 미만)는 암호가 약해요. 비밀번호는 나만 알고 있어야 해요.'])
         ].concat(parseInt(load('pwlen26') || '99', 10) < 6 ? [h('li', { class: 'weak' }, [h('b', { text: '⚠ 약한 비밀번호 ' }), '지금 비밀번호가 6자 미만이라 암호가 약해요. 6자 이상으로 바꾸는 걸 권장해요. (담임 선생님께 초기화 요청 후 다시 설정)'])] : []))]);
@@ -860,6 +982,17 @@
   }
 
   // ---------- 내 정보 (선택과목) ----------
+  // 선생님이 올린 학교 기준 선택과목 명단이 있으면 내 선택으로 반영 (학생 화면에서는 잠금)
+  function applyOfficial() {
+    var off = DATA && DATA.official; if (!off || PREVIEW) return;
+    var pr = prefLoad(), changed = false;
+    if (JSON.stringify(pr.el2 || []) !== JSON.stringify(off.el2 || [])) { pr.el2 = off.el2.slice(); changed = true; }
+    var bl = Object.assign({}, pr.blocks || {});
+    Object.keys(bl).forEach(function (n) { if (off.el2.indexOf(n) < 0) delete bl[n]; });
+    Object.keys(off.blocks || {}).forEach(function (n) { if (bl[n] !== off.blocks[n]) { Object.keys(bl).forEach(function (m) { if (bl[m] === off.blocks[n] && m !== n) delete bl[m]; }); bl[n] = off.blocks[n]; } });
+    if (JSON.stringify(bl) !== JSON.stringify(pr.blocks || {})) { pr.blocks = bl; changed = true; }
+    if (changed) prefSave(pr);
+  }
   function myElectives() { var v = prefLoad().el2; return Array.isArray(v) ? v : []; }
   var SEM_CARDS = [
     { eyebrow: '2학년 · 지금', title: '2학기', open: true, groups: [['el2', 'sem2']] },
@@ -900,7 +1033,7 @@
           });
           total();
         }
-        var sec = h('div', { class: 'el-sec' }, [h('div', { class: 'el-sh' }, [h('div', null, [h('b', { text: def.title }), h('small', { text: '택' + def.pick + ' · ' + def.credits + '학점' })]), gcount])]);
+        var sec = h('div', { class: 'el-sec' }, [h('div', { class: 'el-sh' }, [h('div', null, [h('b', { text: def.title }), h('small', { text: '택' + def.pick + ' · ' + def.credits + '학점' + (key === 'el2' && DATA.official ? ' · ✓ 학교 명단 기준' : '') })]), gcount])]);
         var byG = {}, order = [];
         def.options.forEach(function (o) { if (!byG[o.g]) { byG[o.g] = []; order.push(o.g); } byG[o.g].push(o); });
         order.forEach(function (g) {
@@ -910,6 +1043,7 @@
             var b = h('button', { class: 'el-chip', type: 'button', 'aria-pressed': 'false', text: o.n });
             if (key === 'el2' && gcNames[normName(o.n)]) b.appendChild(h('i', { class: 'el-dot', title: '등급컷 자료 있음' }));
             b.addEventListener('click', function () {
+              if (key === 'el2' && DATA.official) return;   // 학교 명단 기준이라 바꿀 수 없음
               var on = sel.indexOf(o.n) >= 0, full = !on && sel.length >= def.pick;
               if (on) sel.splice(sel.indexOf(o.n), 1); else if (!full) sel.push(o.n); else return;
               prefs[key] = sel; prefSave(prefs); update();
@@ -953,12 +1087,14 @@
       else {
         body.appendChild(h('div', { class: 'note-sm', text: '시간표의 A~E 중 과목마다 내 반을 골라 주세요. 한 글자는 한 과목만 쓸 수 있어요.' }));
         mine.forEach(function (name) {
-          var row = h('div', { class: 'blk-row' }, [h('div', { class: 'blk-n', text: name })]);
+          var row = h('div', { class: 'blk-row' }, [h('div', { class: 'blk-n', text: name + (((DATA.official && DATA.official.blocks) || {})[name] ? ' ✓' : '') })]);
           var chips = h('div', { class: 'blk-chips' });
           ['A', 'B', 'C', 'D', 'E'].forEach(function (L) {
+            var offB = (DATA.official && DATA.official.blocks) || {}, lockedB = !!offB[name];
             var on = bl[name] === L, usedBy = Object.keys(bl).filter(function (n) { return n !== name && bl[n] === L && mine.indexOf(n) >= 0; })[0];
-            var b = h('button', { class: 'el-chip blk' + (on ? ' on' : '') + (usedBy ? ' dis' : ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', text: L, title: usedBy ? usedBy + '이(가) 사용 중' : '' });
+            var b = h('button', { class: 'el-chip blk' + (on ? ' on' : '') + (usedBy || (lockedB && !on) ? ' dis' : ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', text: L, title: usedBy ? usedBy + '이(가) 사용 중' : '' });
             b.addEventListener('click', function () {
+              if (lockedB) return;
               var p2 = prefLoad(), m2 = p2.blocks || {};
               if (m2[name] === L) delete m2[name]; else { Object.keys(m2).forEach(function (n) { if (m2[n] === L) delete m2[n]; }); m2[name] = L; }
               p2.blocks = m2; prefSave(p2); drawBlocks(); refreshWeekly(); renderHome();
@@ -1502,6 +1638,7 @@
       selectTab(['teacher', 'today', 'more'].indexOf(ts) >= 0 ? ts : 'teacher');
       return;
     }
+    applyOfficial();
     clear(document.getElementById('panel-exam'));
     renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
     tagExamCards();

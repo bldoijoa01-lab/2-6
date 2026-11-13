@@ -57,6 +57,8 @@ async function personalized(env, me) {
   const d = JSON.parse(await env.CLASS_KV.get('data') || '{}');
   d.me = { n: me.n, name: me.name, role: me.role === 'teacher' ? 'teacher' : 'student' };
   d.special = (d.special || []).filter((x) => (x.members || []).includes(me.name)).map((x) => ({ ...x, members: [me.name] }));
+  const off = JSON.parse(await env.CLASS_KV.get('official:' + me.n) || 'null');   // 선생님이 올린 학교 기준 선택과목(암호화 대상 아님)
+  if (off) d.official = off;
   return d;
 }
 
@@ -155,11 +157,46 @@ export default {
         const sh = await env.CLASS_KV.list({ prefix: 'share:' }), shared = new Set(sh.keys.map((k) => parseInt(k.name.slice(6), 10)));
         return json({ students: roster.filter((x) => x.role !== 'teacher').map((x) => ({ n: x.n, name: x.name, active: active.has(x.n), shared: shared.has(x.n) })) });
       }
+      if (sub === 'upload' && request.method === 'POST') {   // 아무 형식의 파일이나 보관 (운영자가 읽어서 반영할 수 있게)
+        const buf = await request.arrayBuffer();
+        if (buf.byteLength === 0 || buf.byteLength > 8 * 1024 * 1024) return json({ error: 'size' }, 413);
+        const name = decodeURIComponent(request.headers.get('x-filename') || 'file').replace(/[^\w.\-가-힣 ()]/g, '_').slice(0, 80);
+        const key = 'upload:' + Date.now() + ':' + name;
+        await env.CLASS_KV.put(key, buf, { metadata: { name, type: request.headers.get('content-type') || '', size: buf.byteLength, by: me.name, at: Date.now() } });
+        return json({ ok: true, key });
+      }
+      if (sub === 'uploads' && request.method === 'GET') {
+        const list = await env.CLASS_KV.list({ prefix: 'upload:' });
+        return json({ uploads: list.keys.map((k) => ({ key: k.name, ...(k.metadata || {}) })) });
+      }
       let b = {}; if (request.method === 'POST') { try { b = await request.json(); } catch { return json({ error: 'bad' }, 400); } }
       if (sub === 'mykey' && request.method === 'GET') return json(JSON.parse(await env.CLASS_KV.get('tkey:' + me.n) || 'null') || {});
       if (sub === 'keys' && request.method === 'POST') {   // 교사 키쌍: 공개키(JWK) + 교사 비밀번호로 잠근 비밀키
         if (!b.pub || !b.priv || typeof b.priv.iv !== 'string' || typeof b.priv.data !== 'string') return json({ error: 'bad' }, 400);
         await env.CLASS_KV.put('tkey:' + me.n, JSON.stringify({ pub: b.pub, priv: b.priv }));
+        return json({ ok: true });
+      }
+      if (sub === 'official' && request.method === 'POST') {
+        // 학교 기준 선택과목 명단: [{n, el2:[과목], blocks:{과목:'A'}}]  (암호화하지 않고 저장: 학생 본인과 교사만 쓰는 학교 명단 정보)
+        if (!Array.isArray(b.rows) || b.rows.length > 100) return json({ error: 'bad' }, 400);
+        const valid = new Set(roster.filter((x) => x.role !== 'teacher').map((x) => x.n));
+        let saved = 0;
+        for (const r of b.rows) {
+          if (!valid.has(r.n) || !Array.isArray(r.el2) || r.el2.length > 10) continue;
+          const el2 = r.el2.map((x) => String(x).slice(0, 40)), blocks = {};
+          for (const [k, v] of Object.entries(r.blocks || {})) if (el2.includes(k) && /^[A-E]$/.test(v)) blocks[k] = v;
+          await env.CLASS_KV.put('official:' + r.n, JSON.stringify({ el2, blocks, at: Date.now() })); saved++;
+        }
+        return json({ ok: true, saved });
+      }
+      if (sub === 'official' && request.method === 'GET') {
+        const out = {}; const list = await env.CLASS_KV.list({ prefix: 'official:' });
+        for (const k of list.keys) { const v = await env.CLASS_KV.get(k.name); if (v) out[k.name.slice(9)] = JSON.parse(v); }
+        return json({ official: out });
+      }
+      if (sub === 'official-clear' && request.method === 'POST') {
+        const list = await env.CLASS_KV.list({ prefix: 'official:' });
+        for (const k of list.keys) await env.CLASS_KV.delete(k.name);
         return json({ ok: true });
       }
       if (sub === 'rewrap' && request.method === 'POST') {   // 교사 열쇠 교체 후, 학생 사본의 감싼 열쇠만 새 공개키로 바꿈 (사본 내용은 그대로)

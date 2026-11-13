@@ -615,3 +615,7 @@ html::before{content:""; position:fixed; inset:0; z-index:-3; pointer-events:non
 .cal-cell.sel .cal-bn{box-shadow:0 0 0 1.5px rgba(255,255,255,.85)}
 .cal-cell.sel .cal-more{color:#fff}
 @media (min-width:640px){ .cal-bn{height:18px; line-height:18px; font-size:11px; padding:0 5px} .cal-cell{min-height:92px} }
+
+textarea.field{width:100%; max-width:none; min-height:96px; resize:vertical}
+.srow-sum.warn{color:var(--red)}
+.card-b > .srow-sum{margin:0}
