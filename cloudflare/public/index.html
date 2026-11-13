@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2-6 알림장</title>
+<meta name="description" content="2학년 6반 전용 · 일정 · 기말고사 · 등급컷">
+<meta name="theme-color" content="#DCE8FF">
+<link rel="icon" href="/icon.png" type="image/png">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">
+<!-- 링크 미리보기 (카카오톡·문자·SNS) -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="2-6 알림장">
+<meta property="og:locale" content="ko_KR">
+<meta property="og:title" content="2-6 알림장">
+<meta property="og:description" content="2학년 6반 전용 · 일정 · 기말고사 · 등급컷">
+<meta property="og:url" content="https://class-26.bldoijoa01.workers.dev/">
+<meta property="og:image" content="https://class-26.bldoijoa01.workers.dev/og.jpg">
+<meta property="og:image:type" content="image/jpeg">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="2-6 알림장">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="2-6 알림장">
+<meta name="twitter:description" content="2학년 6반 전용 · 일정 · 기말고사 · 등급컷">
+<meta name="twitter:image" content="https://class-26.bldoijoa01.workers.dev/og.jpg">
+<link rel="preload" href="/fonts/pretendard-1.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="locked">
+<div id="splash" aria-hidden="true"><span class="logo">6</span><b>2-6 알림장</b><small>2학년 6반</small></div>
+<header class="top">
+  <div class="top-in">
+    <div class="brand"><span class="logo">6</span><b>2-6 알림장</b></div>
+    <nav class="tabs" role="tablist" aria-label="메뉴">
+      <button class="tab" role="tab" id="tab-home" aria-controls="panel-home" aria-selected="true" data-tab="home">홈</button>
+      <button class="tab" role="tab" id="tab-today" aria-controls="panel-today" aria-selected="false" data-tab="today">일정</button>
+      <button class="tab" role="tab" id="tab-exam" aria-controls="panel-exam" aria-selected="false" data-tab="exam">기말고사</button>
+      <button class="tab" role="tab" id="tab-grade" aria-controls="panel-grade" aria-selected="false" data-tab="grade">등급컷</button>
+      <button class="tab" role="tab" id="tab-me" aria-controls="panel-me" aria-selected="false" data-tab="me">내 정보</button>
+      <button class="tab" role="tab" id="tab-more" aria-controls="panel-more" aria-selected="false" data-tab="more">더보기</button>
+    </nav>
+    <span class="who" id="who" hidden></span>
+    <button class="theme" id="themeBtn" type="button" aria-label="다크 모드 전환"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg></button>
+    <button class="logout" id="logoutBtn" type="button">로그아웃</button>
+  </div>
+</header>
+
+<div class="ribbon" aria-hidden="true"><div class="ribbon-track"><span>★ 2학년 6반 공식 알림장 ★ 시간표 확인 ★ 이동교실 주의 ★ 2학년 6반 공식 알림장 ★ 시간표 확인 ★ 이동교실 주의 ★ 2학년 6반 공식 알림장 ★ 시간표 확인 ★ 이동교실 주의 </span></div></div>
+
+<main class="wrap">
+  <div class="hero">
+    <div class="pill-live"><i></i>2학년 6반</div>
+    <h1 class="hero-title">2-6 <span>알림장</span><em>!!</em></h1>
+    <div class="burst" id="burst" hidden></div>
+    <div class="hero-date" id="todayLabel"></div>
+  </div>
+
+  <section id="panel-home" class="panel" role="tabpanel" aria-labelledby="tab-home"></section>
+  <section id="panel-today" class="panel" role="tabpanel" aria-labelledby="tab-today" hidden></section>
+  <section id="panel-exam" class="panel" role="tabpanel" aria-labelledby="tab-exam" hidden></section>
+
+  <section id="panel-more" class="panel" role="tabpanel" aria-labelledby="tab-more" hidden></section>
+  <section id="panel-me" class="panel" role="tabpanel" aria-labelledby="tab-me" hidden></section>
+  <section id="panel-grade" class="panel" role="tabpanel" aria-labelledby="tab-grade" hidden></section>
+
+  <footer class="foot">
+    <div class="foot-big">읽었으면 엄지 ㄱㄱ 👍</div>
+    <div class="foot-small" id="updated"></div>
+  </footer>
+</main>
+<script src="electives.js"></script>
+<script src="grade.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
