@@ -246,3 +246,13 @@ body.locked #panel-today .card-b{padding:30px 28px 30px}
 .cal-cell.sel .cal-dots i{background:#fff}
 .cal-list-t{margin-top:8px; font-size:14px; font-weight:800; color:var(--sub)}
 [hidden]{display:none !important}
+
+/* 등급컷 임베드 */
+.frame-card{display:flex; flex-direction:column}
+.frame-bar{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 20px; border-bottom:1px solid var(--line)}
+.frame-bar b{font-size:16px; font-weight:800; letter-spacing:-.02em}
+.frame-bar .linkbtn{align-self:auto; white-space:nowrap}
+#gradeFrame{display:block; width:100%; height:calc(100dvh - 210px); min-height:520px; border:0; background:#fff}
+.on-grade .hero{display:none}
+.on-grade .wrap{padding-top:18px}
+a.linkbtn{text-decoration:none}

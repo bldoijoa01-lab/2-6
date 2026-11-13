@@ -40,6 +40,9 @@
       t.setAttribute('aria-selected', on ? 'true' : 'false');
       document.getElementById('panel-' + t.getAttribute('data-tab')).hidden = !on;
     });
+    document.body.classList.toggle('on-grade', name === 'grade');
+    var fr = document.getElementById('gradeFrame');
+    if (name === 'grade' && fr && !fr.getAttribute('src')) fr.setAttribute('src', 'https://bldoijoa01-lab.github.io/gradecut/');
     try { history.replaceState(null, '', '#' + name); } catch (e) {}
   }
   tabs.forEach(function (t) { t.addEventListener('click', function () { selectTab(t.getAttribute('data-tab')); }); });
@@ -87,6 +90,7 @@
     grid.push(stat('특별실 응시', DATA.special.length ? DATA.special.length + '과목' : '없음',
       DATA.special.length ? DATA.special[0].label.split(' ')[0] + ' 시작' : '원반에서 응시', function () { goTab('exam'); setTimeout(function () { jumpTo('sec-special'); }, 60); }));
     grid.push(stat('예정 일정', upcoming.length + '개', others[0] ? '다음: ' + others[0].title : '예정 없음', function () { goTab('today'); }));
+    grid.push(stat('등급컷 아카이브', '등급컷 보기', '과목별 컷 · 내 예상 등급', function () { goTab('grade'); }));
     p.appendChild(h('div', { class: 'stats' }, grid));
 
     // 다음 일정 미리보기
@@ -312,7 +316,7 @@
     tagExamCards();
     var start = (location.hash || '').replace('#', '');
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
-    selectTab(['home', 'today', 'exam'].indexOf(start) >= 0 ? start : 'home');
+    selectTab(['home', 'today', 'exam', 'grade'].indexOf(start) >= 0 ? start : 'home');
   }
 
   // ---------- 로그인 (서버: 이름+번호) ----------
