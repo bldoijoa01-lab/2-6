@@ -2,6 +2,15 @@
 (function () {
   'use strict';
 
+  // ---------- 첫 진입 스플래시 ----------
+  (function () {
+    var sp = document.getElementById('splash'); if (!sp) return;
+    var seen = false; try { seen = !!sessionStorage.getItem('splash26'); sessionStorage.setItem('splash26', '1'); } catch (e) {}
+    if (seen || (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) { sp.remove(); return; }
+    sp.addEventListener('animationend', function (e) { if (e.animationName === 'splashOut') sp.remove(); });
+    setTimeout(function () { if (sp.parentNode) sp.remove(); }, 2500);
+  })();
+
   // ---------- helpers ----------
   function h(tag, attrs, children) {
     var el = document.createElement(tag);
@@ -90,8 +99,8 @@
       DATA.special.length ? DATA.special[0].label.split(' ')[0] + ' 시작' : '원반에서 응시', function () { goTab('exam'); setTimeout(function () { jumpTo('sec-special'); }, 60); }));
     grid.push(stat('예정 일정', upcoming.length + '개', others[0] ? '다음: ' + others[0].title : '예정 없음', function () { goTab('today'); }));
     grid.push(stat('등급컷 아카이브', '등급컷 보기', '과목별 컷 · 내 예상 등급', function () { goTab('grade'); }));
-    if (!myElectives().length) {
-      var nudge = h('button', { class: 'nudge', type: 'button' }, [h('b', { text: '📝 선택과목을 골라 주세요' }), h('small', { text: '고르면 등급컷·기말 목표 계산기가 내 과목 위주로 나와요 →' })]);
+    if (myElectives().length < 5) {
+      var nudge = h('button', { class: 'nudge', type: 'button' }, [h('b', { text: '📝 선택과목을 먼저 골라 주세요' }), h('small', { text: '고르면 등급컷과 기말 목표 계산기가 열려요 →' })]);
       nudge.addEventListener('click', function () { goTab('me'); });
       p.appendChild(nudge);
     }
@@ -268,7 +277,11 @@
         });
       }
       draw();
-      var box = h('details', { class: 'card el-card' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: def.credits + '학점 · 택' + def.pick }), h('h2', { text: def.title })]), count]), body]);
+      var cta = h('button', { class: 'btn el-cta', type: 'button', text: '등급컷 보러 가기 →' });
+      cta.addEventListener('click', function () { goTab('grade'); });
+      var box = h('details', { class: 'card el-card' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: def.credits + '학점 · 택' + def.pick }), h('h2', { text: def.title })]), count]), body, key === 'el2' ? cta : null]);
+      function syncCta() { cta.hidden = sel.length < def.pick; }
+      syncCta(); box.addEventListener('click', function () { setTimeout(syncCta, 0); });
       if (open) box.setAttribute('open', '');
       return box;
     }
@@ -285,7 +298,21 @@
   var GC = null, GC_STATE = 'idle', GC_SYNC = false, GKEY = 'gcscore26';
   function gcLoad() { try { return JSON.parse(localStorage.getItem(GKEY) || '{}'); } catch (e) { return {}; } }
   function gcSave(o) { try { localStorage.setItem(GKEY, JSON.stringify(o)); } catch (e) {} }
+  function gradeGate() {
+    var n = myElectives().length;
+    if (n >= 5) return false;
+    var p = document.getElementById('panel-grade'); clear(p);
+    var go = h('button', { class: 'btn', type: 'button', text: '선택과목 고르러 가기 →' });
+    go.addEventListener('click', function () { goTab('me'); });
+    p.appendChild(h('div', { class: 'card' }, [head('LOCKED', '먼저 선택과목을 골라 주세요'), h('div', { class: 'card-b' }, [
+      h('div', { class: 'gate-ic', text: '🔐' }),
+      h('div', { class: 'note-sm', text: '내가 듣는 과목의 등급컷과 기말 목표를 보려면, 2학기 선택과목(택5)을 먼저 골라야 해요. 지금 ' + n + ' / 5 선택했어요.' }),
+      go])]));
+    if (GC_STATE === 'done') GC_STATE = 'dirty';
+    return true;
+  }
   function loadGrade() {
+    if (gradeGate()) return;
     var p = document.getElementById('panel-grade');
     if (GC_STATE === 'dirty') { GC_STATE = 'done'; renderGrade(); return; }
     if (GC_STATE === 'loading' || GC_STATE === 'done') return;
@@ -643,6 +670,7 @@
   function init(data) {
     DATA = data;
     document.body.classList.remove('locked');
+    document.body.classList.add('enter'); setTimeout(function () { document.body.classList.remove('enter'); }, 1600);
     var who = document.getElementById('who'); who.hidden = false; who.textContent = DATA.me.name + ' · ' + DATA.me.n + '번';
     var d = new Date(TODAY);
     document.getElementById('todayLabel').textContent = (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + DOW[d.getUTCDay()] + ')';

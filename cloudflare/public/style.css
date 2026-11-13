@@ -332,3 +332,42 @@ a.linkbtn{text-decoration:none; align-self:flex-start}
 .pr-bar i{display:block; height:100%; border-radius:999px; background:var(--blue)}
 .pr-bar i.g1{background:#5B6CF0} .pr-bar i.g2{background:#3B9BE0} .pr-bar i.g3{background:#26A878} .pr-bar i.g4{background:#E0A23A} .pr-bar i.g5{background:#F0587A}
 .rr{display:flex; justify-content:space-between; font-size:12px; color:var(--mute)}
+
+/* ===== 모션 ===== */
+@keyframes rise{from{opacity:0; transform:translateY(16px)} to{opacity:1; transform:none}}
+@keyframes fade{from{opacity:0} to{opacity:1}}
+@keyframes dropIn{from{opacity:0; transform:translateY(-18px)} to{opacity:1; transform:none}}
+@keyframes pop{0%{opacity:0; transform:scale(.6)} 60%{opacity:1; transform:scale(1.08)} 100%{opacity:1; transform:scale(1)}}
+@keyframes splashOut{to{opacity:0; visibility:hidden}}
+@keyframes float1{from{transform:translate(0,0) scale(1)} to{transform:translate(6vmax,5vmax) scale(1.12)}}
+@keyframes float2{from{transform:translate(0,0) scale(1)} to{transform:translate(-6vmax,-4vmax) scale(1.1)}}
+body::before{animation:float1 22s ease-in-out infinite alternate}
+body::after{animation:float2 26s ease-in-out infinite alternate}
+
+#splash{position:fixed; inset:0; z-index:100; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:6px; pointer-events:none;
+  background:linear-gradient(135deg,var(--bg1),var(--bg2) 55%,var(--bg3)); animation:splashOut .55s ease 1.05s forwards}
+#splash .logo{width:64px; height:64px; border-radius:22px; font-size:30px; animation:pop .7s cubic-bezier(.2,.9,.3,1.2) both}
+#splash b{margin-top:14px; font-size:24px; font-weight:800; letter-spacing:-.04em; animation:rise .6s ease .25s both}
+#splash small{color:var(--sub); font-size:14px; animation:rise .6s ease .4s both}
+
+/* 로그인 카드 */
+body.locked #panel-today .card{animation:rise .7s cubic-bezier(.2,.8,.2,1) .15s both}
+/* 로그인 직후 등장 */
+.enter .top{animation:dropIn .6s cubic-bezier(.2,.8,.2,1) both}
+.enter .hero > *{animation:rise .6s cubic-bezier(.2,.8,.2,1) both}
+.enter .hero > :nth-child(1){animation-delay:.08s} .enter .hero > :nth-child(2){animation-delay:.16s} .enter .hero > :nth-child(3){animation-delay:.24s} .enter .hero > :nth-child(4){animation-delay:.3s}
+.enter .panel:not([hidden]) > *{animation:rise .6s cubic-bezier(.2,.8,.2,1) both}
+.enter .panel:not([hidden]) > :nth-child(1){animation-delay:.3s} .enter .panel:not([hidden]) > :nth-child(2){animation-delay:.38s}
+.enter .panel:not([hidden]) > :nth-child(3){animation-delay:.46s} .enter .panel:not([hidden]) > :nth-child(4){animation-delay:.54s}
+.enter .stats .stat{animation:rise .6s cubic-bezier(.2,.8,.2,1) both}
+.enter .stats .stat:nth-child(1){animation-delay:.38s} .enter .stats .stat:nth-child(2){animation-delay:.46s} .enter .stats .stat:nth-child(3){animation-delay:.54s} .enter .stats .stat:nth-child(4){animation-delay:.62s} .enter .stats .stat:nth-child(5){animation-delay:.7s}
+.enter .foot{animation:fade .8s ease .8s both}
+/* 탭 전환 */
+.panel:not([hidden]){animation:fade .35s ease both}
+.gc-card,.card{transition:transform .2s ease, box-shadow .2s ease}
+@media (hover:hover){ .stat:hover{transform:translateY(-3px)} }
+@media (prefers-reduced-motion:reduce){ body::before,body::after,.enter *,.panel,#splash,#splash *{animation:none !important} #splash{display:none} }
+
+/* 선택과목 잠금 */
+.gate-ic{font-size:44px; text-align:center}
+.el-cta{margin:0 22px 20px; width:calc(100% - 44px)}
