@@ -52,6 +52,14 @@ async function limited(env, key, max) {
   return false;
 }
 
+// 계정별 맞춤 데이터: 특별실 응시는 내 것만, 행사 참여자 명단은 반 공지라 전체 공개 (로그인한 사람만)
+async function personalized(env, me) {
+  const d = JSON.parse(await env.CLASS_KV.get('data') || '{}');
+  d.me = { n: me.n, name: me.name, role: me.role === 'teacher' ? 'teacher' : 'student' };
+  d.special = (d.special || []).filter((x) => (x.members || []).includes(me.name)).map((x) => ({ ...x, members: [me.name] }));
+  return d;
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -89,10 +97,7 @@ export default {
       const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]');
       const me = roster.find((s) => s.n === tok.w);
       if (!me) return json({ error: 'unauthorized' }, 401);
-      // 계정별 맞춤 데이터: 특별실 응시는 내 것만, 행사 참여자 명단은 반 공지라 전체 공개 (로그인한 학생만)
-      const d = JSON.parse(await env.CLASS_KV.get('data') || '{}');
-      d.me = { n: me.n, name: me.name, role: me.role === 'teacher' ? 'teacher' : 'student' };
-      d.special = (d.special || []).filter((s) => (s.members || []).includes(me.name)).map((s) => ({ ...s, members: [me.name] }));
+      const d = await personalized(env, me);
       return json(d);
     }
     if (url.pathname === '/api/scores') {
@@ -127,6 +132,11 @@ export default {
         return json({ students: roster.filter((x) => x.role !== 'teacher').map((x) => ({ n: x.n, name: x.name, active: active.has(x.n) })) });
       }
       let b = {}; if (request.method === 'POST') { try { b = await request.json(); } catch { return json({ error: 'bad' }, 400); } }
+      if (sub === 'preview' && request.method === 'GET') {   // 학생 화면 미리보기 (읽기 전용: 그 학생이 보는 공통 데이터만, 암호화된 점수·선택과목은 볼 수 없음)
+        const st = roster.find((x) => x.n === parseInt(url.searchParams.get('n'), 10) && x.role !== 'teacher');
+        if (!st) return json({ error: 'not_found' }, 404);
+        return json(await personalized(env, st));
+      }
       if (sub === 'reset' && request.method === 'POST') {
         const st = roster.find((x) => x.n === b.n && x.role !== 'teacher');
         if (!st) return json({ error: 'not_found' }, 404);

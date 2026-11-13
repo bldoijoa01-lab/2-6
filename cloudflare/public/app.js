@@ -355,9 +355,10 @@
   function decryptJSON(key, blob) {
     return crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(blob.iv) }, key, b64d(blob.data)).then(function (pt) { return JSON.parse(td.decode(pt)); });
   }
+  var PREVIEW = null;   // 교사가 학생 화면을 미리보는 중일 때 그 학생 정보
   var PKEY = 'pref26';
-  function prefLoad() { try { return JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch (e) { return {}; } }
-  function prefSave(o) { try { localStorage.setItem(PKEY, JSON.stringify(o)); } catch (e) {} pushScores(); }
+  function prefLoad() { if (PREVIEW) return {}; try { return JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch (e) { return {}; } }
+  function prefSave(o) { if (PREVIEW) return; try { localStorage.setItem(PKEY, JSON.stringify(o)); } catch (e) {} pushScores(); }
   function normName(s) { return String(s || '').replace(/\s+/g, '').replace(/Ⅱ/g, 'II').replace(/Ⅰ/g, 'I').replace(/[*]/g, ''); }
   var pushTimer = null;
   function pushScores() {
@@ -389,6 +390,30 @@
         }).catch(function () { return false; });
     });
   }
+
+  // 교사: 학생 화면 미리보기 (읽기 전용)
+  function enterPreview(n, name) {
+    tApi('preview?n=' + n).then(function (d) {
+      if (!d || !d.me) return;
+      PREVIEW = { n: n, name: name }; DATA = d;
+      document.body.classList.remove('teacher'); document.body.classList.add('preview');
+      var bar = document.getElementById('previewBar'); bar.hidden = false;
+      document.getElementById('previewWho').textContent = '👀 ' + name + '(' + n + '번) 학생 화면 미리보기 · 읽기 전용';
+      var who = document.getElementById('who'); who.textContent = name + ' · ' + n + '번';
+      clear(document.getElementById('panel-exam'));
+      renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution(); tagExamCards();
+      selectTab('home'); window.scrollTo({ top: 0 });
+    });
+  }
+  function exitPreview() {
+    PREVIEW = null; document.body.classList.remove('preview'); document.getElementById('previewBar').hidden = true;
+    fetch('/api/data', { headers: { authorization: 'Bearer ' + load('tok26') }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
+      DATA = d; document.body.classList.add('teacher');
+      document.getElementById('who').textContent = DATA.me.name + ' 선생님';
+      renderMore(); renderToday(); renderTeacher(); selectTab('teacher'); window.scrollTo({ top: 0 });
+    });
+  }
+  document.getElementById('previewExit').addEventListener('click', exitPreview);
 
   // ---------- 교사 도구 ----------
   function tApi(path, body) {
@@ -454,8 +479,10 @@
             if (!confirm(s.n + '번 ' + s.name + ' 학생의 비밀번호를 초기화할까요?')) return;
             tApi('reset', { n: s.n }).then(drawStudents);
           });
+          var view = h('button', { class: 'linkbtn', type: 'button', text: '화면 보기' });
+          view.addEventListener('click', function () { enterPreview(s.n, s.name); });
           box.appendChild(h('div', { class: 'srow' }, [h('span', { class: 'srow-n', text: s.n + '번' }), h('span', { class: 'srow-name', text: s.name }),
-            h('span', { class: 'srow-st' + (s.active ? ' on' : ''), text: s.active ? '가입함' : '아직' }), rst]));
+            h('span', { class: 'srow-st' + (s.active ? ' on' : ''), text: s.active ? '가입함' : '아직' }), view, rst]));
         });
       });
     }
@@ -618,7 +645,7 @@
   // ---------- 등급컷 (gradecut 계산 로직을 내장) ----------
   var GC = null, GC_STATE = 'idle', GC_SYNC = false, GKEY = 'gcscore26';
   function gcLoad() { try { return JSON.parse(localStorage.getItem(GKEY) || '{}'); } catch (e) { return {}; } }
-  function gcSave(o) { try { localStorage.setItem(GKEY, JSON.stringify(o)); } catch (e) {} }
+  function gcSave(o) { if (PREVIEW) return; try { localStorage.setItem(GKEY, JSON.stringify(o)); } catch (e) {} }
   function gradeGate() {
     var n = myElectives().length;
     if (n >= 5) return false;
