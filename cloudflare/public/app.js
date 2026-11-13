@@ -735,6 +735,28 @@
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: DATA.me.name + ' 선생님, 안녕하세요 👋' }), h('div', { class: 'greet-s', text: DATA.className + ' 교사 도구' })]));
 
 
+    // 부반장의 쪽지: 전체 선택과목 명단 요청 (명단이 다 올라올 때까지 맨 위에 표시, 로그인 때 팝업으로 한 번)
+    var noteSlot = h('div'); p.appendChild(noteSlot);
+    Promise.all([tApi('official'), tApi('students')]).then(function (res) {
+      var have = Object.keys(res[0].official || {}).length, total = (res[1].students || []).length;
+      if (!total || have >= total) return;
+      var tn = DATA.teacherNote || {}, from = tn.from || '부반장';
+      var body = tn.text || '선생님 안녕하세요, ' + from + '입니다. 알림장이 학생마다 선택과목에 맞게 시간표·자리·내신을 보여줄 수 있도록, 2학년 6반 전체 학생의 선택과목 명단(가능하면 A~E 반까지)을 올려 주시면 좋겠어요. 형식은 아무거나 괜찮아요. 엑셀·CSV·복사 붙여넣기는 바로 반영되고, PDF·사진·한글 파일도 올리시면 제가 읽어서 넣을게요.';
+      function goRoster() { var c = document.getElementById('roster-card'); if (c) c.scrollIntoView({ behavior: 'smooth', block: 'start' }); }
+      var banner = h('button', { class: 'nudge notice-b', type: 'button' }, [h('b', { text: '📩 ' + from + '의 쪽지 · 전체 명단을 올려 주세요' }), h('small', { text: '현재 ' + have + ' / ' + total + '명 반영됨 · 아무 형식, 파일 가능 →' })]);
+      banner.addEventListener('click', goRoster); noteSlot.appendChild(banner);
+      if (have === 0 && load('tnote26') !== 'done') {   // 처음 한 번 팝업
+        var go = h('button', { class: 'btn', type: 'button', text: '명단 올리러 가기 →' }), later = h('button', { class: 'linkbtn', type: 'button', text: '나중에 할게요' });
+        var card = h('div', { class: 'modal-card welcome' }), wrap = h('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' }, [card]);
+        function close() { store('tnote26', 'done'); wrap.classList.add('out'); setTimeout(function () { wrap.remove(); }, 300); }
+        card.appendChild(h('div', { class: 'wl-head' }, [h('span', { class: 'wl-av', text: '📩' }), h('div', null, [h('b', { text: from + '의 쪽지' }), h('small', { text: '2-6 알림장' })])]));
+        card.appendChild(h('div', { class: 'wl-bubble', text: body }));
+        card.appendChild(go); card.appendChild(later);
+        go.addEventListener('click', function () { close(); setTimeout(goRoster, 350); }); later.addEventListener('click', close);
+        document.body.appendChild(wrap);
+      }
+    });
+
     // 선택과목 명단 올리기 (엑셀·CSV·붙여넣기는 자동으로 읽고, 그 외 파일은 원본을 보관)
     var fileIn = h('input', { type: 'file', class: 'field', 'aria-label': '명단 파일 (아무 형식)' });
     var paste = h('textarea', { class: 'field', rows: '4', placeholder: '엑셀에서 복사해서 붙여넣어도 돼요 (번호, 이름, 선택과목 5개, 반)', 'aria-label': '명단 붙여넣기' });
@@ -767,7 +789,7 @@
         applyBtn.disabled = false; omsg.textContent = j._ok ? j.saved + '명의 선택과목을 학생 화면에 반영했어요. ✅ (학생이 다시 열면 학교 명단 기준으로 바뀌어요)' : '적용하지 못했어요.'; if (j._ok) { applyBtn.hidden = true; clear(prev); }
       });
     });
-    p.appendChild(h('div', { class: 'card' }, [head('ROSTER', '선택과목 명단 올리기'), h('div', { class: 'card-b' }, [
+    p.appendChild(h('div', { class: 'card', id: 'roster-card' }, [head('ROSTER', '선택과목 명단 올리기'), h('div', { class: 'card-b' }, [
       h('div', { class: 'note-sm', text: '학교 수강 신청 결과를 아무 형식으로나 올려 주세요. 엑셀(.xlsx)·CSV·텍스트는 자동으로 읽고, PDF·사진·한글(hwp) 등은 파일을 그대로 보관해요. 선택과목은 암호화하지 않고 저장돼요.' }),
       fileIn, paste, readBtn, omsg, prev, applyBtn])]));
 
