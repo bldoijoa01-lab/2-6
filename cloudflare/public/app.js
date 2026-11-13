@@ -498,7 +498,7 @@
   function buildCalendar() {
     var t = new Date(TODAY);
     if (!calState) calState = { year: t.getUTCFullYear(), month: t.getUTCMonth(), sel: null };
-    var st = calState, wrap = h('div', { class: 'card' });
+    var st = calState, wrap = h('div', { class: 'card cal-card' });
     var titleEl = h('h2', { text: '' });
     var prev = h('button', { class: 'cal-nav', type: 'button', 'aria-label': '이전 달', text: '‹' });
     var next = h('button', { class: 'cal-nav', type: 'button', 'aria-label': '다음 달', text: '›' });
@@ -1973,7 +1973,7 @@
     if (rest.length) { body.push(h('div', { class: 'tag blue', text: '📌 좀중요' })); rest.forEach(function (e) { body.push(evRow(e)); }); }
     if (!upcoming.length) body.push(h('div', { class: 'empty', text: '예정된 일정이 없어요. 평화 ✌️' }));
     body.push(h('div', { class: 'elect', text: '📣 ' + DATA.electiveNote }));
-    var listCard = h('div', { class: 'card' }, [head('SCHEDULE', '수행·시험 일정'), h('div', { class: 'card-b' }, body)]);
+    var listCard = h('div', { class: 'card sched-list' }, [head('SCHEDULE', '수행·시험 일정'), h('div', { class: 'card-b' }, body)]);
     var calCard = buildCalendar();
     var seg = h('div', { class: 'seg' });
     var weeklyCard = buildWeeklyCard();

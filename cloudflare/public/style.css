@@ -803,3 +803,48 @@ button:active,.btn:active,.stat:active,.myev:active,.nudge:active,.el-chip:activ
 .exam-seg{margin:0 0 14px; align-self:flex-start; display:inline-flex}
 .prep-box{display:none} #panel-exam.show-prep .prep-box{display:block}
 #panel-exam.show-prep > *:not(.exam-seg):not(.prep-box){display:none !important}
+
+/* 넓은 화면(노트북·데스크톱): 가운데 좁은 한 줄이 아니라 양쪽을 다 쓰는 2단 배치 */
+@media (min-width:1100px){
+  .wrap,.top-in{max-width:1240px}
+  .wrap{padding-left:28px; padding-right:28px}
+  .stats{grid-template-columns:repeat(6,1fr)}
+  #panel-home,#panel-exam:not(.show-prep){display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 20px; align-items:start}
+  #panel-home > .greet,#panel-home > .nudge,#panel-home > .stats,
+  #panel-me > .el-hint,#panel-me > .el-next,#panel-me > .btn,#panel-me > .note-sm,
+  #panel-exam > .exam-seg,#panel-exam > .jump,#panel-exam > #sec-table{grid-column:1/-1}
+  #panel-home > .stats{margin-bottom:2px}
+  #panel-exam > .exam-seg{justify-self:start}
+  #panel-exam > .card,#panel-home > .card,#panel-more > .card,#panel-me > .card,#panel-me > .card{margin:0}
+  /* 일정: 목록·주간 시간표는 넓게, 캘린더는 달력 + 선택한 날 일정 2단 */
+  #panel-today > .notice-card,#panel-today > .seg-row{max-width:none}
+  .cal-card .card-b{display:grid; grid-template-columns:minmax(0,1.35fr) minmax(0,1fr); gap:0 28px; align-items:start}
+  .cal-card .cal-grid{grid-row:1 / span 2}
+  .cal-card .cal-list-t{margin-top:0; align-self:end}
+  /* 내신: 요약 + 그래프 나란히, 학기 카드는 2단 */
+  #ns-main{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 20px; align-items:stretch}
+  #ns-main > .card,#ns-main > .ns-sum{margin:0}
+  #ns-main > div:last-child{grid-column:1/-1; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 20px; align-items:start}
+  #ns-main > div:last-child > .card{margin:0}
+  #panel-grade,#panel-teacher,#panel-admin{max-width:960px; margin-left:auto; margin-right:auto}
+  #panel-exam.show-prep .prep-box{display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:16px 20px; align-items:start}
+  #panel-exam.show-prep .prep-box > .pr-top{grid-column:1/-1}
+  #panel-exam.show-prep .prep-box > div:not(.pr-top):not(.pr-card){display:contents}
+  .pr-card{margin-top:0}
+}
+@media (min-width:1500px){ .wrap,.top-in{max-width:1380px} }
+@media (min-width:1100px){ #panel-exam:not(.show-prep) > #sec-move{grid-column:1; grid-row:span 2} #panel-exam:not(.show-prep) > #sec-special,#panel-exam:not(.show-prep) > #sec-caution{grid-column:2} }
+
+@media (min-width:1100px){
+  /* 내 정보·더보기: 카드 높이가 제각각이라 빈칸이 안 생기게 2단 흐름(메이슨리) */
+  #panel-me,#panel-more{column-count:2; column-gap:20px; display:block}
+  #panel-me > *,#panel-more > *{break-inside:avoid; margin:0 0 18px; display:block}
+  #panel-me > details,#panel-me > .card,#panel-more > .card{display:block}
+  /* 일정(목록): 왼쪽 일정 목록 + 오른쪽 공지 */
+  #panel-today:has(> .sched-list:not([hidden])){display:grid; grid-template-columns:minmax(0,1.7fr) minmax(0,1fr); gap:16px 20px; align-items:start}
+  #panel-today:has(> .sched-list:not([hidden])) > .seg-row{grid-column:1/-1; grid-row:1}
+  #panel-today:has(> .sched-list:not([hidden])) > .sched-list{grid-column:1; grid-row:2 / span 4}
+  #panel-today:has(> .sched-list:not([hidden])) > .notice-card{grid-column:2; grid-row:2; position:sticky; top:84px}
+  #panel-today > .card{margin-top:0}
+}
+@media (min-width:1100px){ #panel-me > .card,#panel-me > details.card,#panel-more > .card{margin:0 0 18px} }
