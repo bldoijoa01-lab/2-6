@@ -5,6 +5,7 @@ import ASSETS from './assets.js';
 import FONT from './pretendard.woff2';
 const enc = new TextEncoder();
 const TTL = 60 * 60 * 24 * 30;
+const CUTS_URL = 'https://bldoijoa01-lab.github.io/gradecut/cuts.json'; // 등급컷 아카이브 저장소가 원본 (여기서 직접 가져옴)
 
 const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
 async function hmac(secret, msg) {
@@ -96,6 +97,18 @@ export default {
         return mine.length ? { ...rest, tracks: mine } : rest;
       });
       return json(d);
+    }
+    if (url.pathname === '/api/cuts' && request.method === 'GET') {
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      if (!await verifyToken(env, auth, 'full')) return json({ error: 'unauthorized' }, 401);
+      let body = null;
+      try {
+        const r = await fetch(env.CUTS_URL || CUTS_URL, { cf: { cacheTtl: 300, cacheEverything: true } });
+        if (r.ok) { body = await r.text(); JSON.parse(body); await env.CLASS_KV.put('cuts', body); }
+      } catch { body = null; }
+      if (!body) body = await env.CLASS_KV.get('cuts'); // 원본에 못 닿으면 마지막으로 가져온 사본
+      if (!body) return json({ error: 'unavailable' }, 503);
+      return new Response(body, { headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
     }
     if (url.pathname === '/fonts/pretendard-1.woff2')
       return new Response(FONT, { headers: { 'content-type': 'font/woff2', 'cache-control': 'public, max-age=31536000, immutable' } });

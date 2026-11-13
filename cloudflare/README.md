@@ -27,3 +27,9 @@ node build-assets.js && npx wrangler deploy
 
 ## 글꼴
 Pretendard(OFL)를 서브셋해서 `src/pretendard.woff2`로 Worker에 내장 (외부 CDN 없음). 새 글자(희귀 한글)가 자주 깨지면 `fonts/chars.txt` 에 추가해 pyftsubset 으로 다시 만들고 `/fonts/pretendard-N.woff2` 번호를 올리세요.
+
+## 등급컷 탭
+- 계산 로직은 `public/grade.js` (bldoijoa01-lab/gradecut 의 등급·석차 계산을 그대로 옮김)
+- 데이터는 Worker `/api/cuts` 가 gradecut 저장소의 `cuts.json` (GitHub Pages)을 5분 캐시로 직접 가져옴 → gradecut 쪽을 고치면 자동 반영. 못 가져오면 KV `cuts` 에 마지막으로 받은 사본 사용
+- 내 점수는 브라우저 localStorage(`gcscore26`)에만 저장 — 서버로 보내지 않음
+- 아직 안 옮긴 기능: 기말 목표 계산기, 수행 점수, 성적표 이미지 저장, 정보 제보

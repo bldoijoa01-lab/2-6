@@ -40,9 +40,7 @@
       t.setAttribute('aria-selected', on ? 'true' : 'false');
       document.getElementById('panel-' + t.getAttribute('data-tab')).hidden = !on;
     });
-    document.body.classList.toggle('on-grade', name === 'grade');
-    var fr = document.getElementById('gradeFrame');
-    if (name === 'grade' && fr && !fr.getAttribute('src')) fr.setAttribute('src', 'https://bldoijoa01-lab.github.io/gradecut/');
+        if (name === 'grade') loadGrade();
     try { history.replaceState(null, '', '#' + name); } catch (e) {}
   }
   tabs.forEach(function (t) { t.addEventListener('click', function () { selectTab(t.getAttribute('data-tab')); }); });
@@ -146,6 +144,127 @@
     }
     draw();
     return wrap;
+  }
+
+  // ---------- 등급컷 (gradecut 계산 로직을 내장) ----------
+  var GC = null, GC_STATE = 'idle', GKEY = 'gcscore26';
+  function gcLoad() { try { return JSON.parse(localStorage.getItem(GKEY) || '{}'); } catch (e) { return {}; } }
+  function gcSave(o) { try { localStorage.setItem(GKEY, JSON.stringify(o)); } catch (e) {} }
+  function loadGrade() {
+    var p = document.getElementById('panel-grade');
+    if (GC_STATE === 'loading' || GC_STATE === 'done') return;
+    GC_STATE = 'loading'; clear(p);
+    p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '등급컷을 불러오는 중이에요…' })])]));
+    fetch('/api/cuts', { headers: { authorization: 'Bearer ' + (load('tok26') || '') }, cache: 'no-store' })
+      .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function (j) { GC = j; GC_STATE = 'done'; renderGrade(); })
+      .catch(function () {
+        GC_STATE = 'idle'; clear(p);
+        p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '등급컷을 못 불러왔어요. 잠시 후 다시 눌러 보세요.' })])]));
+      });
+  }
+  function renderGrade() {
+    var p = document.getElementById('panel-grade'); clear(p);
+    var G = window.GradeCut, scores = gcLoad();
+    var exams = []; GC.subjects.forEach(function (s) { if (exams.indexOf(s.exam) < 0) exams.push(s.exam); });
+    var exam = exams[0];
+    var summary = h('div', { class: 'card gc-sum' });
+    var list = h('div', { class: 'gc-list' });
+    var asof = GC.updated ? new Date(GC.updated).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+
+    p.appendChild(h('div', { class: 'card' }, [head('GRADE CUT ARCHIVE', '오송고 등급컷 아카이브'), h('div', { class: 'card-b' }, [
+      h('div', { class: 'note-sm', text: '오송고 2학년 시험 기준 · 학생들이 모은 정보예요 (학교 공식 자료 아님). 5등급제: 1컷 상위 10% · 2컷 34% · 3컷 66% · 4컷 90%' }),
+      h('div', { class: 'note-sm', text: '내 점수는 이 기기에만 저장되고 서버로 보내지 않아요.' + (asof ? ' · 업데이트 ' + asof : '') }),
+      h('a', { class: 'linkbtn', href: 'https://bldoijoa01-lab.github.io/gradecut/', target: '_blank', rel: 'noopener', text: '기말 목표 계산기 등 전체 기능은 원본 사이트 ↗' })
+    ])]));
+    var chips = null;
+    if (exams.length > 1) {
+      chips = h('div', { class: 'jump' });
+      exams.forEach(function (ex) {
+        var b = h('button', { class: 'jump-b', type: 'button', text: ex, 'aria-pressed': ex === exam ? 'true' : 'false' });
+        b.addEventListener('click', function () { exam = ex; Array.prototype.forEach.call(chips.children, function (c) { c.setAttribute('aria-pressed', c === b ? 'true' : 'false'); }); drawList(); });
+        chips.appendChild(b);
+      });
+      p.appendChild(chips);
+    }
+    p.appendChild(summary); p.appendChild(list);
+
+    function cutBox(i, v) {
+      var pr = G.parse(v), t = String(v || '').trim();
+      return h('div', { class: 'cut' + (!pr ? ' none' : pr.unsure ? ' est' : '') }, [h('small', { text: (i + 1) + '컷' }), h('b', { text: pr ? (pr.unsure ? '≈' : '') + G.num(pr.n) + (/x/i.test(t) ? '+' : '') : '—' })]);
+    }
+    function drawSummary(rows) {
+      clear(summary);
+      var graded = rows.filter(function (r) { return r.g; });
+      if (!graded.length) { summary.appendChild(h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '아래 과목에 내 점수를 넣으면 등급과 예상 석차가 나와요.' })])); return; }
+      var sum = 0, cr = 0, unsure = false;
+      graded.forEach(function (r) { var w = r.d.cr || 1; sum += r.g.n * w; cr += w; if (r.g.u) unsure = true; });
+      var avg = (Math.round(sum / cr * 100) / 100).toFixed(2);
+      summary.appendChild(h('div', { class: 'card-b gc-sumb' }, [
+        h('div', null, [h('div', { class: 'eyebrow', text: '내 평균 등급 (단위수 가중)' }), h('div', { class: 'gc-avg', text: avg })]),
+        h('div', { class: 'note-sm', text: graded.length + '과목 입력' + (unsure ? ' · 일부는 추정 컷 기준이라 바뀔 수 있어요' : '') })]));
+    }
+    function drawList() {
+      clear(list);
+      var subs = GC.subjects.filter(function (s) { return s.exam === exam; })
+        .sort(function (a, b) { return (b.common ? 1 : 0) - (a.common ? 1 : 0); });
+      var rows = [];
+      subs.forEach(function (d) {
+        var row = { d: d, g: null }; rows.push(row);
+        var badge = h('div', { class: 'gb none' }, [h('b', { text: '—' }), h('i', { text: '점수 입력' })]);
+        var info = h('div', { class: 'gc-info' });
+        var msg = h('small', { class: 'badmsg' });
+        var inp = h('input', { class: 'field gc-in', type: 'text', inputmode: 'decimal', placeholder: '내 점수', 'aria-label': d.subject + ' 내 점수', autocomplete: 'off' });
+        inp.value = scores[d.id] || '';
+        function calc(save) {
+          var raw = inp.value.trim(); clear(info); msg.textContent = '';
+          inp.classList.remove('bad'); row.g = null;
+          if (save) { if (raw) scores[d.id] = raw; else delete scores[d.id]; gcSave(scores); }
+          var bad = G.badNum(raw, 0, 100) ? '0~100 사이 숫자로 넣어 주세요' : G.scoreIssue(d, raw);
+          if (bad) { inp.classList.add('bad'); msg.textContent = bad; }
+          var x = Object.assign({}, d, { my: bad ? '' : raw }), g = bad ? null : G.gradeInfo(x);
+          row.g = g;
+          badge.className = 'gb ' + (g ? 'g' + g.n + (g.u ? ' part' : '') : 'none');
+          clear(badge);
+          if (!raw || bad) { badge.className = 'gb none'; badge.appendChild(h('b', { text: '—' })); badge.appendChild(h('i', { text: '점수 입력' })); }
+          else if (!g) { badge.appendChild(h('b', { text: '?' })); badge.appendChild(h('i', { text: '컷 대기' })); }
+          else { badge.appendChild(h('b', { text: g.n + (g.below ? '↓' : '') })); badge.appendChild(h('i', { text: g.below ? '등급 이하' : g.prob && g.u ? '확률 ' + g.pmax + '%' : g.u ? '등급?' : '등급' })); }
+          if (g && g.tip) info.appendChild(h('div', { class: 'gc-tip', text: g.tip }));
+          var r = (!bad && raw) ? G.rankOf(x) : null;
+          if (r) {
+            var pct = Math.max(0.1, r.frac * 100); pct = pct < 10 ? pct.toFixed(1) : Math.round(pct);
+            var kids;
+            if (r.below) kids = ['상위 ' + Math.round(r.frac * 100) + '% 밖'];
+            else if (r.rank) {
+              kids = [(r.sim && r.lo !== r.hi ? '약 ' : ''), h('b', { text: r.rank + '등' }), '/' + r.N + ' · 상위 ' + pct + '%'];
+              if (r.sim && r.lo !== r.hi) kids.push(h('span', { class: 'gc-rng', text: ' (90% 범위 ' + r.lo + '~' + r.hi + '등)' }));
+            } else kids = ['상위 약 ' + pct + '%'];
+            info.appendChild(h('div', { class: 'gc-rank' }, kids));
+          }
+          drawSummary(rows);
+        }
+        inp.addEventListener('input', function () { calc(true); });
+
+        var facts = (d.facts || []).length || d.note;
+        var detail = facts ? h('details', { class: 'gc-more' }, [h('summary', { text: '자세히 보기' }),
+          h('ul', null, (d.facts || []).map(function (f) { return h('li', { text: f }); })),
+          d.note ? h('div', { class: 'note-sm', text: d.note }) : null]) : null;
+
+        var cutsEl = h('div', { class: 'cuts' }, [0, 1, 2, 3].map(function (i) { return cutBox(i, (d.c || [])[i]); }));
+        var meta = [d.avg ? '평균 ' + String(d.avg).replace('x', '') : null, d.n ? '응시 ' + d.n + '명' : null, d.cr ? d.cr + '단위' : null].filter(Boolean).join(' · ');
+        var noCuts = !(d.c || []).some(function (v) { return String(v || '').trim(); });
+        list.appendChild(h('div', { class: 'card gc-card' }, [h('div', { class: 'card-b' }, [
+          h('div', { class: 'gc-top' }, [
+            h('div', null, [h('div', { class: 'gc-name' }, [d.subject, d.alias ? h('span', { class: 'chip', text: d.alias }) : null, d.common ? h('span', { class: 'chip phys', text: '공통' }) : null]),
+              h('div', { class: 'ev-sub', text: meta || '정보 수집 중' })]),
+            badge]),
+          noCuts ? h('div', { class: 'empty', text: '아직 등급컷 정보가 없어요.' }) : cutsEl,
+          h('div', { class: 'gc-inrow' }, [inp, info]), msg, detail])]));
+        calc(false);
+      });
+      drawSummary(rows);
+    }
+    drawList();
   }
 
   // ---------- 기말고사 (시간표 + 이동교실 + 유의사항 한 곳에) ----------

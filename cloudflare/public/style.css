@@ -247,12 +247,40 @@ body.locked #panel-today .card-b{padding:30px 28px 30px}
 .cal-list-t{margin-top:8px; font-size:14px; font-weight:800; color:var(--sub)}
 [hidden]{display:none !important}
 
-/* 등급컷 임베드 */
-.frame-card{display:flex; flex-direction:column}
-.frame-bar{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:14px 20px; border-bottom:1px solid var(--line)}
-.frame-bar b{font-size:16px; font-weight:800; letter-spacing:-.02em}
-.frame-bar .linkbtn{align-self:auto; white-space:nowrap}
-#gradeFrame{display:block; width:100%; height:calc(100dvh - 210px); min-height:520px; border:0; background:#fff}
-.on-grade .hero{display:none}
-.on-grade .wrap{padding-top:18px}
-a.linkbtn{text-decoration:none}
+/* 등급컷 */
+a.linkbtn{text-decoration:none; align-self:flex-start}
+.gc-list{display:grid; gap:14px; grid-template-columns:1fr}
+@media (min-width:720px){ .gc-list{grid-template-columns:1fr 1fr} }
+.gc-card{margin:0}
+.gc-card .card-b{padding:18px 20px 20px; gap:12px}
+.gc-top{display:flex; align-items:center; justify-content:space-between; gap:12px}
+.gc-name{font-size:18px; font-weight:800; letter-spacing:-.03em; display:flex; align-items:center; gap:6px; flex-wrap:wrap}
+.cuts{display:grid; grid-template-columns:repeat(4,1fr); gap:6px}
+.cut{padding:8px 4px; border-radius:14px; text-align:center; background:var(--blue-t)}
+.cut small{display:block; font-size:11.5px; font-weight:700; color:var(--mute)}
+.cut b{display:block; font-size:16px; font-weight:800; letter-spacing:-.02em; color:var(--blue)}
+.cut.est{background:var(--amber-t)} .cut.est b{color:var(--amber)}
+.cut.none{background:var(--gray-t)} .cut.none b{color:var(--mute)}
+.gb{flex-shrink:0; width:64px; padding:8px 0 6px; text-align:center; border-radius:18px; color:#fff; background:var(--gray-t); display:flex; flex-direction:column; align-items:center; line-height:1.1}
+.gb b{font-size:26px; font-weight:800} .gb i{font-style:normal; font-size:10.5px; font-weight:700; opacity:.92; margin-top:2px}
+.gb.none{color:var(--mute)}
+.gb.g1{background:linear-gradient(135deg,#3B6CF5,#6A5AE0)} .gb.g2{background:linear-gradient(135deg,#2FA3D8,#3B6CF5)}
+.gb.g3{background:linear-gradient(135deg,#26A878,#2FA3D8)} .gb.g4{background:linear-gradient(135deg,#E0A23A,#26A878)}
+.gb.g5{background:linear-gradient(135deg,#F0587A,#E0A23A)}
+.gb.part{outline:2px dashed rgba(255,255,255,.7); outline-offset:-5px}
+.gc-inrow{display:flex; gap:12px; align-items:flex-start; flex-wrap:wrap}
+.gc-in{width:112px; min-height:44px; font-size:17px; font-weight:700}
+.gc-in.bad{border-color:var(--red); box-shadow:0 0 0 3px color-mix(in srgb,var(--red) 18%,transparent)}
+.badmsg{color:var(--red); font-size:12.5px; line-height:1.4}
+.badmsg:empty{display:none}
+.gc-info{flex:1; min-width:150px; display:flex; flex-direction:column; gap:4px}
+.gc-info:empty{display:none}
+.gc-tip{font-size:12.5px; color:var(--sub); line-height:1.45; white-space:pre-line}
+.gc-rank{font-size:14px; color:var(--ink)} .gc-rank b{font-weight:800; color:var(--blue)} .gc-rng{color:var(--mute); font-size:12.5px}
+.gc-more summary{cursor:pointer; font-size:13px; font-weight:700; color:var(--blue); list-style:none}
+.gc-more summary::-webkit-details-marker{display:none}
+.gc-more ul{margin:8px 0; padding-left:18px; color:var(--sub); font-size:13.5px; line-height:1.55}
+.gc-sum{margin:0 0 14px}
+.gc-sumb{flex-direction:row; align-items:center; justify-content:space-between; flex-wrap:wrap}
+.gc-avg{font-size:40px; font-weight:800; letter-spacing:-.04em; line-height:1.1; background:linear-gradient(100deg,#3B6CF5,#8A5BE6); -webkit-background-clip:text; background-clip:text; color:transparent}
+.jump-b[aria-pressed="true"]{color:#fff; background:linear-gradient(135deg,var(--blue),var(--indigo)); border-color:transparent}
