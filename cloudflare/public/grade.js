@@ -211,5 +211,159 @@
   }
   // 과목별 정확도 점수(0~100): 얻은 정보로 계산 결과가 얼마나 좁혀졌는지
   //  컷 점수(60%): 4컷 각 25점 — 확정 25, 추정은 25×e^(−90%범위폭/25), 모르면 0 ('88.x'처럼 대략 확정은 폭 1점으로)
-  const num = n => String(Math.round(n * 10) / 10);  window.GradeCut = { parse, badNum, scoreIssue, gradeInfo, rankOf, num, CAL };
+  const num = n => String(Math.round(n * 10) / 10);
+  // ===== 기말 목표 계산기 (gradecut 의 semModel/semProbs/semInfo 를 옮김) =====
+  function binsOf(d) {
+    const N = parseFloat(d.n) || 0;
+    const known = {};
+    (d.dist || []).forEach(x => { const [a, b] = String(x.r).split("~").map(parseFloat); if (b - a === 5) known[a] = x.n; });
+    if (Array.isArray(d.hist) && d.hist.length === 20) return d.hist.map((h, i) => {
+      const lo = i * 5;
+      return lo in known ? { lo, n: known[lo], h: known[lo], k: true } : { lo, n: Math.round(h), h, k: false, band: [Math.round(d.hist_lo[i]), Math.round(d.hist_hi[i])] };
+    });
+    if (!N || !Array.isArray(d.rx)) return null;
+    // 등수 r → 'x점 이상 인원' r-1 (맨 아래 등수 N은 전원으로 봄)
+    const cnt = r => r >= N ? N : Math.max(0, r - 1);
+    const ge = (x, k = "mid") => x <= 0 ? N : cnt(simAt(d, x - 0.01)[k]);
+    const bins = [];
+    for (let i = 0; i < 20; i++) {
+      const lo = i * 5;
+      const est = Math.max(0, ge(lo) - (i === 19 ? 0 : ge(lo + 5)));
+      // 이 점수 이상 인원의 90% 범위 (가상의 반 시뮬레이션의 5%·95% 등수)
+      const range = lo > 0 ? [ge(lo, "lo"), ge(lo), ge(lo, "hi")] : null;
+      bins.push(lo in known ? { lo, n: known[lo], k: true, range } : { lo, n: Math.round(est), k: false, range });
+    }
+    return bins;
+  }
+  const RHOS = [0.65, 0.8, 0.9], SHIFTS = [-8, 0, 8], SCALES = [0.75, 1, 1.25], DRAWS = 4000;
+  const rng = seed => () => { seed = seed + 0x6D2B79F5 | 0; let t = Math.imul(seed ^ seed >>> 15, 1 | seed); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+  const Phi = z => { const x = Math.abs(z) / Math.SQRT2, t = 1 / (1 + 0.3275911 * x);
+    const e = 1 - (((((1.061405429 * t - 1.453152027) * t) + 1.421413741) * t - 0.284496736) * t + 0.254829592) * t * Math.exp(-x * x);
+    return 0.5 * (1 + (z < 0 ? -e : e)); };
+  // 이항(n, p)에서 R[g]-1 이하일 확률들. R은 커지는 순서라 한 번 훑으면서 경계마다 기록 (log 비율 표는 n마다 한 번)
+  const lrCache = {};
+  function binomCdfs(R, n, p) {
+    let lr = lrCache[n];
+    if (!lr) { lr = lrCache[n] = new Float64Array(Math.max(0, n)); for (let i = 0; i < n; i++) lr[i] = Math.log((n - i) / (i + 1)); }
+    const out = new Array(R.length), r = Math.log(p) - Math.log1p(-p);
+    let lp = n * Math.log1p(-p), s = 0, i = 0;
+    for (let g = 0; g < R.length; g++) {
+      const k = R[g] - 1;
+      if (k < 0) { out[g] = 0; continue; }
+      if (k >= n || p <= 0) { out[g] = 1; continue; }
+      if (p >= 1) { out[g] = 0; continue; }
+      for (; i <= k; i++) { s += Math.exp(lp); lp += lr[i] + r; }
+      out[g] = Math.min(1, s);
+    }
+    return out;
+  }
+  // 분포 그래프 구간 인원 → 누적확률 u의 점수 (구간 안은 고르게)
+  function invOf(d) {
+    const bins = binsOf(d); if (!bins) return null;
+    const tot = bins.reduce((s, b) => s + b.n, 0); if (!tot) return null;
+    return u => { let t = u * tot; for (const b of bins) { if (t <= b.n && b.n) return b.lo + t / b.n * 5; t -= b.n; } return 100; };
+  }
+  const semCache = {}, needCache = {};
+  // 수행평가에서 다른 학생 일부가 감점된 과목(d.perf_pen = {n: 기본 인원, why}): 감점 점수·인원은 사용자가 넣음 (비우면 감점 없음)
+  const penOf = () => null; // 수행 감점 보정은 아직 안 옮김
+  function semModel(mid, fin) {
+    const pen = penOf(mid);
+    const key = mid.id + (mid.hiddenEst ? "~" : "") + "|" + (fin ? fin.id : "") + (pen && pen.on ? `|p${pen.d}x${pen.n}` : "");   // 추정 숨김 보기·수행 감점은 따로
+    if (key in semCache) return semCache[key];
+    const N = parseFloat(mid.n) || 0, im = invOf(mid), jf = fin ? invOf(fin) : im;
+    if (!N || !im || !jf) return semCache[key] = null;
+    const fb = binsOf(fin || mid), ft = fb.reduce((a, b) => a + b.n, 0);
+    const mu = fb.reduce((a, b) => a + b.n * (b.lo + 2.5), 0) / ft;    // 기말 기준 분포의 평균
+    // 모든 경우에 같은 난수를 쓴다(공통 난수): 경우끼리의 차이가 가정 차이만 반영하도록 (안 그러면 표본 잡음으로 범위가 부풀려짐)
+    const r = rng(20261024), Z1 = new Float64Array(DRAWS), Z3 = new Float64Array(DRAWS), X = new Float64Array(DRAWS);
+    for (let i = 0; i < DRAWS; i++) {
+      const R = Math.sqrt(-2 * Math.log(Math.max(r(), 1e-12))), a = 2 * Math.PI * r();
+      Z1[i] = R * Math.cos(a); Z3[i] = R * Math.sin(a); X[i] = im(Phi(Z1[i]));
+    }
+    const kpen = pen && pen.on ? Math.round(pen.n / N * DRAWS) : 0, sh = pen && pen.on ? 4 * pen.d : 0;   // 뽑힌 학생들은 서로 같은 조건이라 앞쪽 kpen명이 감점된 학생
+    const sets = [];
+    for (const rho of RHOS) {
+      const c = Math.sqrt(1 - rho * rho), Y = new Float64Array(DRAWS);
+      for (let i = 0; i < DRAWS; i++) Y[i] = jf(Phi(rho * Z1[i] + c * Z3[i]));
+      for (const dx of fin ? [0] : SHIFTS) for (const k of fin ? [1] : SCALES) {
+        const s = new Float64Array(DRAWS);
+        for (let i = 0; i < DRAWS; i++) s[i] = X[i] + Math.max(0, Math.min(100, mu + k * (Y[i] - mu) + dx)) - (i < kpen ? sh : 0);
+        sets.push({ s: s.sort(), rho, dx, k });
+      }
+    }
+    // 기말에서 x점 이상인 인원 (난이도 차이 없고 퍼짐이 k배일 때) → '기말 몇 등 안'으로 바꿀 때 씀
+    const above = (x, k = 1) => { const y = mu + (x - mu) / k;
+      return N * fb.reduce((a, b) => a + (y <= b.lo ? b.n : y < b.lo + 5 ? b.n * (b.lo + 5 - y) / 5 : 0), 0) / ft; };
+    // 기말 r등 자리의 점수 (난이도 차이 없고 퍼짐 그대로일 때): above(x) = r 인 x
+    const scoreAtRank = rr => { let a = 0, b = 100; if (above(0) <= rr) return 0;
+      for (let i = 0; i < 40; i++) { const c = (a + b) / 2; if (above(c) > rr) a = c; else b = c; } return (a + b) / 2; };
+    return semCache[key] = { key, sets, N, mu, above, scoreAtRank, R: [0.10, 0.34, 0.66, 0.90].map(q => Math.floor(q * N + 0.5)) };
+  }
+  // 합계 s점일 때 학기말 1~5등급 확률: 나보다 높은 사람 수 ~ 이항(N-1, p), 등수 ≤ R_g 이면 g등급 이내
+  function semProbs(M, s, sets = M.sets) {
+    const out = [0, 0, 0, 0, 0];
+    for (const { s: set } of sets) {
+      let a = 0, b = set.length;
+      while (a < b) { const c = (a + b) >> 1; if (set[c] <= s) a = c + 1; else b = c; }
+      const p = (set.length - a) / set.length, cums = binomCdfs(M.R, M.N - 1, p);
+      let prev = 0;
+      for (let g = 0; g < 5; g++) {
+        const cum = g < 4 ? cums[g] : 1;
+        out[g] += (cum - prev) / sets.length; prev = cum;
+      }
+    }
+    return out;
+  }
+  const topGrade = gp => gp.reduce((bi, p, k) => (p > gp[bi] ? k : bi), 0);
+  function semInfo(mid, fin, fstr, pstr) {
+    const M = semModel(mid, fin), m = parse(mid.my), f = parse(fstr);
+    const pBad = badNum(pstr, 0, 50), p = pBad ? null : parse(pstr);
+    if (!M || !m) return { M, m };
+    const perf = p ? p.n : 50, adj = 4 * (perf - 50);
+    const at = (x, sets) => semProbs(M, m.n + x + adj, sets);
+    const upTo = (x, g, sets) => at(x, sets).slice(0, g + 1).reduce((a, p) => a + p, 0);
+    // g등급 이내일 확률이 50%를 넘는 가장 낮은 기말 점수 (0점도 되면 0, 100점도 안 되면 null)
+    const needOf = (g, sets) => {
+      if (upTo(0, g, sets) >= 0.5) return 0;
+      if (upTo(100, g, sets) < 0.5) return null;
+      let a = 0, b = 100;
+      while (b - a > 0.5) { const c = (a + b) / 2; if (upTo(c, g, sets) >= 0.5) b = c; else a = c; }
+      return Math.ceil(b);
+    };
+    const pick = fn => M.sets.filter(fn);
+    const rankAt = (x, k = 1) => Math.max(1, Math.round(M.above(x, k)));
+    const nk = M.key + "|" + (m.n + adj);
+    const need = needCache[nk] || (needCache[nk] = [0, 1, 2, 3].map(g => {
+      const from = needOf(g, M.sets);
+      if (from === null) return { g, from, best: Math.round(upTo(100, g, M.sets) * 100) };
+      if (from === 0) return { g, from };
+      // 등수: 난이도 차이 0인 경우에서, 관계(상관)·퍼짐마다 따로 구해 범위로 (등수는 난이도와 상관없음)
+      const rk = [];
+      for (const r of RHOS) for (const k of fin ? [1] : SCALES) {
+        const v = needOf(g, pick(x => x.rho === r && x.dx === 0 && x.k === k)); rk.push(v === null ? 1 : rankAt(v, k));
+      }
+      const rank = (v => v === null ? 1 : rankAt(v))(needOf(g, pick(x => x.dx === 0 && x.k === 1)));
+      // 점수: 난이도·퍼짐 경우마다 구한 필요 점수의 최소~최대 (기말 데이터가 있으면 범위 없음)
+      let sr = null;
+      if (!fin) {
+        const v = [];
+        for (const dx of SHIFTS) for (const k of SCALES) v.push(needOf(g, pick(x => x.dx === dx && x.k === k)));
+        const ok = v.filter(x => x !== null);
+        sr = [ok.length ? Math.min(...ok) : null, v.includes(null) ? null : Math.max(...ok)];
+      }
+      return { g, from, rank, rlo: Math.min(...rk), rhi: Math.max(...rk), sr };
+    }));
+    const gp = f ? at(f.n) : null;
+    // 내 학기말 원점수 = 중간×25% + 기말×25% + 수행(50점 만점) — 계산만, 원점수 컷은 예측 안 함
+    const myRaw = f ? perf + (m.n + f.n) / 4 : null;
+    return { M, m, f, p, pBad, gp, need, perf, myRaw };
+  }
+  function semGp(mid, fin, fx, pstr) {
+    const M = semModel(mid, fin), m = parse(mid.my), p = badNum(pstr, 0, 50) ? null : parse(pstr);
+    if (!M || !m) return null;
+    const perf = p ? p.n : 50;
+    return { gp: semProbs(M, m.n + fx + 4 * (perf - 50)), raw: perf + (m.n + fx) / 4, perf, m };
+  }
+  // 목표 등수 기준: 경우(난이도 dx, 퍼짐 k)마다 기말 r등이 몇 점인지 바꿔서 그 경우의 확률을 구해 평균.
+  window.GradeCut = { parse, badNum, scoreIssue, gradeInfo, rankOf, num, CAL, semInfo, semGp, binsOf };
 })();

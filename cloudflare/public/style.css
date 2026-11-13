@@ -284,3 +284,51 @@ a.linkbtn{text-decoration:none; align-self:flex-start}
 .gc-sumb{flex-direction:row; align-items:center; justify-content:space-between; flex-wrap:wrap}
 .gc-avg{font-size:40px; font-weight:800; letter-spacing:-.04em; line-height:1.1; background:linear-gradient(100deg,#3B6CF5,#8A5BE6); -webkit-background-clip:text; background-clip:text; color:transparent}
 .jump-b[aria-pressed="true"]{color:#fff; background:linear-gradient(135deg,var(--blue),var(--indigo)); border-color:transparent}
+
+/* 보안 안내 */
+.secure{border-radius:18px; background:var(--green-t); border:1px solid color-mix(in srgb,var(--green) 28%,transparent); padding:2px 14px}
+.secure summary{display:flex; align-items:center; gap:12px; cursor:pointer; list-style:none; padding:10px 0}
+.secure summary::-webkit-details-marker{display:none}
+.secure-ic{font-size:22px}
+.secure summary b{display:block; font-size:14.5px; font-weight:800; color:var(--green); letter-spacing:-.02em}
+.secure summary small{display:block; font-size:12px; color:var(--sub)}
+.secure ul{margin:0 0 12px; padding-left:18px; font-size:13px; line-height:1.6; color:var(--sub)}
+.secure li b{color:var(--ink)}
+.all-toggle{display:block; margin:-4px 0 14px 4px}
+/* 내 정보 */
+.me-row{display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid var(--line); font-size:15px}
+.me-row span{color:var(--sub)} .me-row b{font-weight:800}
+.el-card{margin:0 0 14px; padding:0}
+.el-sum{display:flex; align-items:center; justify-content:space-between; gap:10px; padding:18px 22px; cursor:pointer; list-style:none}
+.el-sum::-webkit-details-marker{display:none}
+.el-sum h2{margin:2px 0 0; font-size:19px; font-weight:800; letter-spacing:-.03em}
+.el-count{padding:5px 12px; border-radius:999px; background:var(--blue-t); color:var(--blue); font-size:13px; font-weight:800; white-space:nowrap}
+.el-body{padding:0 22px 20px}
+.el-g{margin:14px 0 6px; font-size:12.5px; font-weight:800; letter-spacing:.06em; color:var(--mute)}
+.el-chips{display:flex; flex-wrap:wrap; gap:8px}
+.el-chip{position:relative; border:1px solid var(--glass-line); background:var(--glass-2); color:var(--ink); font:inherit; font-size:14px; font-weight:600; padding:8px 14px; border-radius:999px; cursor:pointer}
+.el-chip.on{color:#fff; background:linear-gradient(135deg,var(--blue),var(--indigo)); border-color:transparent; box-shadow:0 6px 14px rgba(80,90,230,.3)}
+.el-chip.dis{opacity:.4; cursor:not-allowed}
+.el-dot{display:inline-block; width:6px; height:6px; border-radius:50%; background:var(--blue); margin-left:6px; vertical-align:middle}
+.el-chip.on .el-dot{background:#fff}
+.el-hint{margin:-4px 4px 14px}
+.btn.out{width:100%; margin-top:6px; background:var(--gray-t); color:var(--sub); box-shadow:none}
+.nudge{appearance:none; display:block; width:100%; text-align:left; font:inherit; color:var(--ink); cursor:pointer; margin-bottom:14px; padding:14px 18px; border-radius:20px; background:var(--amber-t); border:1px solid color-mix(in srgb,var(--amber) 30%,transparent)}
+.nudge b{display:block; font-size:15px; font-weight:800} .nudge small{color:var(--sub); font-size:13px}
+/* 기말 목표 계산기 */
+.calc-out{display:flex; flex-direction:column; gap:8px}
+.needs-h{margin-top:6px; font-size:13.5px; font-weight:800; color:var(--sub)}
+.nb{display:flex; align-items:center; gap:12px; padding:10px 14px; border-radius:16px; background:var(--gray-t); font-size:14.5px; line-height:1.45}
+.nb em{font-style:normal; flex-shrink:0; width:52px; text-align:center; padding:4px 0; border-radius:999px; font-size:13px; font-weight:800; color:#fff; background:var(--blue)}
+.nb.g1 em{background:linear-gradient(135deg,#3B6CF5,#6A5AE0)} .nb.g2 em{background:linear-gradient(135deg,#2FA3D8,#3B6CF5)} .nb.g3 em{background:linear-gradient(135deg,#26A878,#2FA3D8)} .nb.g4 em{background:linear-gradient(135deg,#E0A23A,#26A878)}
+.nb b{color:var(--blue); font-weight:800}
+.nb small{display:block; color:var(--sub); font-size:12.5px}
+.semrange{width:100%; accent-color:var(--blue)}
+.probs{display:flex; flex-direction:column; gap:6px}
+.probs-h b{font-weight:800} .probs-h small{color:var(--sub)}
+.pr{display:grid; grid-template-columns:44px 1fr 40px; align-items:center; gap:8px; font-size:13px}
+.pr-l{font-weight:700; color:var(--sub)} .pr-v{text-align:right; font-weight:800}
+.pr-bar{height:10px; border-radius:999px; background:var(--gray-t); overflow:hidden}
+.pr-bar i{display:block; height:100%; border-radius:999px; background:var(--blue)}
+.pr-bar i.g1{background:#5B6CF0} .pr-bar i.g2{background:#3B9BE0} .pr-bar i.g3{background:#26A878} .pr-bar i.g4{background:#E0A23A} .pr-bar i.g5{background:#F0587A}
+.rr{display:flex; justify-content:space-between; font-size:12px; color:var(--mute)}

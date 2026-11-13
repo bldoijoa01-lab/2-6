@@ -41,11 +41,12 @@
       document.getElementById('panel-' + t.getAttribute('data-tab')).hidden = !on;
     });
         if (name === 'grade') loadGrade();
+    if (name === 'me') renderMe();
     try { history.replaceState(null, '', '#' + name); } catch (e) {}
   }
   tabs.forEach(function (t) { t.addEventListener('click', function () { selectTab(t.getAttribute('data-tab')); }); });
 
-  document.getElementById('logoutBtn').addEventListener('click', function () { store('tok26', null); store('gk26', null); store('gcscore26', null); location.hash = ''; location.reload(); });
+  document.getElementById('logoutBtn').addEventListener('click', function () { store('tok26', null); store('gk26', null); store('gcscore26', null); store('pref26', null); location.hash = ''; location.reload(); });
 
   // ---------- 테마 ----------
   (function () {
@@ -89,6 +90,11 @@
       DATA.special.length ? DATA.special[0].label.split(' ')[0] + ' 시작' : '원반에서 응시', function () { goTab('exam'); setTimeout(function () { jumpTo('sec-special'); }, 60); }));
     grid.push(stat('예정 일정', upcoming.length + '개', others[0] ? '다음: ' + others[0].title : '예정 없음', function () { goTab('today'); }));
     grid.push(stat('등급컷 아카이브', '등급컷 보기', '과목별 컷 · 내 예상 등급', function () { goTab('grade'); }));
+    if (!myElectives().length) {
+      var nudge = h('button', { class: 'nudge', type: 'button' }, [h('b', { text: '📝 선택과목을 골라 주세요' }), h('small', { text: '고르면 등급컷·기말 목표 계산기가 내 과목 위주로 나와요 →' })]);
+      nudge.addEventListener('click', function () { goTab('me'); });
+      p.appendChild(nudge);
+    }
     p.appendChild(h('div', { class: 'stats' }, grid));
 
     // 다음 일정 미리보기
@@ -171,13 +177,17 @@
   function decryptJSON(key, blob) {
     return crypto.subtle.decrypt({ name: 'AES-GCM', iv: b64d(blob.iv) }, key, b64d(blob.data)).then(function (pt) { return JSON.parse(td.decode(pt)); });
   }
+  var PKEY = 'pref26';
+  function prefLoad() { try { return JSON.parse(localStorage.getItem(PKEY) || '{}'); } catch (e) { return {}; } }
+  function prefSave(o) { try { localStorage.setItem(PKEY, JSON.stringify(o)); } catch (e) {} pushScores(); }
+  function normName(s) { return String(s || '').replace(/\s+/g, '').replace(/Ⅱ/g, 'II').replace(/Ⅰ/g, 'I').replace(/[*]/g, ''); }
   var pushTimer = null;
   function pushScores() {
     clearTimeout(pushTimer);
     pushTimer = setTimeout(function () {
       storedKey().then(function (key) {
         if (!key) return;
-        return encryptJSON(key, gcLoad()).then(function (blob) {
+        return encryptJSON(key, { v: 2, scores: gcLoad(), prefs: prefLoad() }).then(function (blob) {
           return fetch('/api/scores', { method: 'PUT', headers: { authorization: 'Bearer ' + (load('tok26') || ''), 'content-type': 'application/json' }, body: JSON.stringify(blob) });
         });
       }).catch(function () {});
@@ -190,14 +200,85 @@
         .then(function (r) { return r.ok ? r.json() : null; })
         .then(function (j) {
           if (!j) return false;
-          if (!j.blob) { if (Object.keys(gcLoad()).length) pushScores(); return true; }
-          return decryptJSON(key, j.blob).then(function (srv) {
-            var merged = Object.assign({}, gcLoad(), srv); gcSave(merged);
-            if (JSON.stringify(merged) !== JSON.stringify(srv)) pushScores();
+          if (!j.blob) { if (Object.keys(gcLoad()).length || Object.keys(prefLoad()).length) pushScores(); return true; }
+          return decryptJSON(key, j.blob).then(function (obj) {
+            var srvScores = obj && obj.v === 2 ? (obj.scores || {}) : (obj || {}), srvPrefs = obj && obj.v === 2 ? (obj.prefs || {}) : {};
+            var mergedS = Object.assign({}, gcLoad(), srvScores), mergedP = Object.assign({}, prefLoad(), srvPrefs);
+            gcSave(mergedS); try { localStorage.setItem(PKEY, JSON.stringify(mergedP)); } catch (e) {}
+            if (!(obj && obj.v === 2) || JSON.stringify(mergedS) !== JSON.stringify(srvScores) || JSON.stringify(mergedP) !== JSON.stringify(srvPrefs)) pushScores();
             return true;
           });
         }).catch(function () { return false; });
     });
+  }
+
+  // ---------- 보안 안내 문구 ----------
+  function secureNote(synced) {
+    if (!synced) return h('div', { class: 'note-sm', text: '내 점수는 이 기기에만 저장돼요. 다시 로그인하면 암호화 저장·동기화가 켜져요.' });
+    return h('details', { class: 'secure' }, [
+      h('summary', null, [h('span', { class: 'secure-ic', text: '🔒' }), h('div', null, [h('b', { text: '종단간 암호화 · 나만 볼 수 있어요' }), h('small', { text: '운영자를 포함해 다른 사람은 내용을 볼 수 없어요 · 자세히' })])]),
+      h('ul', null, [
+        h('li', null, [h('b', { text: '암호 방식 ' }), 'AES-256-GCM (변조까지 감지하는 인증 암호화)']),
+        h('li', null, [h('b', { text: '키 생성 ' }), '내 비밀번호 + PBKDF2-SHA256 20만 회로 내 기기 안에서만 만들어요. 키와 비밀번호는 서버로 보내지 않아요.']),
+        h('li', null, [h('b', { text: '서버 저장 ' }), '읽을 수 없는 암호문만 저장돼요. 점수·선택과목은 저장 전에 이미 암호화돼요.']),
+        h('li', null, [h('b', { text: '비밀번호 분실 ' }), '키를 복구할 방법이 없어서, 초기화하면 저장된 점수는 사라지고 다시 입력해야 해요.']),
+        h('li', null, [h('b', { text: '주의 ' }), '내 비밀번호를 아는 사람은 볼 수 있어요. 비밀번호는 나만 알고 있어야 해요.'])
+      ])
+    ]);
+  }
+
+  // ---------- 내 정보 (선택과목) ----------
+  function myElectives() { var v = prefLoad().el2; return Array.isArray(v) ? v : []; }
+  function renderMe() {
+    var p = document.getElementById('panel-me'); if (!p || !DATA) return; clear(p);
+    var E = window.ELECTIVES, me = DATA.me, prefs = prefLoad();
+    var gcNames = {};   // 등급컷 자료가 있는 과목
+    if (GC) GC.subjects.forEach(function (s) { gcNames[normName(s.subject)] = 1; });
+
+    p.appendChild(h('div', { class: 'card' }, [head('MY ACCOUNT', '내 정보'), h('div', { class: 'card-b' }, [
+      h('div', { class: 'me-row' }, [h('span', { text: '이름' }), h('b', { text: me.name })]),
+      h('div', { class: 'me-row' }, [h('span', { text: '번호' }), h('b', { text: me.n + '번' })]),
+      h('div', { class: 'me-row' }, [h('span', { text: '반' }), h('b', { text: DATA.className })]),
+      secureNote(!!load('gk26'))
+    ])]));
+
+    function picker(key, def, open) {
+      var sel = (Array.isArray(prefs[key]) ? prefs[key] : []).slice(), body = h('div', { class: 'el-body' });
+      var count = h('span', { class: 'el-count' });
+      function draw() {
+        clear(body); count.textContent = sel.length + ' / ' + def.pick + ' 선택';
+        var byG = {}, order = [];
+        def.options.forEach(function (o) { if (!byG[o.g]) { byG[o.g] = []; order.push(o.g); } byG[o.g].push(o); });
+        order.forEach(function (g) {
+          body.appendChild(h('div', { class: 'el-g', text: g }));
+          var wrap = h('div', { class: 'el-chips' });
+          byG[g].forEach(function (o) {
+            var on = sel.indexOf(o.n) >= 0, full = !on && sel.length >= def.pick;
+            var b = h('button', { class: 'el-chip' + (on ? ' on' : '') + (full ? ' dis' : ''), type: 'button', 'aria-pressed': on ? 'true' : 'false', text: o.n });
+            if (key === 'el2' && gcNames[normName(o.n)]) b.appendChild(h('i', { class: 'el-dot', title: '등급컷 자료 있음' }));
+            b.addEventListener('click', function () {
+              if (on) sel = sel.filter(function (x) { return x !== o.n; });
+              else if (!full) sel.push(o.n); else return;
+              prefs[key] = sel; prefSave(prefs); draw();
+              if (key === 'el2') { GC_STATE = GC_STATE === 'done' ? 'dirty' : GC_STATE; renderHome(); }
+            });
+            wrap.appendChild(b);
+          });
+          body.appendChild(wrap);
+        });
+      }
+      draw();
+      var box = h('details', { class: 'card el-card' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: def.credits + '학점 · 택' + def.pick }), h('h2', { text: def.title })]), count]), body]);
+      if (open) box.setAttribute('open', '');
+      return box;
+    }
+    p.appendChild(picker('el2', E.sem2, true));
+    p.appendChild(h('div', { class: 'note-sm el-hint', text: '파란 점이 있는 과목은 등급컷 자료가 있어요. 고른 과목은 등급컷 탭과 기말 목표 계산기에 먼저 나와요.' }));
+    p.appendChild(picker('el1', E.sem1, false));
+    p.appendChild(picker('el1lib', E.liberal, false));
+    var out = h('button', { class: 'btn out', type: 'button', text: '로그아웃' });
+    out.addEventListener('click', function () { document.getElementById('logoutBtn').click(); });
+    p.appendChild(out);
   }
 
   // ---------- 등급컷 (gradecut 계산 로직을 내장) ----------
@@ -206,12 +287,13 @@
   function gcSave(o) { try { localStorage.setItem(GKEY, JSON.stringify(o)); } catch (e) {} }
   function loadGrade() {
     var p = document.getElementById('panel-grade');
+    if (GC_STATE === 'dirty') { GC_STATE = 'done'; renderGrade(); return; }
     if (GC_STATE === 'loading' || GC_STATE === 'done') return;
     GC_STATE = 'loading'; clear(p);
     p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '등급컷을 불러오는 중이에요…' })])]));
     fetch('/api/cuts', { headers: { authorization: 'Bearer ' + (load('tok26') || '') }, cache: 'no-store' })
       .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); })
-      .then(function (j) { GC = j; return syncScores().then(function (ok) { GC_SYNC = ok; GC_STATE = 'done'; renderGrade(); }); })
+      .then(function (j) { GC = j; return syncScores().then(function (ok) { GC_SYNC = ok; GC_STATE = 'done'; renderGrade(); renderMe(); }); })
       .catch(function () {
         GC_STATE = 'idle'; clear(p);
         p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '등급컷을 못 불러왔어요. 잠시 후 다시 눌러 보세요.' })])]));
@@ -228,9 +310,34 @@
 
     p.appendChild(h('div', { class: 'card' }, [head('GRADE CUT ARCHIVE', '오송고 등급컷 아카이브'), h('div', { class: 'card-b' }, [
       h('div', { class: 'note-sm', text: '오송고 2학년 시험 기준 · 학생들이 모은 정보예요 (학교 공식 자료 아님). 5등급제: 1컷 상위 10% · 2컷 34% · 3컷 66% · 4컷 90%' }),
-      h('div', { class: 'note-sm', text: (GC_SYNC ? '🔒 내 점수는 내 비밀번호로 암호화돼 저장돼요. 다른 기기에서도 보이고, 서버·관리자는 내용을 읽을 수 없어요.' : '내 점수는 이 기기에만 저장돼요. (다시 로그인하면 암호화 저장·동기화가 켜져요)') + (asof ? ' · 업데이트 ' + asof : '') }),
-      h('a', { class: 'linkbtn', href: 'https://bldoijoa01-lab.github.io/gradecut/', target: '_blank', rel: 'noopener', text: '기말 목표 계산기 등 전체 기능은 원본 사이트 ↗' })
+      secureNote(GC_SYNC),
+      h('div', { class: 'note-sm', text: asof ? '등급컷 업데이트 ' + asof : '' }),
+      h('a', { class: 'linkbtn', href: 'https://bldoijoa01-lab.github.io/gradecut/', target: '_blank', rel: 'noopener', text: '원본 사이트(수행 점수·성적표 이미지 등) ↗' })
     ])]));
+    var mineNames = myElectives().map(normName), showAll = false;
+    function visible(d) { return showAll || !mineNames.length || d.common || mineNames.indexOf(normName(d.subject)) >= 0; }
+    var cutView = h('div'), calcView = h('div'); calcView.hidden = true;
+    var seg = h('div', { class: 'seg' });
+    [['과목 컷', cutView], ['기말 목표 계산기', calcView]].forEach(function (v, i) {
+      var b = h('button', { class: 'seg-b', type: 'button', text: v[0], 'aria-pressed': i === 0 ? 'true' : 'false' });
+      b.addEventListener('click', function () {
+        cutView.hidden = v[1] !== cutView; calcView.hidden = v[1] !== calcView;
+        Array.prototype.forEach.call(seg.children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
+        if (v[1] === calcView) drawCalc();
+      });
+      seg.appendChild(b);
+    });
+    p.appendChild(seg);
+    if (mineNames.length) {
+      var allBtn = h('button', { class: 'linkbtn all-toggle', type: 'button', text: '내 선택과목만 보는 중 · 전체 과목 보기' });
+      allBtn.addEventListener('click', function () { showAll = !showAll; allBtn.textContent = showAll ? '전체 과목 보는 중 · 내 과목만 보기' : '내 선택과목만 보는 중 · 전체 과목 보기'; drawList(); drawCalc(); });
+      p.appendChild(allBtn);
+    } else {
+      var go = h('button', { class: 'linkbtn all-toggle', type: 'button', text: '내 정보에서 선택과목을 고르면 내 과목만 모아 볼 수 있어요 →' });
+      go.addEventListener('click', function () { goTab('me'); });
+      p.appendChild(go);
+    }
+    p.appendChild(cutView); p.appendChild(calcView);
     var chips = null;
     if (exams.length > 1) {
       chips = h('div', { class: 'jump' });
@@ -239,9 +346,9 @@
         b.addEventListener('click', function () { exam = ex; Array.prototype.forEach.call(chips.children, function (c) { c.setAttribute('aria-pressed', c === b ? 'true' : 'false'); }); drawList(); });
         chips.appendChild(b);
       });
-      p.appendChild(chips);
+      cutView.appendChild(chips);
     }
-    p.appendChild(summary); p.appendChild(list);
+    cutView.appendChild(summary); cutView.appendChild(list);
 
     function cutBox(i, v) {
       var pr = G.parse(v), t = String(v || '').trim();
@@ -260,7 +367,7 @@
     }
     function drawList() {
       clear(list);
-      var subs = GC.subjects.filter(function (s) { return s.exam === exam; })
+      var subs = GC.subjects.filter(function (s) { return s.exam === exam && visible(s); })
         .sort(function (a, b) { return (b.common ? 1 : 0) - (a.common ? 1 : 0); });
       var rows = [];
       subs.forEach(function (d) {
@@ -317,6 +424,62 @@
         calc(false);
       });
       drawSummary(rows);
+    }
+
+    function drawCalc() {
+      clear(calcView);
+      calcView.appendChild(h('div', { class: 'card' }, [head('FINAL EXAM GOAL', '기말 목표 계산기'), h('div', { class: 'card-b' }, [
+        h('div', { class: 'note-sm', text: '중간 점수를 넣은 과목의 학기말 등급 확률과, 목표 등급에 필요한 기말 등수·점수를 계산해요. 학기말 = 중간 25% + 기말 25% + 수행 50%, 다른 학생 수행은 모두 만점으로 봐요. 기말 난이도·분포는 아직 몰라서 중간과 비슷하다고 보고 여러 경우를 섞어요.' }),
+        h('div', { class: 'note-sm', text: '점수는 [과목 컷] 화면에서 넣어요.' })
+      ])]));
+      var subs = GC.subjects.filter(function (s) { return s.exam === exam && visible(s); }), any = false;
+      subs.forEach(function (d) {
+        var raw = (scores[d.id] || '').trim();
+        if (!raw || G.badNum(raw, 0, 100) || G.scoreIssue(d, raw)) return;
+        any = true;
+        var mid = Object.assign({}, d, { my: raw });
+        var perfIn = h('input', { class: 'field gc-in', type: 'text', inputmode: 'decimal', placeholder: '수행 /50', 'aria-label': d.subject + ' 내 수행 점수' });
+        perfIn.value = scores['perf-' + d.id] || '';
+        var out = h('div', { class: 'calc-out' });
+        var slider = h('input', { class: 'semrange', type: 'range', min: '0', max: '100', step: '0.5', value: String(Math.min(100, parseFloat(raw))), 'aria-label': d.subject + ' 기말 목표 점수' });
+        var probs = h('div', { class: 'probs' });
+        function drawProbs() {
+          clear(probs);
+          var ps = perfIn.value.trim(), fx = parseFloat(slider.value);
+          var r = G.semGp(mid, null, fx, G.badNum(ps, 0, 50) ? '' : ps); if (!r) return;
+          probs.appendChild(h('div', { class: 'probs-h' }, [h('b', { text: '기말 ' + fx + '점이면' }), h('small', { text: ' · 내 학기말 원점수 약 ' + (Math.round(r.raw * 10) / 10) })]));
+          r.gp.forEach(function (v, k) {
+            var pc = Math.round(v * 100);
+            probs.appendChild(h('div', { class: 'pr' }, [h('span', { class: 'pr-l', text: (k + 1) + '등급' }),
+              h('div', { class: 'pr-bar' }, [h('i', { class: 'g' + (k + 1), style: 'width:' + Math.max(pc, pc ? 2 : 0) + '%' })]), h('span', { class: 'pr-v', text: pc + '%' })]));
+          });
+        }
+        function drawNeed() {
+          clear(out);
+          var ps = perfIn.value.trim(), bad = G.badNum(ps, 0, 50), info;
+          try { info = G.semInfo(mid, null, '', bad ? '' : ps); } catch (e) { info = null; }
+          if (!info || !info.M) { out.appendChild(h('div', { class: 'empty', text: '이 과목은 분포 정보가 아직 부족해서 계산할 수 없어요.' })); return; }
+          if (bad) out.appendChild(h('div', { class: 'badmsg', text: '수행 점수는 0~50 사이로 넣어 주세요. 지금은 만점으로 계산했어요.' }));
+          out.appendChild(h('div', { class: 'needs-h', text: '🎯 학기말 등급별 기말 목표' }));
+          info.need.forEach(function (x) {
+            var body;
+            if (x.from === 0) body = '기말 몇 등이든 유력해요';
+            else if (x.from === null) body = '기말 만점이어도 어려워요 (' + x.best + '%)';
+            else body = ['기말 ', h('b', { text: '약 ' + x.rank + '등' }), ' 안' + (x.rlo !== x.rhi ? ' (' + x.rlo + '~' + x.rhi + '등)' : ''),
+              h('small', { text: '점수로는 ' + x.from + '점 이상' + (x.sr ? ' · 난이도에 따라 ' + (x.sr[0] == null ? 0 : x.sr[0]) + '~' + (x.sr[1] == null ? '100점↑' : x.sr[1] + '점') : '') })];
+            out.appendChild(h('div', { class: 'nb g' + (x.g + 1) }, [h('em', { text: (x.g + 1) + '등급' }), h('div', null, Array.isArray(body) ? body : [body])]));
+          });
+          out.appendChild(h('div', { class: 'needs-h', text: '🎚 기말 점수를 움직여 보세요' }));
+          out.appendChild(slider); out.appendChild(h('div', { class: 'rr' }, [h('span', { text: '0점' }), h('span', { text: '100점' })]));
+          out.appendChild(probs); drawProbs();
+        }
+        perfIn.addEventListener('input', function () { var v = perfIn.value.trim(); if (v) scores['perf-' + d.id] = v; else delete scores['perf-' + d.id]; gcSave(scores); pushScores(); drawNeed(); });
+        slider.addEventListener('input', drawProbs);
+        calcView.appendChild(h('div', { class: 'card gc-card' }, [h('div', { class: 'card-b' }, [
+          h('div', { class: 'gc-top' }, [h('div', null, [h('div', { class: 'gc-name', text: d.subject }), h('div', { class: 'ev-sub', text: '중간 ' + raw + '점' })]), perfIn]), out])]));
+        drawNeed();
+      });
+      if (!any) calcView.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '[과목 컷]에서 중간 점수를 넣은 과목이 아직 없어요.' })])]));
     }
     drawList();
   }
@@ -485,11 +648,11 @@
     document.getElementById('todayLabel').textContent = (d.getUTCMonth() + 1) + '/' + d.getUTCDate() + '(' + DOW[d.getUTCDay()] + ')';
     document.getElementById('updated').textContent = DATA.className + ' 알림장 · 마지막 업데이트 ' + fmt(DATA.updated);
     clear(document.getElementById('panel-exam'));
-    renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
+    renderMe(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
     tagExamCards();
     var start = (location.hash || '').replace('#', '');
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
-    selectTab(['home', 'today', 'exam', 'grade'].indexOf(start) >= 0 ? start : 'home');
+    selectTab(['home', 'today', 'exam', 'grade', 'me'].indexOf(start) >= 0 ? start : 'home');
   }
 
   // ---------- 로그인 (서버: 이름+번호) ----------
