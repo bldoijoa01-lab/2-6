@@ -23,6 +23,18 @@ export function pinnedItems({ data, me, iso, pins }) {
   return out;
 }
 
+// 캘린더에만 두는 일정(calOnly: 퇴사·입사 등)의 오늘·내일 분. 직접 쓴 알림장에도 기본으로 붙이기 위해 따로 뽑음
+export function calOnlyItems({ data, me, iso }) {
+  const out = [];
+  for (const e of data.events || []) {
+    if (!e.calOnly || !e.date || (e.dorm && !me.dorm) || (Array.isArray(e.audience) && !e.audience.includes(me.name))) continue;
+    const s = e.date, end = e.end || e.date, d = diff(s, iso);
+    if (s <= iso && iso <= end) out.push({ k: 'notice', t: `오늘 ${e.title}`, s, e: end });
+    else if (d === 1) out.push({ k: 'notice', t: `내일 ${e.title}`, s, e: end });
+  }
+  return out;
+}
+
 // 오늘 날짜(iso) 기준으로 일정·기말고사·원반 이동·특별실을 문장으로 만든다. me: {n, name}, official: 학교 명단 {el2, blocks} 또는 null
 export function buildAutoDaily({ data, me, iso, official, pins }) {
   const items = pinnedItems({ data, me, iso, pins });

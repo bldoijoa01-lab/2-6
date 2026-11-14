@@ -5,7 +5,7 @@ import ASSETS from './assets.js';
 import FONT from './pretendard.woff2';
 import OG from './og.jpg';
 import ICON from './icon.png';
-import { kstISO, addDaysISO, buildAutoDaily, pinnedItems, parseMeals, timetableLine, pushText, eveningText } from './daily.js';
+import { kstISO, addDaysISO, buildAutoDaily, pinnedItems, calOnlyItems, parseMeals, timetableLine, pushText, eveningText } from './daily.js';
 import { sendPush } from './webpush.js';
 const enc = new TextEncoder();
 const TTL = 60 * 60 * 24 * 30;
@@ -91,8 +91,8 @@ async function dailyBundle(env, data, me, iso, official, isDorm, pins) {
   const manual = data.daily && data.daily[iso];
   let daily;
   if (manual) {   // 직접 쓴 알림장 앞에 내가 담은 일정을 붙임
-    const pi = pinnedItems({ data, me, iso, pins });
-    daily = { ...manual, items: [...pi, ...manual.items] };
+    const pi = pinnedItems({ data, me, iso, pins }), have = new Set(manual.items.map((i) => i.t)), co = calOnlyItems({ data, me, iso }).filter((i) => !have.has(i.t));   // 퇴사·입사는 직접 쓴 알림장에도 기본으로
+    daily = { ...manual, items: [...pi, ...manual.items, ...co] };
   } else daily = { ...buildAutoDaily({ data, me, iso, official, pins }), by: '자동', auto: true };
   let meals = await getMeals(env, iso);
   if (!isDorm) meals = meals.filter((m) => m.name !== '조식');

@@ -386,10 +386,11 @@
   var todayView = 'list', calState = null;
   function myEvents() { var v = prefLoad().myEvents; return Array.isArray(v) ? v : []; }
   function saveMyEvents(list) { var p2 = prefLoad(); p2.myEvents = list; prefSave(p2); }
+  function listable(e) { return !e.calOnly; }   // calOnly 일정(퇴사·입사)은 캘린더에만 — 목록·홈 일정에는 안 나옴 (알림장에는 기본으로 들어감)
   function allEvents() { return DATA.events.concat(myEvents().map(function (e) { return Object.assign({}, e, { mine: true }); })); }
   function delMyEvent(id) { saveMyEvents(myEvents().filter(function (e) { return e.id !== id; })); renderToday(); renderHome(); }
   function pinBtn(e) {   // 일정을 내 알림장에 담기/빼기 (담으면 7일 전부터 알림장·푸시에 나옴)
-    if (e.mine || PREVIEW || !DATA.me || DATA.me.role === 'teacher' || !Array.isArray(DATA.pins)) return null;
+    if (e.mine || e.calOnly || PREVIEW || !DATA.me || DATA.me.role === 'teacher' || !Array.isArray(DATA.pins)) return null;
     var key = e.date + '|' + e.title, b = h('button', { class: 'linkbtn pin-b', type: 'button' });
     function paint() { var on = DATA.pins.indexOf(key) >= 0; b.textContent = on ? '★ 내 알림장에 담김' : '☆ 내 알림장에 담기'; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
     b.addEventListener('click', function () {
@@ -444,7 +445,7 @@
   function renderHome() {
     var p = document.getElementById('panel-home'); clear(p);
     var me = DATA.me, mv = DATA.move;
-    var upcoming = allEvents().filter(function (e) { return diffDays(e.end || e.date, TODAY) >= 0; })
+    var upcoming = allEvents().filter(function (e) { return listable(e) && diffDays(e.end || e.date, TODAY) >= 0; })
       .sort(function (a, b) { return toUTC(a.date) - toUTC(b.date); });
     var exam = upcoming.filter(function (e) { return /기말/.test(e.title); })[0];
     var others = upcoming.filter(function (e) { return e !== exam; });
@@ -1230,7 +1231,7 @@
     // 2) 올라간 일정·공지 관리
     var mk = [];
     (DATA.notices || []).forEach(function (n) { mk.push({ k: 'notice', title: n.title, sub: '공지' + (n.text ? ' · ' + n.text : '') }); });
-    DATA.events.slice().sort(function (x, y) { return x.date < y.date ? -1 : 1; }).forEach(function (e) { mk.push({ k: 'event', title: e.title, date: e.date, sub: fmt(e.date) + (e.end ? '~' + fmt(e.end) : '') + (e.note ? ' · ' + e.note : '') }); });
+    DATA.events.filter(listable).sort(function (x, y) { return x.date < y.date ? -1 : 1; }).forEach(function (e) { mk.push({ k: 'event', title: e.title, date: e.date, sub: fmt(e.date) + (e.end ? '~' + fmt(e.end) : '') + (e.note ? ' · ' + e.note : '') }); });
     p.appendChild(h('div', { class: 'card' }, [head('MANAGE', '올라간 일정·공지'), h('div', { class: 'card-b' }, mk.map(function (m) {
       var del = h('button', { class: 'linkbtn del-b', type: 'button', text: '삭제' });
       del.addEventListener('click', function () {
@@ -2016,8 +2017,8 @@
   function renderToday() {
     var p = document.getElementById('panel-today'); clear(p);
     var byDate = function (a, b) { return toUTC(a.date) - toUTC(b.date); };
-    var base = DATA.events.filter(function (e) { return diffDays(e.end || e.date, TODAY) >= 0; }).sort(byDate);   // 반 공통 일정(헤더용)
-    var upcoming = allEvents().filter(function (e) { return diffDays(e.end || e.date, TODAY) >= 0; }).sort(byDate);   // 내 일정 포함
+    var base = DATA.events.filter(function (e) { return listable(e) && diffDays(e.end || e.date, TODAY) >= 0; }).sort(byDate);   // 반 공통 일정(헤더용)
+    var upcoming = allEvents().filter(function (e) { return listable(e) && diffDays(e.end || e.date, TODAY) >= 0; }).sort(byDate);   // 내 일정 포함
     var hot = upcoming.filter(function (e) { return diffDays(e.date, TODAY) <= 7; });
     var rest = upcoming.filter(function (e) { return diffDays(e.date, TODAY) > 7; });
 
