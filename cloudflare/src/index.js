@@ -72,6 +72,21 @@ async function savePrep(env, b, who) {
   return json({ ok: true });
 }
 
+// 오늘의 알림장: 날짜별 전달사항·준비물·숙제 (관리자/교사가 씀, 학생은 읽기만). 최근 30일만 보관
+async function saveDaily(env, b, who) {
+  const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
+  if (typeof b.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(b.date)) return json({ error: 'date' }, 400);
+  const data = JSON.parse(await env.CLASS_KV.get('data') || '{}');
+  data.daily = data.daily && typeof data.daily === 'object' ? data.daily : {};
+  const kinds = ['notice', 'prep', 'hw', 'time'];
+  const items = (Array.isArray(b.items) ? b.items : []).map((i) => ({ k: kinds.includes(i && i.k) ? i.k : 'notice', t: str(i && i.t, 160) })).filter((i) => i.t).slice(0, 14);
+  if (b.op === 'delete' || !items.length) delete data.daily[b.date];
+  else data.daily[b.date] = { items, by: who, at: new Date().toISOString().slice(0, 16) };
+  Object.keys(data.daily).sort().reverse().slice(30).forEach((k) => delete data.daily[k]);
+  await env.CLASS_KV.put('data', JSON.stringify(data));
+  return json({ ok: true });
+}
+
 async function personalized(env, me) {
   const d = JSON.parse(await env.CLASS_KV.get('data') || '{}');
   d.me = { n: me.n, name: me.name, role: me.role === 'teacher' ? 'teacher' : 'student', admin: !!me.admin };
@@ -83,6 +98,7 @@ async function personalized(env, me) {
     });
   }
   if (me.role !== 'teacher' && await env.CLASS_KV.get('tut:' + me.n)) d.tutorial = true;   // 다음 로그인 때 가이드를 보여 달라고 표시된 학생
+  if (me.role !== 'teacher') { const ms = JSON.parse(await env.CLASS_KV.get('msg:' + me.n) || '[]'); if (ms.length) d.messages = ms.slice(-20).reverse(); }   // 관리자가 보낸 쪽지(받는 사람 본인 것만)
   const off = JSON.parse(await env.CLASS_KV.get('official:' + me.n) || 'null');   // 선생님이 올린 학교 기준 선택과목(암호화 대상 아님)
   if (off) d.official = off;
   return d;
@@ -184,6 +200,16 @@ export default {
       await env.CLASS_KV.put(key, JSON.stringify({ n: me.n, name: me.name, text: msg, file, at: ts }));
       return json({ ok: true });
     }
+    if (url.pathname === '/api/msg-read' && request.method === 'POST') {
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const b = await request.json().catch(() => ({}));
+      const ms = JSON.parse(await env.CLASS_KV.get('msg:' + tok.w) || '[]');
+      for (const m of ms) if (b.all || m.id === b.id) m.read = true;
+      await env.CLASS_KV.put('msg:' + tok.w, JSON.stringify(ms));
+      return json({ ok: true });
+    }
     if (url.pathname === '/api/tutorial-done' && request.method === 'POST') {
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
       const tok = await verifyToken(env, auth, 'full');
@@ -224,6 +250,38 @@ export default {
       if (!me || !me.admin) return json({ error: 'forbidden' }, 403);
       const sub = url.pathname.slice('/api/admin/'.length);
       if (sub === 'prep' && request.method === 'POST') return savePrep(env, await request.json().catch(() => ({})), me.name);
+      if (sub === 'daily' && request.method === 'POST') return saveDaily(env, await request.json().catch(() => ({})), me.name);
+      if (sub === 'msg' && request.method === 'POST') {   // 쪽지 보내기: 받는 사람(들)에게만 보임
+        const b = await request.json().catch(() => ({}));
+        const text = typeof b.text === 'string' ? b.text.trim().slice(0, 300) : '';
+        if (!text) return json({ error: 'text' }, 400);
+        const students = roster.filter((x) => x.role !== 'teacher');
+        const want = b.to === 'all' ? students.map((x) => x.n) : (Array.isArray(b.to) ? b.to : []);
+        const targets = students.filter((x) => want.includes(x.n));
+        if (!targets.length || targets.length > 40) return json({ error: 'to' }, 400);
+        const at = new Date().toISOString().slice(0, 16);
+        for (const t of targets) {
+          const ms = JSON.parse(await env.CLASS_KV.get('msg:' + t.n) || '[]');
+          ms.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), from: me.name, text, at, read: false });
+          await env.CLASS_KV.put('msg:' + t.n, JSON.stringify(ms.slice(-20)));
+        }
+        return json({ ok: true, sent: targets.length });
+      }
+      if (sub === 'msgs' && request.method === 'GET') {   // 보낸 쪽지 목록(읽음 여부 포함)
+        const out = [];
+        for (const k of (await env.CLASS_KV.list({ prefix: 'msg:' })).keys) {
+          const n = parseInt(k.name.slice(4), 10), st = roster.find((x) => x.n === n);
+          for (const m of JSON.parse(await env.CLASS_KV.get(k.name) || '[]')) out.push({ id: m.id, n, name: st ? st.name : String(n), text: m.text, at: m.at, read: !!m.read });
+        }
+        out.sort((x, y) => (x.at < y.at ? 1 : -1));
+        return json({ msgs: out.slice(0, 60) });
+      }
+      if (sub === 'msg-del' && request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        const ms = JSON.parse(await env.CLASS_KV.get('msg:' + b.n) || '[]');
+        await env.CLASS_KV.put('msg:' + b.n, JSON.stringify(ms.filter((m) => m.id !== b.id)));
+        return json({ ok: true });
+      }
       if (sub === 'overview' && request.method === 'GET') {
         const names = async (prefix) => (await env.CLASS_KV.list({ prefix })).keys;
         const [pw, sh, off, subs, ups] = await Promise.all([names('pw:'), names('share:'), names('official:'), names('submit:'), names('upload:')]);
@@ -359,6 +417,7 @@ export default {
         return json({ ok: true });
       }
       if (sub === 'prep' && request.method === 'POST') return savePrep(env, b, '선생님');
+      if (sub === 'daily' && request.method === 'POST') return saveDaily(env, b, '선생님');
       if (sub === 'content' && request.method === 'POST') {
         const data = JSON.parse(await env.CLASS_KV.get('data') || '{}');
         const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');

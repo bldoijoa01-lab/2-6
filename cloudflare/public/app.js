@@ -443,6 +443,8 @@
     // 인사
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: me.name + '님, 안녕 👋' }),
       h('div', { class: 'greet-s', text: me.n + '번 · ' + DATA.className })]));
+    var mc0 = msgCard(); if (mc0) p.appendChild(mc0);   // 받은 쪽지
+    p.appendChild(dailyCard());   // 오늘의 알림장
 
     var grid = [];
     if (exam) {
@@ -458,9 +460,8 @@
     var ns = nsStat();
     if (ns) grid.push(stat('내신 평균', nsFmt(ns.avg), '9등급제 ' + c9txt(ns.avg), function () { goTab('naesin'); }));
     var moveTxt = me.n <= mv.frontCount ? mv.otherRoom + '로 이동' : '우리 교실 그대로';
-    grid.push(stat('내 원반', moveTxt, me.n + '번 · ' + (me.n <= mv.frontCount ? '앞번호 ' + mv.frontCount + '명 이동' : mv.ownRoom + ' 응시'), function () { goTab('exam'); setTimeout(function () { jumpTo('sec-move'); }, 60); }));
-    grid.push(stat('특별실 응시', DATA.special.length ? DATA.special.length + '과목' : '없음',
-      DATA.special.length ? DATA.special[0].label.split(' ')[0] + ' 시작' : '원반에서 응시', function () { goTab('exam'); setTimeout(function () { jumpTo('sec-special'); }, 60); }));
+    var spTxt = DATA.special.length ? ' · 특별실 ' + DATA.special.length + '과목(' + DATA.special[0].label.split(' ')[0] + ' 시작)' : '';
+    grid.push(stat('기말고사 공지 확인', moveTxt, me.n + '번 · ' + (me.n <= mv.frontCount ? '앞번호 ' + mv.frontCount + '명 이동' : mv.ownRoom + ' 응시') + spTxt + ' →', function () { goTab('exam'); setTimeout(function () { jumpTo('sec-move'); }, 60); }, DATA.special.length || me.n <= mv.frontCount ? 'hot' : ''));
     grid.push(stat('예정 일정', upcoming.length + '개', others[0] ? '다음: ' + others[0].title : '예정 없음', function () { goTab('today'); }));
     grid.push(stat('등급컷 아카이브', '등급컷 보기', '과목별 컷 · 내 예상 등급', function () { goTab('grade'); }));
     (DATA.notices || []).forEach(function (n) {
@@ -978,6 +979,7 @@
       top.lastChild.appendChild(h('div', { class: 'note-sm', text: '관리자는 암호화된 성적·내신은 볼 수 없어요. 가입 여부, 공유 여부, 학생이 보낸 선택과목·파일만 보여요.  마지막 갱신 ' + new Date(j.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) }));
       top.lastChild.appendChild(refresh);
       clear(body);
+      body.appendChild(adminMsgCard(S));
 
       // 학생 표
       var tgl = h('button', { class: 'linkbtn', type: 'button', text: onlyNo ? '전체 보기' : '미가입만 보기' });
@@ -1030,6 +1032,7 @@
   function renderTeacher() {
     var p = document.getElementById('panel-teacher'); clear(p);
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: DATA.me.name + ' 선생님, 안녕하세요 👋' }), h('div', { class: 'greet-s', text: DATA.className + ' 교사 도구' })]));
+    p.appendChild(dailyCard());
 
 
     // 부반장의 쪽지: 전체 선택과목 명단 요청 (명단이 다 올라올 때까지 맨 위에 표시, 로그인 때 팝업으로 한 번)
@@ -2108,6 +2111,115 @@
     ttCard = buildTableCard(); document.getElementById('panel-exam').appendChild(ttCard);
   }
 
+
+
+
+  // ---------- 쪽지 (관리자 → 학생) ----------
+  function msgApi(path, body) {
+    return fetch('/api/' + path, { method: 'POST', headers: { authorization: 'Bearer ' + (load('tok26') || ''), 'content-type': 'application/json' }, body: JSON.stringify(body) }).then(function (r) { return r.json().then(function (j) { j._ok = r.ok; return j; }); });
+  }
+  function msgCard() {   // 홈: 받은 쪽지
+    var ms = (DATA.messages || []); if (!ms.length || PREVIEW) return null;
+    var unread = ms.filter(function (m) { return !m.read; }), box = h('div', { class: 'card msg-card' });
+    function one(m) {
+      var rd = h('button', { class: 'btn msg-ok', type: 'button', text: '확인했어요' });
+      rd.addEventListener('click', function () { m.read = true; msgApi('msg-read', { id: m.id }); renderHome(); });
+      return h('div', { class: 'msg' + (m.read ? ' read' : '') }, [h('div', { class: 'msg-h' }, [h('b', { text: '💌 ' + m.from }), h('small', { text: m.at.replace('T', ' ').slice(5) }), m.read ? null : h('span', { class: 'msg-new', text: 'NEW' })]), h('p', { class: 'msg-t', text: m.text }), m.read ? null : rd]);
+    }
+    box.appendChild(head('MESSAGE', unread.length ? '쪽지가 왔어요 (' + unread.length + ')' : '받은 쪽지'));
+    var body = h('div', { class: 'card-b' });
+    unread.forEach(function (m) { body.appendChild(one(m)); });
+    var old = ms.filter(function (m) { return m.read; });
+    if (old.length) body.appendChild(h('details', { class: 'gc-more' }, [h('summary', { text: '읽은 쪽지 (' + old.length + ')' })].concat(old.map(one))));
+    box.appendChild(body);
+    if (!unread.length) box.classList.add('msg-quiet');
+    return box;
+  }
+  function adminMsgCard(S) {   // 관리자: 쪽지 보내기 + 보낸 목록
+    var box = h('div', { class: 'card' }), sel = {}, sent = h('div', { class: 'msg-sent' });
+    var chips = h('div', { class: 'el-chips msg-to' }), ta = h('textarea', { class: 'field', rows: '3', maxlength: '300', placeholder: '쪽지 내용 (300자까지)' });
+    var cnt = h('small', { class: 'msg-cnt', text: '0명 선택' }), send = h('button', { class: 'btn', type: 'button', text: '쪽지 보내기' });
+    function upd() { cnt.textContent = Object.keys(sel).length + '명 선택'; }
+    var allB = h('button', { class: 'el-chip', type: 'button', text: '전체 선택' });
+    allB.addEventListener('click', function () { var all = Object.keys(sel).length === S.length; S.forEach(function (s) { if (all) delete sel[s.n]; else sel[s.n] = 1; }); Array.prototype.forEach.call(chips.querySelectorAll('.msg-chip'), function (c, i) { var on = !!sel[S[i].n]; c.classList.toggle('on', on); c.setAttribute('aria-pressed', on ? 'true' : 'false'); }); upd(); });
+    chips.appendChild(allB);
+    S.forEach(function (s) {
+      var c = h('button', { class: 'el-chip msg-chip', type: 'button', 'aria-pressed': 'false', text: s.n + ' ' + s.name });
+      c.addEventListener('click', function () { if (sel[s.n]) delete sel[s.n]; else sel[s.n] = 1; var on = !!sel[s.n]; c.classList.toggle('on', on); c.setAttribute('aria-pressed', on ? 'true' : 'false'); upd(); });
+      chips.appendChild(c);
+    });
+    function loadSent() {
+      aApi('msgs').then(function (j) {
+        clear(sent); if (!j._ok || !j.msgs.length) return;
+        sent.appendChild(h('div', { class: 'eyebrow', text: '보낸 쪽지' }));
+        j.msgs.slice(0, 20).forEach(function (m) {
+          var del = h('button', { class: 'linkbtn del-b', type: 'button', text: '삭제' });
+          del.addEventListener('click', function () { if (!confirm(m.name + '에게 보낸 쪽지를 지울까요? 받은 사람 화면에서도 사라져요.')) return; aApi('msg-del', { n: m.n, id: m.id }).then(loadSent); });
+          sent.appendChild(h('div', { class: 'msg-row' }, [h('div', null, [h('b', { text: m.n + '번 ' + m.name }), h('span', { class: 'msg-st' + (m.read ? ' ok' : ''), text: m.read ? '읽음' : '안 읽음' }), h('small', { text: m.at.replace('T', ' ').slice(5) })]), h('p', { text: m.text }), del]));
+        });
+      });
+    }
+    send.addEventListener('click', function () {
+      var to = Object.keys(sel).map(Number), text = ta.value.trim();
+      if (!to.length) { alert('받는 사람을 골라 주세요.'); return; } if (!text) { alert('내용을 써 주세요.'); return; }
+      if (!confirm(to.length + '명에게 쪽지를 보낼까요?')) return;
+      send.disabled = true;
+      aApi('msg', { to: to, text: text }).then(function (j) { send.disabled = false; if (!j._ok) { alert('보내지 못했어요.'); return; } ta.value = ''; alert(j.sent + '명에게 보냈어요.'); loadSent(); });
+    });
+    box.appendChild(head('MESSAGE', '쪽지 보내기'));
+    box.appendChild(h('div', { class: 'card-b' }, [h('div', { class: 'note-sm', text: '고른 사람의 홈 화면에만 보여요. 받은 사람이 "확인했어요"를 누르면 읽음으로 표시돼요.' }), chips, cnt, ta, send, sent]));
+    loadSent(); return box;
+  }
+
+  // ---------- 오늘의 알림장 (날짜별 전달사항·준비물·숙제) ----------
+  var DAILY_KINDS = { notice: ['📢', '전달'], prep: ['🎒', '준비물'], hw: ['📝', '숙제·수행'], time: ['⏰', '시간·장소'] };
+  function isoToday() { return new Date(TODAY).toISOString().slice(0, 10); }
+  function dailyApi(body) { return DATA.me.role === 'teacher' ? tApi('daily', body) : aApi('daily', body); }
+  function dailyCard() {
+    var canEdit = !PREVIEW && (DATA.me.role === 'teacher' || DATA.me.admin), box = h('div', { class: 'card daily-card' });
+    function items(list) {
+      return h('ul', { class: 'dl-list' }, list.map(function (i) { var k = DAILY_KINDS[i.k] || DAILY_KINDS.notice; return h('li', { class: 'dl-' + i.k }, [h('span', { class: 'dl-k', text: k[0] + ' ' + k[1] }), h('span', { class: 'dl-t', text: i.t })]); }));
+    }
+    function view() {
+      clear(box);
+      var daily = DATA.daily || {}, today = isoToday(), cur = daily[today];
+      var past = Object.keys(daily).filter(function (d) { return d < today; }).sort().reverse().slice(0, 7);
+      var future = Object.keys(daily).filter(function (d) { return d > today; }).sort()[0];
+      var body = h('div', { class: 'card-b' });
+      box.appendChild(head('TODAY NOTE', '오늘의 알림장'));
+      if (cur) { body.appendChild(items(cur.items)); body.appendChild(h('div', { class: 'dl-by', text: fmt(today) + ' · ' + (cur.by || '') + (cur.at ? ' · ' + cur.at.slice(11) + ' 업데이트' : '') })); }
+      else body.appendChild(h('div', { class: 'empty', text: '오늘 알림장은 아직 안 올라왔어요. 올라오면 여기에 떠요 📒' }));
+      if (future) { var fd = daily[future]; body.appendChild(h('details', { class: 'gc-more dl-more' }, [h('summary', { text: '📅 ' + fmt(future) + ' 알림장 미리 보기' }), items(fd.items)])); }
+      if (past.length) body.appendChild(h('details', { class: 'gc-more dl-more' }, [h('summary', { text: '지난 알림장 (' + past.length + ')' })].concat(past.map(function (d) { return h('div', { class: 'dl-day' }, [h('b', { text: fmt(d) }), items(daily[d].items)]); }))));
+      if (canEdit) { var ed = h('button', { class: 'linkbtn', type: 'button', text: '✏️ 알림장 쓰기 · 편집' }); ed.addEventListener('click', edit); body.appendChild(ed); }
+      box.appendChild(body);
+    }
+    function edit() {
+      clear(box); box.appendChild(head('TODAY NOTE', '알림장 쓰기'));
+      var body = h('div', { class: 'card-b' }), dateIn = h('input', { class: 'field', type: 'date', value: isoToday(), 'aria-label': '날짜' }), rows = [], list = h('div', { class: 'dl-edit' });
+      function load() { rows = ((DATA.daily || {})[dateIn.value] || { items: [] }).items.map(function (i) { return { k: i.k, t: i.t }; }); if (!rows.length) rows.push({ k: 'notice', t: '' }); draw(); }
+      function draw() {
+        clear(list);
+        rows.forEach(function (r, ri) {
+          var sel = h('select', { class: 'field dl-sel', 'aria-label': '종류' }, Object.keys(DAILY_KINDS).map(function (k) { var o = h('option', { value: k, text: DAILY_KINDS[k][0] + ' ' + DAILY_KINDS[k][1] }); if (k === r.k) o.selected = true; return o; }));
+          sel.addEventListener('change', function () { r.k = sel.value; });
+          var inp = h('input', { class: 'field dl-in', type: 'text', maxlength: '160', placeholder: '내용 (예: 내일 체육복 지참)', value: r.t, 'aria-label': '내용' });
+          inp.addEventListener('input', function () { r.t = inp.value; });
+          var del = h('button', { class: 'linkbtn del-b', type: 'button', text: '삭제' }); del.addEventListener('click', function () { rows.splice(ri, 1); if (!rows.length) rows.push({ k: 'notice', t: '' }); draw(); });
+          list.appendChild(h('div', { class: 'dl-row' }, [sel, inp, del]));
+        });
+      }
+      var add = h('button', { class: 'linkbtn', type: 'button', text: '＋ 줄 추가' }); add.addEventListener('click', function () { rows.push({ k: 'notice', t: '' }); draw(); });
+      var save = h('button', { class: 'btn', type: 'button', text: '올리기' }), cancel = h('button', { class: 'linkbtn', type: 'button', text: '취소' }), del2 = h('button', { class: 'linkbtn del-b', type: 'button', text: '이 날 알림장 지우기' });
+      function done(j, items) { if (!j._ok) { save.disabled = false; alert('저장하지 못했어요.'); return; } DATA.daily = DATA.daily || {}; if (items.length) DATA.daily[dateIn.value] = { items: items, by: DATA.me.role === 'teacher' ? '선생님' : DATA.me.name, at: new Date().toISOString().slice(0, 16) }; else delete DATA.daily[dateIn.value]; view(); }
+      save.addEventListener('click', function () { var items = rows.filter(function (r) { return r.t.trim(); }).map(function (r) { return { k: r.k, t: r.t.trim() }; }); save.disabled = true; dailyApi({ op: 'set', date: dateIn.value, items: items }).then(function (j) { done(j, items); }); });
+      del2.addEventListener('click', function () { if (!confirm(fmt(dateIn.value) + ' 알림장을 지울까요?')) return; dailyApi({ op: 'delete', date: dateIn.value }).then(function (j) { done(j, []); }); });
+      cancel.addEventListener('click', view); dateIn.addEventListener('change', load);
+      [h('div', { class: 'note-sm', text: '날짜를 바꿔서 내일·다음 주 알림장을 미리 써 둘 수도 있어요. 학생은 읽기만 돼요.' }), dateIn, list, add, h('div', { class: 'pr-act' }, [save, cancel, del2])].forEach(function (x) { body.appendChild(x); });
+      box.appendChild(body); load();
+    }
+    view(); return box;
+  }
 
   // ---------- 시험 대비 (과목별 시험 범위 · 팁) ----------
   var prepMine = true;
