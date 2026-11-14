@@ -2149,7 +2149,7 @@
       rd.addEventListener('click', function () { m.read = true; msgApi('msg-read', { id: m.id }); renderHome(); });
       var rp = m.fromN ? h('button', { class: 'linkbtn', type: 'button', text: '↩ 답장' }) : null;
       if (rp) rp.addEventListener('click', function () { MSG_REPLY = m.fromN; if (!m.read) { m.read = true; msgApi('msg-read', { id: m.id }); } goTab('home'); });
-      return h('div', { class: 'msg' + (m.read ? ' read' : '') }, [h('div', { class: 'msg-h' }, [h('b', { text: '💌 ' + m.from }), h('small', { text: m.at.replace('T', ' ').slice(5) }), m.read ? null : h('span', { class: 'msg-new', text: 'NEW' })]), h('p', { class: 'msg-t', text: m.text }), h('div', { class: 'msg-act' }, [m.read ? null : rd, rp])]);
+      return h('div', { class: 'msg' + (m.read ? ' read' : '') }, [h('div', { class: 'msg-h' }, [h('b', { text: '💌 ' + m.from }), h('small', { text: kstText(m.at) }), m.read ? null : h('span', { class: 'msg-new', text: 'NEW' })]), h('p', { class: 'msg-t', text: m.text }), h('div', { class: 'msg-act' }, [m.read ? null : rd, rp])]);
     }
     box.appendChild(head('MESSAGE', unread.length ? '쪽지가 왔어요 (' + unread.length + ')' : '받은 쪽지'));
     var body = h('div', { class: 'card-b' });
@@ -2159,6 +2159,13 @@
     box.appendChild(body);
     if (!unread.length) box.classList.add('msg-quiet');
     return box;
+  }
+  function kstText(at) {   // 서버가 UTC로 저장한 시각('YYYY-MM-DDTHH:MM')을 한국 시간 'MM-DD HH:mm' 으로
+    try {
+      var t = new Date(/Z|[+-]\d\d:?\d\d$/.test(at) ? at : at + 'Z'); if (isNaN(t)) return String(at);
+      var p = {}; new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }).formatToParts(t).forEach(function (x) { p[x.type] = x.value; });
+      return p.month + '-' + p.day + ' ' + (p.hour === '24' ? '00' : p.hour) + ':' + p.minute;
+    } catch (e) { return String(at).replace('T', ' ').slice(5); }
   }
   var MSG_REPLY = null;   // 답장: 받는 사람 미리 선택
   function msgGet(path) { return fetch('/api/' + path, { headers: { authorization: 'Bearer ' + (load('tok26') || '') }, cache: 'no-store' }).then(function (r) { return r.json().then(function (j) { j._ok = r.ok; return j; }); }); }
@@ -2189,7 +2196,7 @@
         j.msgs.slice(0, 15).forEach(function (m) {
           var del = h('button', { class: 'linkbtn del-b', type: 'button', text: '삭제' });
           del.addEventListener('click', function () { if (!confirm(m.name + '에게 보낸 쪽지를 지울까요? 받은 사람 화면에서도 사라져요.')) return; msgApi('msg-del', { n: m.n, id: m.id }).then(loadSent); });
-          sent.appendChild(h('div', { class: 'msg-row' }, [h('div', null, [h('b', { text: m.n + '번 ' + m.name }), h('span', { class: 'msg-st' + (m.read ? ' ok' : ''), text: m.read ? '읽음' : '안 읽음' }), h('small', { text: m.at.replace('T', ' ').slice(5) })]), h('p', { text: m.text }), del]));
+          sent.appendChild(h('div', { class: 'msg-row' }, [h('div', null, [h('b', { text: m.n + '번 ' + m.name }), h('span', { class: 'msg-st' + (m.read ? ' ok' : ''), text: m.read ? '읽음' : '안 읽음' }), h('small', { text: kstText(m.at) })]), h('p', { text: m.text }), del]));
         });
       });
     }
@@ -2221,7 +2228,7 @@
       var future = Object.keys(daily).filter(function (d) { return d > today; }).sort()[0];
       var body = h('div', { class: 'card-b' });
       box.appendChild(head('TODAY NOTE', '오늘의 알림장'));
-      if (cur) { body.appendChild(items(cur.items)); body.appendChild(h('div', { class: 'dl-by', text: fmt(today) + ' · ' + (cur.by || '') + (cur.at ? ' · ' + cur.at.slice(11) + ' 업데이트' : '') })); }
+      if (cur) { body.appendChild(items(cur.items)); body.appendChild(h('div', { class: 'dl-by', text: fmt(today) + ' · ' + (cur.by || '') + (cur.at && cur.at.length > 10 ? ' · ' + kstText(cur.at).slice(6) + ' 업데이트' : '') })); }
       else body.appendChild(h('div', { class: 'empty', text: '오늘 알림장은 아직 안 올라왔어요. 올라오면 여기에 떠요 📒' }));
       if (future) { var fd = daily[future]; body.appendChild(h('details', { class: 'gc-more dl-more' }, [h('summary', { text: '📅 ' + fmt(future) + ' 알림장 미리 보기' }), items(fd.items)])); }
       if (past.length) body.appendChild(h('details', { class: 'gc-more dl-more' }, [h('summary', { text: '지난 알림장 (' + past.length + ')' })].concat(past.map(function (d) { return h('div', { class: 'dl-day' }, [h('b', { text: fmt(d) }), items(daily[d].items)]); }))));
