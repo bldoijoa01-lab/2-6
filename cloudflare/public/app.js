@@ -793,20 +793,8 @@
     var sems = {};   // 샘플 내신 (1-1, 1-2, 2-1)
     ['1-1', '1-2', '2-1'].forEach(function (k, ki) { var gs = [[1, 2, 1, 2, 2, 1], [2, 2, 3, 2, 2, 3], [2, 3, 2, 3, 3, 2]][ki]; sems[k] = nsDefault(k).map(function (r, i) { r.g = r.x ? 0 : gs[i % gs.length]; return r; }); });
     PREVIEW.prefs.naesin = { sems: sems };
-    init(window.makeDemo(TODAY));
-    document.body.classList.add('preview');
-    document.getElementById('previewBar').hidden = false;
-    document.getElementById('previewWho').textContent = '👀 게스트 둘러보기 · 샘플 데이터 · 읽기 전용';
-    document.getElementById('previewExit').textContent = '로그인하러 가기';
-    document.getElementById('who').textContent = '게스트';
-  }
-  function enterGuest() {   // 게스트 둘러보기: 서버·계정 없이 샘플 데이터로 앱을 읽기 전용으로 체험
-    if (!window.makeDemo) return;
-    PREVIEW = { guest: true, n: 15, name: '게스트', scores: {}, prefs: JSON.parse(JSON.stringify(window.DEMO_PREFS)) };
-    var sems = {};   // 샘플 내신 (1-1, 1-2, 2-1)
-    ['1-1', '1-2', '2-1'].forEach(function (k, ki) { var gs = [[1, 2, 1, 2, 2, 1], [2, 2, 3, 2, 2, 3], [2, 3, 2, 3, 3, 2]][ki]; sems[k] = nsDefault(k).map(function (r, i) { r.g = r.x ? 0 : gs[i % gs.length]; return r; }); });
-    PREVIEW.prefs.naesin = { sems: sems };
-    init(window.makeDemo(TODAY));
+    var demo = window.makeDemo(TODAY); demo.tutorial = true;   // 게스트는 시작할 때 첫 카드뉴스(가이드)를 보여 줌
+    init(demo);
     document.body.classList.add('preview');
     document.getElementById('previewBar').hidden = false;
     document.getElementById('previewWho').textContent = '👀 게스트 둘러보기 · 샘플 데이터 · 읽기 전용';
@@ -814,7 +802,6 @@
     document.getElementById('who').textContent = '게스트';
   }
   function exitPreview() {
-    if (PREVIEW && PREVIEW.guest) { location.hash = ''; location.reload(); return; }
     if (PREVIEW && PREVIEW.guest) { location.hash = ''; location.reload(); return; }
     PREVIEW = null; GC_STATE = GC ? 'dirty' : 'idle'; document.body.classList.remove('preview'); document.getElementById('previewBar').hidden = true;
     fetch('/api/data', { headers: { authorization: 'Bearer ' + load('tok26') }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
@@ -880,8 +867,8 @@
       document.removeEventListener('keydown', onKey);
       wrap.classList.add('out'); setTimeout(function () { wrap.remove(); }, 350);
       if (!opts.replay) {
-        store('tutorial26', 'done');
-        if (DATA && DATA.tutorial) { DATA.tutorial = false; fetch('/api/tutorial-done', { method: 'POST', headers: { authorization: 'Bearer ' + load('tok26') } }).catch(function () {}); }   // 서버 표시 지우기
+        if (!(PREVIEW && PREVIEW.guest)) store('tutorial26', 'done');
+        if (DATA && DATA.tutorial) { DATA.tutorial = false; if (!(PREVIEW && PREVIEW.guest)) fetch('/api/tutorial-done', { method: 'POST', headers: { authorization: 'Bearer ' + load('tok26') } }).catch(function () {}); }   // 서버 표시 지우기
       }
     }
     function onKey(e) { if (e.key === 'ArrowRight') next.click(); else if (e.key === 'ArrowLeft' && i > 0) back.click(); else if (e.key === 'Escape') close(); }
@@ -2588,8 +2575,6 @@
     }
     btn.addEventListener('click', go);
     pwIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
-    var guestBtn = h('button', { class: 'btn out guest-btn', type: 'button', text: '👀 게스트로 둘러보기' });
-    guestBtn.addEventListener('click', enterGuest);
     var guestBtn = h('button', { class: 'btn out guest-btn', type: 'button', text: '👀 게스트로 둘러보기' });
     guestBtn.addEventListener('click', enterGuest);
     card([h('div', { class: 'login-brand' }, [logoSvg(), h('b', { text: '2-6 알림장' })]), h('div', { class: 'login-sub', text: '우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), nameIn, numIn, pwIn, btn, err, h('div', { class: 'guest-or', text: '또는' }), guestBtn]);
