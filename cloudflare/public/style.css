@@ -874,3 +874,4 @@ button:active,.btn:active,.stat:active,.myev:active,.nudge:active,.el-chip:activ
 .msg-act{display:flex; align-items:center; gap:14px} .msg-compose{margin-bottom:16px}
 .msg-det{margin-bottom:16px} .msg-inner .card-b{padding-top:6px}
 @media (min-width:1100px){ #panel-home > .msg-det{grid-column:1/-1; margin:0} }
+.guest-or{text-align:center; color:var(--mute); font-size:12px; font-weight:700; margin:12px 0 8px} .guest-btn{width:100%}

@@ -442,7 +442,7 @@
     }
     // 인사
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: me.name + '님, 안녕 👋' }),
-      h('div', { class: 'greet-s', text: me.n + '번 · ' + DATA.className })]));
+      h('div', { class: 'greet-s', text: PREVIEW && PREVIEW.guest ? '둘러보기 모드 · 모든 내용은 샘플이에요' : me.n + '번 · ' + DATA.className })]));
     var mc0 = msgCard(); if (mc0) p.appendChild(mc0);   // 받은 쪽지
     p.appendChild(dailyCard());   // 오늘의 알림장
     if (!PREVIEW) {   // 쪽지 보내기 (눌러서 펼침 — 펼칠 때 받는 사람 목록을 불러옴)
@@ -787,7 +787,35 @@
       selectTab('home'); window.scrollTo({ top: 0 });
     });
   }
+  function enterGuest() {   // 게스트 둘러보기: 서버·계정 없이 샘플 데이터로 앱을 읽기 전용으로 체험
+    if (!window.makeDemo) return;
+    PREVIEW = { guest: true, n: 15, name: '게스트', scores: {}, prefs: JSON.parse(JSON.stringify(window.DEMO_PREFS)) };
+    var sems = {};   // 샘플 내신 (1-1, 1-2, 2-1)
+    ['1-1', '1-2', '2-1'].forEach(function (k, ki) { var gs = [[1, 2, 1, 2, 2, 1], [2, 2, 3, 2, 2, 3], [2, 3, 2, 3, 3, 2]][ki]; sems[k] = nsDefault(k).map(function (r, i) { r.g = r.x ? 0 : gs[i % gs.length]; return r; }); });
+    PREVIEW.prefs.naesin = { sems: sems };
+    init(window.makeDemo(TODAY));
+    document.body.classList.add('preview');
+    document.getElementById('previewBar').hidden = false;
+    document.getElementById('previewWho').textContent = '👀 게스트 둘러보기 · 샘플 데이터 · 읽기 전용';
+    document.getElementById('previewExit').textContent = '로그인하러 가기';
+    document.getElementById('who').textContent = '게스트';
+  }
+  function enterGuest() {   // 게스트 둘러보기: 서버·계정 없이 샘플 데이터로 앱을 읽기 전용으로 체험
+    if (!window.makeDemo) return;
+    PREVIEW = { guest: true, n: 15, name: '게스트', scores: {}, prefs: JSON.parse(JSON.stringify(window.DEMO_PREFS)) };
+    var sems = {};   // 샘플 내신 (1-1, 1-2, 2-1)
+    ['1-1', '1-2', '2-1'].forEach(function (k, ki) { var gs = [[1, 2, 1, 2, 2, 1], [2, 2, 3, 2, 2, 3], [2, 3, 2, 3, 3, 2]][ki]; sems[k] = nsDefault(k).map(function (r, i) { r.g = r.x ? 0 : gs[i % gs.length]; return r; }); });
+    PREVIEW.prefs.naesin = { sems: sems };
+    init(window.makeDemo(TODAY));
+    document.body.classList.add('preview');
+    document.getElementById('previewBar').hidden = false;
+    document.getElementById('previewWho').textContent = '👀 게스트 둘러보기 · 샘플 데이터 · 읽기 전용';
+    document.getElementById('previewExit').textContent = '로그인하러 가기';
+    document.getElementById('who').textContent = '게스트';
+  }
   function exitPreview() {
+    if (PREVIEW && PREVIEW.guest) { location.hash = ''; location.reload(); return; }
+    if (PREVIEW && PREVIEW.guest) { location.hash = ''; location.reload(); return; }
     PREVIEW = null; GC_STATE = GC ? 'dirty' : 'idle'; document.body.classList.remove('preview'); document.getElementById('previewBar').hidden = true;
     fetch('/api/data', { headers: { authorization: 'Bearer ' + load('tok26') }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       DATA = d; document.body.classList.add('teacher');
@@ -1706,6 +1734,7 @@
   function loadGrade() {
     if (gradeGate()) return;
     var p = document.getElementById('panel-grade');
+    if (PREVIEW && PREVIEW.guest) { clear(p); p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '과목별 등급컷은 로그인하면 볼 수 있어요 🔒' })])])); return; }
     if (GC_STATE === 'dirty') { GC_STATE = 'done'; renderGrade(); return; }
     if (GC_STATE === 'loading' || GC_STATE === 'done') return;
     GC_STATE = 'loading'; clear(p);
@@ -2559,7 +2588,11 @@
     }
     btn.addEventListener('click', go);
     pwIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
-    card([h('div', { class: 'login-brand' }, [logoSvg(), h('b', { text: '2-6 알림장' })]), h('div', { class: 'login-sub', text: '우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), nameIn, numIn, pwIn, btn, err]);
+    var guestBtn = h('button', { class: 'btn out guest-btn', type: 'button', text: '👀 게스트로 둘러보기' });
+    guestBtn.addEventListener('click', enterGuest);
+    var guestBtn = h('button', { class: 'btn out guest-btn', type: 'button', text: '👀 게스트로 둘러보기' });
+    guestBtn.addEventListener('click', enterGuest);
+    card([h('div', { class: 'login-brand' }, [logoSvg(), h('b', { text: '2-6 알림장' })]), h('div', { class: 'login-sub', text: '우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), nameIn, numIn, pwIn, btn, err, h('div', { class: 'guest-or', text: '또는' }), guestBtn]);
   }
 
   function showSetup(setupToken, num) {
