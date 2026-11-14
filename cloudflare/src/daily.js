@@ -5,14 +5,29 @@ export const addDaysISO = (iso, n) => new Date(Date.parse(iso + 'T00:00:00Z') + 
 const diff = (a, b) => Math.round((Date.parse(a + 'T00:00:00Z') - Date.parse(b + 'T00:00:00Z')) / 864e5);
 export const fmtKo = (iso) => `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}(${WD[new Date(iso + 'T00:00:00Z').getUTCDay()]})`;
 const DUE = /수행|제출|신청|마감|과제|보고서|발표|퀴즈|확인서/;
-const RANK = { time: 0, hw: 1, notice: 2, prep: 3 };
+const RANK = { pin: -1, time: 0, hw: 1, notice: 2, prep: 3 };
+export const pinKey = (e) => e.date + '|' + e.title;
+
+// 내가 알림장에 담은 일정(pins: 'YYYY-MM-DD|제목' 배열): 시작 7일 전부터 당일(기간 일정은 끝날까지) 알려 줌
+export function pinnedItems({ data, me, iso, pins }) {
+  const set = new Set(pins || []), out = [];
+  for (const e of data.events || []) {
+    if (!e.date || !set.has(pinKey(e)) || (Array.isArray(e.audience) && !e.audience.includes(me.name)) || (e.dorm && !me.dorm)) continue;
+    const s = e.date, end = e.end || e.date, d = diff(s, iso), note = e.note ? ' · ' + e.note : '';
+    if (s <= iso && iso <= end) out.push({ k: 'pin', t: `오늘 ${e.title}${note}${end > s ? ` (${fmtKo(s)}~${fmtKo(end)})` : ''}`, s, e: end });
+    else if (d === 1) out.push({ k: 'pin', t: `내일 ${e.title}${note}`, s, e: end });
+    else if (d >= 2 && d <= 7) out.push({ k: 'pin', t: `${d}일 뒤(${fmtKo(s)}) ${e.title}${note}`, s, e: end });
+  }
+  return out;
+}
 
 // 오늘 날짜(iso) 기준으로 일정·기말고사·원반 이동·특별실을 문장으로 만든다. me: {n, name}, official: 학교 명단 {el2, blocks} 또는 null
-export function buildAutoDaily({ data, me, iso, official }) {
-  const items = [];
-  const events = (data.events || []).filter((e) => !Array.isArray(e.audience) || e.audience.includes(me.name));
+export function buildAutoDaily({ data, me, iso, official, pins }) {
+  const items = pinnedItems({ data, me, iso, pins });
+  const pinSet = new Set(pins || []);
+  const events = (data.events || []).filter((e) => (!Array.isArray(e.audience) || e.audience.includes(me.name)) && (!e.dorm || me.dorm));
   for (const e of events) {
-    if (!e.date || /기말고사/.test(e.title)) continue;   // 기말고사는 아래 시험 규칙에서 따로
+    if (!e.date || /기말고사/.test(e.title) || pinSet.has(pinKey(e))) continue;   // 기말고사는 아래 시험 규칙에서 따로, 담은 일정은 위에서 이미
     const s = e.date, end = e.end || e.date, d = diff(s, iso), note = e.note ? ' · ' + e.note : '';
     if (s <= iso && iso <= end) items.push({ k: DUE.test(e.title) ? 'hw' : 'notice', t: `오늘 ${e.title}${note}${end > s ? ` (${fmtKo(s)}~${fmtKo(end)})` : ''}`, s, e: end });
     else if (d === 1) items.push({ k: DUE.test(e.title) ? 'hw' : 'notice', t: `내일 ${e.title}${note}` });
@@ -49,6 +64,7 @@ export function buildAutoDaily({ data, me, iso, official }) {
   }
   items.sort((a, b) => RANK[a.k] - RANK[b.k]);
   if (!items.length) return { items: [{ k: 'notice', t: '오늘은 특별한 일정이 없어요 ✌️' }], empty: true };
+  items.sort((a, b) => RANK[a.k] - RANK[b.k]);
   return { items: items.slice(0, 8), empty: false };
 }
 

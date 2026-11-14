@@ -388,6 +388,20 @@
   function saveMyEvents(list) { var p2 = prefLoad(); p2.myEvents = list; prefSave(p2); }
   function allEvents() { return DATA.events.concat(myEvents().map(function (e) { return Object.assign({}, e, { mine: true }); })); }
   function delMyEvent(id) { saveMyEvents(myEvents().filter(function (e) { return e.id !== id; })); renderToday(); renderHome(); }
+  function pinBtn(e) {   // 일정을 내 알림장에 담기/빼기 (담으면 7일 전부터 알림장·푸시에 나옴)
+    if (e.mine || PREVIEW || !DATA.me || DATA.me.role === 'teacher' || !Array.isArray(DATA.pins)) return null;
+    var key = e.date + '|' + e.title, b = h('button', { class: 'linkbtn pin-b', type: 'button' });
+    function paint() { var on = DATA.pins.indexOf(key) >= 0; b.textContent = on ? '★ 내 알림장에 담김' : '☆ 내 알림장에 담기'; b.classList.toggle('on', on); b.setAttribute('aria-pressed', on ? 'true' : 'false'); }
+    b.addEventListener('click', function () {
+      var on = DATA.pins.indexOf(key) < 0; b.disabled = true;
+      msgApi('pins', { key: key, on: on }).then(function (j) {
+        b.disabled = false; if (!j._ok) { alert('저장하지 못했어요.'); return; }
+        DATA.pins = j.pins; paint();
+        fetch('/api/data', { headers: { authorization: 'Bearer ' + (load('tok26') || '') }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) { DATA.daily = d.daily; DATA.today = d.today; }).catch(function () {});   // 알림장에 바로 반영
+      });
+    });
+    paint(); return b;
+  }
   function myBadge(e) { return e.mine ? h('span', { class: 'chip mine', text: '내 일정' }) : (e.target ? h('span', { class: 'chip target', text: e.targetLabel || '대상자' }) : (Array.isArray(e.audience) ? h('span', { class: 'chip target', text: '대상자 ' + e.audience.length + '명' }) : null)); }
   function myDelBtn(e) {
     if (!e.mine) return null;
@@ -530,7 +544,7 @@
       listTitle.textContent = sel ? fmt(sel) : (month + 1) + '월 일정';
       var rows = shown.length ? shown.map(function (e) {
         var when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
-        return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title' }, [e.title, myBadge(e)]), h('div', { class: 'ev-sub' }, [h('b', { text: when }), e.note ? ' · ' + e.note : ''])].concat(evExtras(e)).concat([myDelBtn(e)])), ddayBadge(e)]);
+        return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title' }, [e.title, myBadge(e)]), h('div', { class: 'ev-sub' }, [h('b', { text: when }), e.note ? ' · ' + e.note : ''])].concat(evExtras(e)).concat([myDelBtn(e), pinBtn(e)])), ddayBadge(e)]);
       }) : [h('div', { class: 'empty', text: '이 날은 일정이 없어요.' })];
       rows.forEach(function (r) { listEvents.appendChild(r); });
       if (animate) animateSwap(listEvents, '');
@@ -2023,6 +2037,7 @@
       var main = h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title' }, [e.title, myBadge(e)]), sub]);
       evExtras(e).forEach(function (x) { main.appendChild(x); });
       var dl = myDelBtn(e); if (dl) main.appendChild(dl);
+      var pb = pinBtn(e); if (pb) main.appendChild(pb);
       return h('div', { class: 'ev' }, [main, ddayBadge(e)]);
     }
 
@@ -2292,10 +2307,14 @@
         body.appendChild(opts);
         msgApi('push/status', {}).then(function (j) {
           var o = j.opts || { daily: true, eve: true };
-          [['daily', '☀️ 매일 아침 7:30 — 오늘의 알림장 (일정·일과·급식)'], ['eve', '🌙 매일 저녁 8:00 — 내일 일정이 있을 때만']].forEach(function (x) {
+          function slots(from, to) { var out = []; for (var m = from; m <= to; m += 30) out.push(('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2)); return out; }
+          [['daily', 'dailyAt', '☀️ 아침 알림장 (일정·일과·급식)', slots(300, 600)], ['eve', 'eveAt', '🌙 저녁 알림 (내일 일정이 있을 때만)', slots(960, 1410)]].forEach(function (x) {
             var cb = h('input', { type: 'checkbox', id: 'po-' + x[0] + (compact ? 'c' : '') }); cb.checked = o[x[0]] !== false;
-            cb.addEventListener('change', function () { var b = {}; b[x[0]] = cb.checked; msgApi('push/opts', b); });
-            opts.appendChild(h('label', { class: 'push-opt', for: cb.id }, [cb, h('span', { text: x[1] })]));
+            var sel = h('select', { class: 'field push-time', 'aria-label': x[2] + ' 시각' }, x[3].map(function (t) { var op = h('option', { value: t, text: t }); if (t === (o[x[1]] || (x[0] === 'daily' ? '07:30' : '20:00'))) op.selected = true; return op; }));
+            sel.disabled = !cb.checked;
+            cb.addEventListener('change', function () { var b = {}; b[x[0]] = cb.checked; sel.disabled = !cb.checked; msgApi('push/opts', b); });
+            sel.addEventListener('change', function () { var b = {}; b[x[1]] = sel.value; msgApi('push/opts', b).then(function (j) { if (!j._ok) alert('시각을 바꾸지 못했어요.'); }); });
+            opts.appendChild(h('div', { class: 'push-opt' }, [h('label', { class: 'push-opt-l', for: cb.id }, [cb, h('span', { text: x[2] })]), h('div', { class: 'push-when' }, [h('small', { text: '알림 시각' }), sel])]));
           });
         });
       }
@@ -2316,7 +2335,8 @@
   }
 
   // ---------- 오늘의 알림장 (날짜별 전달사항·준비물·숙제) ----------
-  var DAILY_KINDS = { notice: ['📢', '전달'], prep: ['🎒', '준비물'], hw: ['📝', '숙제·수행'], time: ['⏰', '시간·장소'] };
+  var DAILY_KINDS = { pin: ['⭐', '내 일정'], notice: ['📢', '전달'], prep: ['🎒', '준비물'], hw: ['📝', '숙제·수행'], time: ['⏰', '시간·장소'] };
+  function addIso(iso, n) { return new Date(toUTC(iso) + n * 86400000).toISOString().slice(0, 10); }
   function isoToday() { return new Date(TODAY).toISOString().slice(0, 10); }
   function dailyApi(body) { return DATA.me.role === 'teacher' ? tApi('daily', body) : aApi('daily', body); }
   function dailyCard() {
@@ -2332,7 +2352,11 @@
       var body = h('div', { class: 'card-b' });
       box.appendChild(head('TODAY NOTE', '오늘의 알림장'));
       var td = DATA.today, ttc = DATA.me.role !== 'teacher' ? todayTimetableCard() : null;   // 오늘 일과·급식도 알림장에 같이
-      if (cur) { body.appendChild(items(cur.items)); }
+      if (cur) {
+        var mineItems = [];   // 내가 직접 추가한 개인 일정(내 비밀번호로 암호화돼 이 기기에만 있음)도 오늘·내일 것은 알림장에 같이
+        myEvents().forEach(function (e) { var s = e.date, en = e.end || e.date, tm = addIso(today, 1); if (s <= today && today <= en) mineItems.push({ k: 'pin', t: '오늘 ' + e.title }); else if (s === tm) mineItems.push({ k: 'pin', t: '내일 ' + e.title }); });
+        body.appendChild(items(cur.items.concat(mineItems)));
+      }
       if (ttc) { var tb = ttc.querySelector('.card-b'), tdet = h('details', { class: 'gc-more dl-sec', open: '' }, [h('summary', { text: '🕘 오늘 일과' })]); Array.prototype.slice.call(tb.children).forEach(function (c) { tdet.appendChild(c); }); body.appendChild(tdet); }
       if (td && td.meals && td.meals.length) {
         var mdet = h('details', { class: 'gc-more dl-sec', open: '' }, [h('summary', { text: '🍚 오늘 급식' })]);
