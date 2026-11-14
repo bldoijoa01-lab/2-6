@@ -2351,7 +2351,8 @@
       var future = Object.keys(daily).filter(function (d) { return d > today; }).sort()[0];
       var body = h('div', { class: 'card-b' });
       box.appendChild(head('TODAY NOTE', '오늘의 알림장'));
-      var td = DATA.today, ttc = DATA.me.role !== 'teacher' ? todayTimetableCard() : null;   // 오늘 일과·급식도 알림장에 같이
+      var iso0 = today, nsEv = (DATA.events || []).filter(function (e) { return e.noSchool && e.date <= iso0 && iso0 <= (e.end || e.date); })[0];
+      var td = DATA.today, ttc = DATA.me.role !== 'teacher' && !nsEv ? todayTimetableCard() : null;   // 등교 안 하는 날(수능일 등)은 일과 대신 안내   // 오늘 일과·급식도 알림장에 같이
       if (cur) {
         var mineItems = [];   // 내가 직접 추가한 개인 일정(내 비밀번호로 암호화돼 이 기기에만 있음)도 오늘·내일 것은 알림장에 같이
         myEvents().forEach(function (e) { var s = e.date, en = e.end || e.date, tm = addIso(today, 1); if (s <= today && today <= en) mineItems.push({ k: 'pin', t: '오늘 ' + e.title }); else if (s === tm) mineItems.push({ k: 'pin', t: '내일 ' + e.title }); });

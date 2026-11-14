@@ -7,6 +7,8 @@ export const fmtKo = (iso) => `${+iso.slice(5, 7)}/${+iso.slice(8, 10)}(${WD[new
 const DUE = /수행|제출|신청|마감|과제|보고서|발표|퀴즈|확인서/;
 const RANK = { pin: -1, time: 0, hw: 1, notice: 2, prep: 3 };
 export const pinKey = (e) => e.date + '|' + e.title;
+// 등교하지 않는 날(수능일 등): 일정에 noSchool:true 를 붙이면 일과·시간표를 보여주지 않음
+export const noSchoolEvent = (data, iso) => (data.events || []).find((e) => e.noSchool && e.date <= iso && iso <= (e.end || e.date)) || null;
 
 // 내가 알림장에 담은 일정(pins: 'YYYY-MM-DD|제목' 배열): 시작 7일 전부터 당일(기간 일정은 끝날까지) 알려 줌
 export function pinnedItems({ data, me, iso, pins }) {
@@ -24,10 +26,12 @@ export function pinnedItems({ data, me, iso, pins }) {
 // 오늘 날짜(iso) 기준으로 일정·기말고사·원반 이동·특별실을 문장으로 만든다. me: {n, name}, official: 학교 명단 {el2, blocks} 또는 null
 export function buildAutoDaily({ data, me, iso, official, pins }) {
   const items = pinnedItems({ data, me, iso, pins });
+  const ns = noSchoolEvent(data, iso);
+  if (ns) items.push({ k: 'time', t: `오늘은 ${ns.title.replace(/\(.*\)/, '')}이라 학교에 안 가요 🙌` });
   const pinSet = new Set(pins || []);
   const events = (data.events || []).filter((e) => (!Array.isArray(e.audience) || e.audience.includes(me.name)) && (!e.dorm || me.dorm));
   for (const e of events) {
-    if (!e.date || /기말고사/.test(e.title) || pinSet.has(pinKey(e))) continue;   // 기말고사는 아래 시험 규칙에서 따로, 담은 일정은 위에서 이미
+    if (!e.date || /기말고사/.test(e.title) || pinSet.has(pinKey(e)) || (e.noSchool && e.date <= iso && iso <= (e.end || e.date))) continue;   // 기말고사는 아래 시험 규칙에서 따로, 담은 일정은 위에서 이미
     const s = e.date, end = e.end || e.date, d = diff(s, iso), note = e.note ? ' · ' + e.note : '';
     if (s <= iso && iso <= end) items.push({ k: DUE.test(e.title) ? 'hw' : 'notice', t: `오늘 ${e.title}${note}${end > s ? ` (${fmtKo(s)}~${fmtKo(end)})` : ''}`, s, e: end });
     else if (d === 1) items.push({ k: DUE.test(e.title) ? 'hw' : 'notice', t: `내일 ${e.title}${note}` });
@@ -82,7 +86,7 @@ export function parseMeals(j) {
 // 오늘 일과(주간 시간표) 한 줄 요약. 선택 블록(A~E)은 학교 명단이 있으면 과목으로 바꿔 줌
 export function timetableLine(data, iso, official) {
   const w = data.weekly, dow = new Date(iso + 'T00:00:00Z').getUTCDay();
-  if (!w || dow < 1 || dow > 5) return '';
+  if (!w || dow < 1 || dow > 5 || noSchoolEvent(data, iso)) return '';
   const inv = {}; if (official && official.blocks) for (const [sub, L] of Object.entries(official.blocks)) inv[L] = sub;
   const parts = [];
   for (const r of w.rows || []) {
