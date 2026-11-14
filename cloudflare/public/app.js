@@ -864,7 +864,7 @@
     { k: 'GRADES', e: '📊', c1: '#E2DEFF', c2: '#D3E4FF', t: '학기별 등급 넣으면\n**총 내신**이 짠!', d: '1학년부터 입력해서 평균을 계산하고, 등급컷과 기말 목표 계산기도 쓸 수 있어요.', l: ['총내신평균', '등급컷', '내예상등급', '기말목표계산기'] },
     { k: 'FIRST STEP', e: '🎒', c1: '#FFD9E4', c2: '#FFE9C7', t: '제일 먼저 할 일,\n**내 정보**!', d: '2학기 선택과목 5개를 고르고 A~E 반을 정하면 시간표가 내 과목으로 바뀌고 내신이 열려요.', l: ['선택과목5개', 'A~E반정하기', '일과표사진저장'] },
     { k: 'SAFE', e: '🔒', c1: '#D5F2E3', c2: '#D9E8FF', t: '내 성적은\n**안전**해요', d: '점수와 내신은 암호화돼요. 관리자는 볼 수 없고, 나와 담임 선생님만 볼 수 있어요.', l: ['비밀번호는나만', '친구는못봐요', '잊으면선생님께'] },
-    { k: 'ALERT', e: '🔔', c1: '#FFE3E8', c2: '#E6E1FF', t: '매일 아침\n**알림**으로 받아요', d: '일정·일과·급식을 알림장 알림으로 알려 드려요.\n지금 켜 두면 놓치지 않아요. 언제든 끄고 켤 수 있어요.', l: ['아침알림장', '전날저녁알림', '시각선택'], alert: true },
+    { k: 'ALERT', e: '🔔', c1: '#FFE3E8', c2: '#E6E1FF', t: '매일 아침\n**알림**으로 받아요', d: '일정·일과·급식을 알림장 알림으로 알려 드려요.\n켜도 나중에 더보기에서 언제든 끌 수 있어요!', l: ['아침알림장', '전날저녁알림', '시각선택'], alert: true },
     { k: 'START', e: '🚀', c1: '#6A7BFF', c2: '#9A6BF0', t: '준비 끝!\n**시작**해 볼까요?', d: '먼저 내 정보에서 선택과목을 골라 주세요.', l: [], final: true }
   ];
   function richTitle(t) {   // **강조** 를 형광펜 처리, 줄바꿈 유지
@@ -2302,7 +2302,7 @@
       if (perm !== 'granted') return 'denied';
       return Promise.all([pushSwReg(), fetch('/api/push/key').then(function (r) { return r.json(); })]).then(function (r) {
         return r[0].pushManager.getSubscription().then(function (old) { return old || r[0].pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToU8(r[1].key) }); });
-      }).then(function (sub) { return msgApi('push/subscribe', { sub: sub.toJSON() }); }).then(function (j) { setTimeout(refreshPushViews, 0); return j._ok ? 'on' : 'off'; });
+      }).then(function (sub) { return msgApi('push/subscribe', { sub: sub.toJSON() }); }).then(function (j) { if (j._ok) { store('pushever26', '1'); if (DATA && DATA.me) DATA.me.pushEver = true; } setTimeout(refreshPushViews, 0); return j._ok ? 'on' : 'off'; });
     });
   }
   function pushDisable() {
@@ -2363,9 +2363,10 @@
     pushState().then(draw); return box;
   }
   // 알림이 꺼진 사람에게: 홈 맨 위 큰 배너(닫기 없음) + 접속할 때 팝업(하루 한 번 "나중에" 가능). 일정을 놓치면 곤란하니까 확실히 알려 줌
+  function pushEver() { return !!(DATA && DATA.me && DATA.me.pushEver) || load('pushever26') === '1'; }   // 한 번 켜 본 사람은 이후 꺼도 막지 않음
   function pushPromptKind(st) { return st === 'off' ? 'enable' : st === 'denied' ? 'fix' : st === 'ios-install' ? 'install' : null; }
   function pushNudge() {
-    if (PREVIEW || !DATA.me || DATA.me.role === 'teacher') return null;
+    if (PREVIEW || !DATA.me || DATA.me.role === 'teacher' || pushEver()) return null;
     var slot = h('div', { class: 'push-slot' });
     pushState().then(function (st) {
       var kind = pushPromptKind(st); if (!kind) return;
@@ -2386,7 +2387,7 @@
     return ios ? ['휴대폰 설정 앱을 열어요', '"알림"을 눌러요', '"2-6 알림장"을 찾아 "알림 허용"을 켜요'] : android ? ['주소창 왼쪽 자물쇠(또는 ⓘ) 아이콘을 눌러요', '"권한" 또는 "사이트 설정"을 눌러요', '"알림"을 "허용"으로 바꿔요'] : ['주소창 왼쪽의 자물쇠(또는 ⓘ) 아이콘을 눌러요', '"알림"을 "허용"으로 바꿔요'];
   }
   function maybePushPrompt() {   // 접속 직후: 알림이 꺼져 있으면 안내. 관리자가 '필수'로 켜 두면 알림을 켜기 전에는 앱을 못 쓰게 막음
-    if (PREVIEW || !DATA || !DATA.me || DATA.me.role === 'teacher' || DATA.me.admin) return;   // 교사·관리자는 제외(관리자가 막혀서 못 푸는 일 방지)
+    if (PREVIEW || !DATA || !DATA.me || DATA.me.role === 'teacher' || DATA.me.admin || pushEver()) return;   // 교사·관리자, 그리고 한 번 켜 본 사람은 제외(끄는 건 자유)
     if (document.querySelector('.modal:not(.push-gate)')) { setTimeout(maybePushPrompt, 1500); return; }   // 카드뉴스 보는 중이면 끝나고
     var required = DATA.pushRequired !== false;
     if (required && load('pushexempt26') === isoToday()) return;   // 알림이 안 되는 기기는 오늘 하루 통과
@@ -2396,12 +2397,13 @@
       if (gateEl) return;
       var wrapCls = 'modal' + (required ? ' push-gate' : '');
       var titleTxt = kind === 'enable' ? '알림을 켜야 사용할 수 있어요' : kind === 'fix' ? '알림이 차단돼 있어서 사용할 수 없어요' : '앱으로 추가해야 사용할 수 있어요';
-      var msg = kind === 'enable' ? '수행평가·시험·행사 일정과 오늘 급식, 일과를 알림으로 보내 드려요. 알림을 켜지 않으면 중요한 일정을 놓칠 수 있어서, 켠 사람만 알림장을 볼 수 있어요.' : kind === 'fix' ? '알림이 꺼져 있으면 알림장을 볼 수 없어요. 아래 순서로 알림을 "허용"으로 바꾸고 이 화면으로 돌아오면 자동으로 열려요.' : '아이폰은 사파리에서 "홈 화면에 추가"한 앱으로 열어야 알림을 받을 수 있어요. 홈 화면에 생긴 "2-6 알림장" 앱으로 다시 들어와 알림을 켜 주세요.';
+      var msg = kind === 'enable' ? '수행평가·시험·행사 일정과 오늘 급식, 일과를 알림으로 보내 드려요. 알림을 켜지 않으면 중요한 일정을 놓칠 수 있어서, 처음에 한 번은 켜야 알림장을 볼 수 있어요.' : kind === 'fix' ? '알림이 꺼져 있으면 알림장을 볼 수 없어요. 아래 순서로 알림을 "허용"으로 바꾸고 이 화면으로 돌아오면 자동으로 열려요.' : '아이폰은 사파리에서 "홈 화면에 추가"한 앱으로 열어야 알림을 받을 수 있어요. 홈 화면에 생긴 "2-6 알림장" 앱으로 다시 들어와 알림을 켜 주세요.';
       var parts = [h('div', { class: 'pm-e', text: kind === 'enable' ? '🔔' : kind === 'fix' ? '🔕' : '📲' }), h('h2', { text: titleTxt }), h('p', { text: msg })];
       if (kind === 'fix') parts.push(h('ol', { class: 'pm-steps' }, pushGateSteps().map(function (s) { return h('li', { text: s }); })));
       if (kind === 'install') parts.push(h('ol', { class: 'pm-steps' }, [h('li', { text: '사파리에서 이 사이트를 열고 공유 버튼(□↑)을 눌러요' }), h('li', { text: '"홈 화면에 추가"를 눌러요' }), h('li', { text: '홈 화면의 "2-6 알림장" 앱을 열어요' })]));
       var go = h('button', { class: 'btn', type: 'button', text: kind === 'enable' ? '🔔 알림 켜고 시작하기' : '허용했어요 — 다시 확인' });
       parts.push(go);
+      if (kind !== 'install') parts.push(h('div', { class: 'pm-note', text: '✅ 켜도 나중에 더보기에서 언제든 끌 수 있어요. 끄더라도 앱은 계속 쓸 수 있어요.' }));
       var later = null;
       if (!required) { later = h('button', { class: 'linkbtn', type: 'button', text: '오늘은 나중에' }); later.addEventListener('click', function () { store('pushsnooze26', isoToday()); closeG(); }); parts.push(later); }
       else if (kind === 'install') { var ex = h('button', { class: 'linkbtn', type: 'button', text: 'iOS 16.4 미만이라 추가해도 안 돼요' }); ex.addEventListener('click', function () { store('pushexempt26', isoToday()); closeG(); }); parts.push(ex); }   // 알림 자체가 불가능한 기기는 오늘만 통과

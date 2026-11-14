@@ -176,6 +176,7 @@ async function personalized(env, me) {
   if (me.role !== 'teacher') {   // 오늘의 알림장(자동 작성) + 급식(조식은 기숙사생만) + 내 기숙사 호실
     const iso = env.TODAY_OVERRIDE || kstISO(), dorm = dormMap, official0 = JSON.parse(await env.CLASS_KV.get('official:' + me.n) || 'null');
     d.me.dorm = dorm[me.n] || null;
+    { const pr = JSON.parse(await env.CLASS_KV.get('push:' + me.n) || '{}'); d.me.pushEver = !!(pr.everOn || (pr.subs && pr.subs.length)); }   // 알림을 켜 본 적이 있는지
     const pins = JSON.parse(await env.CLASS_KV.get('pins:' + me.n) || '[]'), b = await dailyBundle(env, d, { ...me, dorm: isDormMe }, iso, official0, !!dorm[me.n], pins);
     d.pins = pins; d.daily = d.daily || {}; d.daily[iso] = b.daily;   // 담은 일정이 있으면 직접 쓴 알림장에도 붙여서 내려줌
     d.today = { date: iso, meals: b.meals };
@@ -362,7 +363,7 @@ export default {
         if (!s || typeof s.endpoint !== 'string' || !/^https:\/\//.test(s.endpoint) || s.endpoint.length > 600 || !s.keys || typeof s.keys.p256dh !== 'string' || typeof s.keys.auth !== 'string') return json({ error: 'bad' }, 400);
         rec.subs = (rec.subs || []).filter((x) => x.endpoint !== s.endpoint);
         rec.subs.push({ endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth }, at: Date.now() });
-        rec.subs = rec.subs.slice(-3); delete rec.off;
+        rec.subs = rec.subs.slice(-3); delete rec.off; rec.everOn = true;   // 한 번이라도 켠 적이 있으면 이후 끄는 건 자유
         await env.CLASS_KV.put(key, JSON.stringify(rec));
         return json({ ok: true });
       }
