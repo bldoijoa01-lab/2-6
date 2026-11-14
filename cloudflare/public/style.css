@@ -808,7 +808,7 @@ button:active,.btn:active,.stat:active,.myev:active,.nudge:active,.el-chip:activ
 @media (min-width:1100px){
   .wrap,.top-in{max-width:1240px}
   .wrap{padding-left:28px; padding-right:28px}
-  .stats{grid-template-columns:repeat(5,1fr)}
+  .stats{grid-template-columns:repeat(4,1fr)}
   #panel-home,#panel-exam:not(.show-prep){display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 20px; align-items:start}
   #panel-home > .greet,#panel-home > .nudge,#panel-home > .stats,
   #panel-me > .el-hint,#panel-me > .el-next,#panel-me > .btn,#panel-me > .note-sm,

@@ -463,7 +463,6 @@
     var spTxt = DATA.special.length ? ' · 특별실 ' + DATA.special.length + '과목(' + DATA.special[0].label.split(' ')[0] + ' 시작)' : '';
     grid.push(stat('기말고사 공지 확인', moveTxt, me.n + '번 · ' + (me.n <= mv.frontCount ? '앞번호 ' + mv.frontCount + '명 이동' : mv.ownRoom + ' 응시') + spTxt + ' →', function () { goTab('exam'); setTimeout(function () { jumpTo('sec-move'); }, 60); }, DATA.special.length || me.n <= mv.frontCount ? 'hot' : ''));
     grid.push(stat('예정 일정', upcoming.length + '개', others[0] ? '다음: ' + others[0].title : '예정 없음', function () { goTab('today'); }));
-    grid.push(stat('등급컷 아카이브', '등급컷 보기', '과목별 컷 · 내 예상 등급', function () { goTab('grade'); }));
     (DATA.notices || []).forEach(function (n) {
       var nb = h('button', { class: 'nudge notice-b', type: 'button' }, [h('b', { text: '📢 ' + n.title }), h('small', { text: (n.text || '') + ' →' })]);
       nb.addEventListener('click', function () { goTab('today'); });
