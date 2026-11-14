@@ -433,6 +433,12 @@ export default {
       const sub = url.pathname.slice('/api/admin/'.length);
       if (sub === 'prep' && request.method === 'POST') return savePrep(env, await request.json().catch(() => ({})), me.name);
       if (sub === 'daily' && request.method === 'POST') return saveDaily(env, await request.json().catch(() => ({})), me.name);
+      if (sub === 'setting' && request.method === 'POST') {   // 알림 필수 켜기/끄기
+        const b1 = await request.json().catch(() => ({})), dd = JSON.parse(await env.CLASS_KV.get('data') || '{}');
+        if (typeof b1.pushRequired === 'boolean') dd.pushRequired = b1.pushRequired;
+        await env.CLASS_KV.put('data', JSON.stringify(dd));
+        return json({ ok: true, pushRequired: dd.pushRequired !== false });
+      }
       if (sub === 'push-now' && request.method === 'POST') { const b0 = await request.json().catch(() => ({})); return json({ ok: true, ...(await dailyPush(env, b0.kind === 'eve' ? 'eve' : 'daily', true)) }); }   // 지금 알림장 푸시 보내기(테스트·재발송)
       if (sub === 'overview' && request.method === 'GET') {
         const names = async (prefix) => (await env.CLASS_KV.list({ prefix })).keys;
