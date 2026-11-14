@@ -140,7 +140,7 @@
   var nsSegBox = document.getElementById('ns-seg');
   var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
   var TAB_ORDER = ['teacher', 'home', 'today', 'exam', 'prep', 'naesin', 'me', 'admin', 'more'];
-  var curTab = 'home';
+  var curTab = 'home', BOOTED = false;
   var nsSub = 'main';
   function applyNsSub(dir) {
     var g = document.getElementById('panel-grade'), m = document.getElementById('ns-main');
@@ -169,9 +169,9 @@
       var panel = document.getElementById('panel-' + tName);
       if (panel) {
         if (on) {
-          if (dir) panel.setAttribute('data-dir', dir);
-          else panel.removeAttribute('data-dir');
+          var wasHidden = panel.hidden;
           panel.hidden = false;
+          if (wasHidden && BOOTED) animateSwap(panel, dir);   // 입장 모션이 끝난 뒤의 탭 전환만 (처음 진입은 입장 모션 하나)
         } else {
           panel.hidden = true;
           panel.removeAttribute('data-dir');
@@ -444,6 +444,7 @@
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: me.name + '님, 안녕 👋' }),
       h('div', { class: 'greet-s', text: PREVIEW && PREVIEW.guest ? '둘러보기 모드 · 모든 내용은 샘플이에요' : me.n + '번 · ' + DATA.className })]));
     var mc0 = msgCard(); if (mc0) p.appendChild(mc0);   // 받은 쪽지
+    var pn0 = pushNudge(); if (pn0) p.appendChild(pn0);   // 알림 켜기 안내
     p.appendChild(dailyCard());   // 오늘의 알림장
     if (!PREVIEW) {   // 쪽지 보내기 (눌러서 펼침 — 펼칠 때 받는 사람 목록을 불러옴)
       var mdet = h('details', { class: 'card el-card msg-det' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: 'MESSAGE' }), h('h2', { text: '💌 쪽지 보내기' })]), h('span', { class: 'el-count', text: '친구에게' })])]), mfilled = false;
@@ -490,7 +491,6 @@
     }
     p.appendChild(h('div', { class: 'stats' }, grid));
 
-    var ttc = todayTimetableCard(); if (ttc) p.appendChild(ttc);
     // 다음 일정 미리보기
     var rows = others.slice(0, 3).map(function (e) {
       var d = diffDays(e.date, TODAY), when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
@@ -801,7 +801,35 @@
     document.getElementById('previewExit').textContent = '로그인하러 가기';
     document.getElementById('who').textContent = '게스트';
   }
+  function enterGuest() {   // 게스트 둘러보기: 서버·계정 없이 샘플 데이터로 앱을 읽기 전용으로 체험
+    if (!window.makeDemo) return;
+    PREVIEW = { guest: true, n: 0, name: '게스트', scores: {}, prefs: JSON.parse(JSON.stringify(window.DEMO_PREFS)) };
+    var sems = {};   // 샘플 내신 (1-1, 1-2, 2-1)
+    ['1-1', '1-2', '2-1'].forEach(function (k, ki) { var gs = [[1, 2, 1, 2, 2, 1], [2, 2, 3, 2, 2, 3], [2, 3, 2, 3, 3, 2]][ki]; sems[k] = nsDefault(k).map(function (r, i) { r.g = r.x ? 0 : gs[i % gs.length]; return r; }); });
+    PREVIEW.prefs.naesin = { sems: sems };
+    init(window.makeDemo(TODAY));
+    document.body.classList.add('preview');
+    document.getElementById('previewBar').hidden = false;
+    document.getElementById('previewWho').textContent = '👀 게스트 둘러보기 · 샘플 데이터 · 읽기 전용';
+    document.getElementById('previewExit').textContent = '로그인하러 가기';
+    document.getElementById('who').textContent = '게스트';
+  }
+  function enterGuest() {   // 게스트 둘러보기: 서버·계정 없이 샘플 데이터로 앱을 읽기 전용으로 체험
+    if (!window.makeDemo) return;
+    PREVIEW = { guest: true, n: 0, name: '게스트', scores: {}, prefs: JSON.parse(JSON.stringify(window.DEMO_PREFS)) };
+    var sems = {};   // 샘플 내신 (1-1, 1-2, 2-1)
+    ['1-1', '1-2', '2-1'].forEach(function (k, ki) { var gs = [[1, 2, 1, 2, 2, 1], [2, 2, 3, 2, 2, 3], [2, 3, 2, 3, 3, 2]][ki]; sems[k] = nsDefault(k).map(function (r, i) { r.g = r.x ? 0 : gs[i % gs.length]; return r; }); });
+    PREVIEW.prefs.naesin = { sems: sems };
+    init(window.makeDemo(TODAY));
+    document.body.classList.add('preview');
+    document.getElementById('previewBar').hidden = false;
+    document.getElementById('previewWho').textContent = '👀 게스트 둘러보기 · 샘플 데이터 · 읽기 전용';
+    document.getElementById('previewExit').textContent = '로그인하러 가기';
+    document.getElementById('who').textContent = '게스트';
+  }
   function exitPreview() {
+    if (PREVIEW && PREVIEW.guest) { location.hash = ''; location.reload(); return; }
+    if (PREVIEW && PREVIEW.guest) { location.hash = ''; location.reload(); return; }
     if (PREVIEW && PREVIEW.guest) { location.hash = ''; location.reload(); return; }
     PREVIEW = null; GC_STATE = GC ? 'dirty' : 'idle'; document.body.classList.remove('preview'); document.getElementById('previewBar').hidden = true;
     fetch('/api/data', { headers: { authorization: 'Bearer ' + load('tok26') }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
@@ -1000,6 +1028,9 @@
       top.lastChild.appendChild(h('div', { class: 'note-sm', text: '관리자는 암호화된 성적·내신은 볼 수 없어요. 가입 여부, 공유 여부, 학생이 보낸 선택과목·파일만 보여요.  마지막 갱신 ' + new Date(j.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) }));
       top.lastChild.appendChild(refresh);
       clear(body);
+      var pnow = h('button', { class: 'btn out', type: 'button', text: '📣 지금 알림장 푸시 보내기 (테스트·재발송)' });
+      pnow.addEventListener('click', function () { if (!confirm('알림을 켠 모든 학생에게 지금 오늘의 알림장을 보낼까요?')) return; pnow.disabled = true; aApi('push-now', {}).then(function (j) { pnow.disabled = false; alert(j._ok ? '보냄 ' + j.sent + '건 · 실패 ' + j.failed + '건 · 만료 정리 ' + j.gone + '건 · 건너뜀(보낼 내용 없음) ' + j.skipped + '명' : '실행하지 못했어요.'); }); });
+      body.appendChild(h('div', { class: 'card' }, [head('NOTIFICATION', '알림장 푸시'), h('div', { class: 'card-b' }, [h('div', { class: 'note-sm', text: '매일 아침 7시 30분에 자동으로 나가요. 알림을 켠 학생에게만 가요.' }), pnow])]));
       body.appendChild(msgComposer());
 
       // 학생 표
@@ -1231,6 +1262,7 @@
   var KIND = { feature: ['새 기능', 'new'], design: ['디자인', 'design'], fix: ['수정', 'fix'] };
   function renderMore() {
     var p = document.getElementById('panel-more'); if (!p || !DATA) return; clear(p);
+    if (!PREVIEW && DATA.me.role !== 'teacher') p.appendChild(pushCard());
     var about = DATA.about || {}, ups = (DATA.updates || []).slice().sort(function (x, y) { return x.date < y.date ? 1 : x.date > y.date ? -1 : 0; });
     p.appendChild(h('div', { class: 'card' }, [head('UPDATES', '업데이트 내역'), h('div', { class: 'card-b' },
       ups.length ? ups.map(function (u) {
@@ -1587,7 +1619,8 @@
     p.appendChild(h('div', { class: 'card' }, [head('MY ACCOUNT', '내 정보'), h('div', { class: 'card-b' }, [
       h('div', { class: 'me-row' }, [h('span', { text: '이름' }), h('b', { text: me.name })]),
       h('div', { class: 'me-row' }, [h('span', { text: '번호' }), h('b', { text: me.n + '번' })]),
-      h('div', { class: 'me-row' }, [h('span', { text: '반' }), h('b', { text: DATA.className })])
+      h('div', { class: 'me-row' }, [h('span', { text: '반' }), h('b', { text: DATA.className })]),
+      h('div', { class: 'me-row' }, [h('span', { text: '기숙사' }), h('b', { text: me.dorm ? '기숙사생 · ' + me.dorm + '호' : '통학생' })])
     ])]));
 
     // 한 학기 = 한 카드. 선택과목·교양(예술)은 칸을 나눠서 따로 고름
@@ -1999,7 +2032,7 @@
     if (rest.length) { body.push(h('div', { class: 'tag blue', text: '📌 좀중요' })); rest.forEach(function (e) { body.push(evRow(e)); }); }
     if (!upcoming.length) body.push(h('div', { class: 'empty', text: '예정된 일정이 없어요. 평화 ✌️' }));
     body.push(h('div', { class: 'elect', text: '📣 ' + DATA.electiveNote }));
-    var listCard = h('div', { class: 'card sched-list' }, [head('SCHEDULE', '수행·시험 일정'), h('div', { class: 'card-b' }, body)]);
+    var listCard = h('div', { class: 'card view-card sched-list' }, [head('SCHEDULE', '수행·시험 일정'), h('div', { class: 'card-b' }, body)]);
     var calCard = buildCalendar();
     var seg = h('div', { class: 'seg' });
     var weeklyCard = buildWeeklyCard();
@@ -2009,7 +2042,9 @@
       var b = h('button', { class: 'seg-b', type: 'button', text: v[0], 'aria-pressed': i === vi ? 'true' : 'false' });
       b.addEventListener('click', function () {
         var prevIdx = VIEWS.indexOf(todayView);
+        if (prevIdx === i) return;
         todayView = VIEWS[i];
+        var pn = document.getElementById('panel-today'); if (pn) { pn.style.minHeight = pn.offsetHeight + 'px'; setTimeout(function () { pn.style.minHeight = ''; }, 340); }   // 높이가 확 줄어 화면이 튀지 않게
         listCard.hidden = v[1] !== listCard; calCard.hidden = v[1] !== calCard; weeklyCard.hidden = v[1] !== weeklyCard;
         Array.prototype.forEach.call(seg.children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
         syncPill(seg, b);
@@ -2212,6 +2247,57 @@
     loadSent(); return box;
   }
 
+
+  // ---------- 푸시 알림 (매일 아침 오늘의 알림장) ----------
+  var PUSH_OK = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+  function iosNeedsInstall() { var ios = /iphone|ipad|ipod/i.test(navigator.userAgent); var standalone = !!(navigator.standalone || (window.matchMedia && matchMedia('(display-mode: standalone)').matches)); return ios && !standalone; }
+  function urlB64ToU8(s) { var pad = '='.repeat((4 - s.length % 4) % 4), raw = atob((s + pad).replace(/-/g, '+').replace(/_/g, '/')); return Uint8Array.from(raw, function (c) { return c.charCodeAt(0); }); }
+  function pushSwReg() { return navigator.serviceWorker.register('/sw.js').then(function () { return navigator.serviceWorker.ready; }); }
+  function pushState() {   // 'unsupported' | 'ios-install' | 'denied' | 'on' | 'off'
+    if (!PUSH_OK) return Promise.resolve(iosNeedsInstall() ? 'ios-install' : 'unsupported');
+    if (Notification.permission === 'denied') return Promise.resolve('denied');
+    return navigator.serviceWorker.getRegistration().then(function (reg) { return reg ? reg.pushManager.getSubscription() : null; }).then(function (s) { return s && Notification.permission === 'granted' ? 'on' : 'off'; }).catch(function () { return 'off'; });
+  }
+  function pushEnable() {
+    return Notification.requestPermission().then(function (perm) {
+      if (perm !== 'granted') return 'denied';
+      return Promise.all([pushSwReg(), fetch('/api/push/key').then(function (r) { return r.json(); })]).then(function (r) {
+        return r[0].pushManager.getSubscription().then(function (old) { return old || r[0].pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlB64ToU8(r[1].key) }); });
+      }).then(function (sub) { return msgApi('push/subscribe', { sub: sub.toJSON() }); }).then(function (j) { return j._ok ? 'on' : 'off'; });
+    });
+  }
+  function pushDisable() {
+    return navigator.serviceWorker.getRegistration().then(function (reg) { return reg ? reg.pushManager.getSubscription() : null; }).then(function (s) { if (!s) return; var ep = s.endpoint; return s.unsubscribe().then(function () { return msgApi('push/unsubscribe', { endpoint: ep }); }); }).then(function () { return 'off'; });
+  }
+  function pushCard() {   // 더보기: 알림 켜기/끄기 + 테스트
+    var box = h('div', { class: 'card push-card' }), body = h('div', { class: 'card-b' });
+    box.appendChild(head('NOTIFICATION', '🔔 알림장 알림')); box.appendChild(body);
+    function draw(st) {
+      clear(body);
+      body.appendChild(h('div', { class: 'note-sm', text: '매일 아침 7시 30분에 오늘의 알림장(일정·일과·급식)을 알림으로 보내 드려요. 내용에 이름이나 성적은 들어가지 않아요.' }));
+      if (st === 'unsupported') { body.appendChild(h('div', { class: 'empty', text: '이 브라우저는 알림을 지원하지 않아요. 크롬(안드로이드)이나 홈 화면에 추가한 앱(아이폰)에서 켜 주세요.' })); return; }
+      if (st === 'ios-install') { body.appendChild(h('div', { class: 'push-ios' }, [h('b', { text: '아이폰은 먼저 홈 화면에 추가해야 해요' }), h('ol', null, [h('li', { text: '사파리에서 이 사이트를 열고 아래 공유 버튼(□↑)을 눌러요' }), h('li', { text: '"홈 화면에 추가"를 눌러요' }), h('li', { text: '홈 화면에 생긴 "2-6 알림장" 앱을 열고, 더보기에서 알림을 켜요' })]), h('small', { text: 'iOS 16.4 이상에서만 돼요.' })])); return; }
+      if (st === 'denied') { body.appendChild(h('div', { class: 'empty', text: '알림이 차단돼 있어요. 브라우저(또는 휴대폰) 설정에서 이 사이트의 알림을 허용한 뒤 다시 눌러 주세요.' })); return; }
+      var btn = h('button', { class: st === 'on' ? 'btn out' : 'btn', type: 'button', text: st === 'on' ? '🔕 알림 끄기' : '🔔 알림 켜기' });
+      btn.addEventListener('click', function () { btn.disabled = true; (st === 'on' ? pushDisable() : pushEnable()).then(draw).catch(function () { btn.disabled = false; alert('알림을 바꾸지 못했어요. 잠시 뒤에 다시 해 주세요.'); }); });
+      body.appendChild(h('div', { class: 'push-st' + (st === 'on' ? ' on' : ''), text: st === 'on' ? '✅ 이 기기에서 알림을 받는 중이에요' : '이 기기에서는 아직 꺼져 있어요' }));
+      body.appendChild(btn);
+      if (st === 'on') { var t = h('button', { class: 'linkbtn', type: 'button', text: '테스트 알림 보내기' }); t.addEventListener('click', function () { t.textContent = '보내는 중…'; msgApi('push/test', {}).then(function (j) { t.textContent = '테스트 알림 보내기'; alert(j.delivered ? '알림을 보냈어요! 곧 도착해요.' : '보내지 못했어요. 알림을 껐다 다시 켜 보세요.'); }); }); body.appendChild(t); }
+    }
+    pushState().then(draw); return box;
+  }
+  function pushNudge() {   // 홈: 아직 안 켰으면 한 줄 안내
+    if (PREVIEW || !PUSH_OK || iosNeedsInstall() || load('pushnudge26')) return null;
+    var slot = h('div', { class: 'push-slot' });
+    pushState().then(function (st) {
+      if (st !== 'off') return;
+      var b = h('button', { class: 'nudge push-nudge', type: 'button' }, [h('b', { text: '🔔 매일 아침 알림장 알림 받기' }), h('small', { text: '일정·일과·급식을 알림으로 알려 줘요 →' })]);
+      b.addEventListener('click', function () { b.disabled = true; pushEnable().then(function (s) { if (s === 'on') { slot.removeChild(b); alert('알림을 켰어요! 내일 아침부터 와요 🔔'); } else { b.disabled = false; if (s === 'denied') { store('pushnudge26', '1'); slot.removeChild(b); } } }).catch(function () { b.disabled = false; }); });
+      slot.appendChild(b);
+    });
+    return slot;
+  }
+
   // ---------- 오늘의 알림장 (날짜별 전달사항·준비물·숙제) ----------
   var DAILY_KINDS = { notice: ['📢', '전달'], prep: ['🎒', '준비물'], hw: ['📝', '숙제·수행'], time: ['⏰', '시간·장소'] };
   function isoToday() { return new Date(TODAY).toISOString().slice(0, 10); }
@@ -2228,7 +2314,16 @@
       var future = Object.keys(daily).filter(function (d) { return d > today; }).sort()[0];
       var body = h('div', { class: 'card-b' });
       box.appendChild(head('TODAY NOTE', '오늘의 알림장'));
-      if (cur) { body.appendChild(items(cur.items)); body.appendChild(h('div', { class: 'dl-by', text: fmt(today) + ' · ' + (cur.by || '') + (cur.at && cur.at.length > 10 ? ' · ' + kstText(cur.at).slice(6) + ' 업데이트' : '') })); }
+      var td = DATA.today, ttc = DATA.me.role !== 'teacher' ? todayTimetableCard() : null;   // 오늘 일과·급식도 알림장에 같이
+      if (cur) { body.appendChild(items(cur.items)); }
+      if (ttc) { var tb = ttc.querySelector('.card-b'), tdet = h('details', { class: 'gc-more dl-sec', open: '' }, [h('summary', { text: '🕘 오늘 일과' })]); Array.prototype.slice.call(tb.children).forEach(function (c) { tdet.appendChild(c); }); body.appendChild(tdet); }
+      if (td && td.meals && td.meals.length) {
+        var mdet = h('details', { class: 'gc-more dl-sec', open: '' }, [h('summary', { text: '🍚 오늘 급식' })]);
+        td.meals.forEach(function (m) { mdet.appendChild(h('div', { class: 'meal' }, [h('div', { class: 'meal-h' }, [h('b', { text: m.name }), m.kcal ? h('small', { text: m.kcal + 'kcal' }) : null]), h('div', { class: 'meal-d', text: m.dishes.join(' · ') })])); });
+        if (!DATA.me.dorm && DATA.me.role !== 'teacher') mdet.appendChild(h('div', { class: 'note-sm', text: '조식은 기숙사생에게만 보여요.' }));
+        body.appendChild(mdet);
+      }
+      if (cur) { body.appendChild(h('div', { class: 'dl-by', text: fmt(today) + ' · ' + (cur.auto ? '자동 작성' : (cur.by || '')) + (cur.at && cur.at.length > 10 ? ' · ' + kstText(cur.at).slice(6) + ' 업데이트' : '') })); }
       else body.appendChild(h('div', { class: 'empty', text: '오늘 알림장은 아직 안 올라왔어요. 올라오면 여기에 떠요 📒' }));
       if (future) { var fd = daily[future]; body.appendChild(h('details', { class: 'gc-more dl-more' }, [h('summary', { text: '📅 ' + fmt(future) + ' 알림장 미리 보기' }), items(fd.items)])); }
       if (past.length) body.appendChild(h('details', { class: 'gc-more dl-more' }, [h('summary', { text: '지난 알림장 (' + past.length + ')' })].concat(past.map(function (d) { return h('div', { class: 'dl-day' }, [h('b', { text: fmt(d) }), items(daily[d].items)]); }))));
@@ -2520,7 +2615,7 @@
   function init(data) {
     DATA = data;
     document.body.classList.remove('locked');
-    document.body.classList.add('enter'); setTimeout(function () { document.body.classList.remove('enter'); }, 1600);
+    document.body.classList.add('enter'); setTimeout(function () { document.body.classList.remove('enter'); BOOTED = true; }, 1700);
     var who = document.getElementById('who'); who.hidden = false;
     var isT = DATA.me.role === 'teacher';
     who.textContent = isT ? DATA.me.name + ' 선생님' : DATA.me.name + ' · ' + DATA.me.n + '번';
@@ -2540,8 +2635,12 @@
     renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
     tagExamCards(); renderExamSeg();
     pushShare();
+    var before = JSON.stringify([prefLoad(), gcLoad()]);
     syncScores().then(function (ok) {   // 다른 기기에서 저장한 선택과목·성적을 불러와 화면 갱신
       if (!ok || PREVIEW) return;
+      if (JSON.stringify([prefLoad(), gcLoad()]) === before) return;   // 같은 기기라 바뀐 게 없으면 다시 그리지 않음 (모션이 두 번 나오던 원인)
+      document.body.classList.add('no-anim');
+      setTimeout(function () { document.body.classList.remove('no-anim'); }, 120);
       clear(document.getElementById('panel-exam'));
       renderMe(); renderNaesin(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution(); tagExamCards(); renderExamSeg();
       if (GC_STATE === 'done') GC_STATE = 'dirty';
@@ -2582,6 +2681,10 @@
     }
     btn.addEventListener('click', go);
     pwIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') go(); });
+    var guestBtn = h('button', { class: 'btn out guest-btn', type: 'button', text: '👀 게스트로 둘러보기' });
+    guestBtn.addEventListener('click', enterGuest);
+    var guestBtn = h('button', { class: 'btn out guest-btn', type: 'button', text: '👀 게스트로 둘러보기' });
+    guestBtn.addEventListener('click', enterGuest);
     var guestBtn = h('button', { class: 'btn out guest-btn', type: 'button', text: '👀 게스트로 둘러보기' });
     guestBtn.addEventListener('click', enterGuest);
     card([h('div', { class: 'login-brand' }, [logoSvg(), h('b', { text: '2-6 알림장' })]), h('div', { class: 'login-sub', text: '우리 반 전용이에요. 이름·번호·비밀번호를 입력하세요. 처음이면 비밀번호 칸에 반 코드를 넣으세요.' }), nameIn, numIn, pwIn, btn, err, h('div', { class: 'guest-or', text: '또는' }), guestBtn]);

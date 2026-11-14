@@ -80,3 +80,10 @@ Pretendard(OFL)를 서브셋해서 `src/pretendard.woff2`로 Worker에 내장 (�
 ## 9등급제 환산 (내신 탭)
 - 5등급제 평균(1.00~5.00, 0.01 단위)을 9등급제 범위로 환산: `public/conv9.js` (충청남도교육청 진학정보 `jinhakai.pen.go.kr` 내신 변환 규칙표, 2026 기준)
 - 기준연도가 바뀌면 `python3 tools/update-conv9.py <연도>` 로 갱신 (해당 사이트 API에 접속 가능한 곳에서)
+
+## 오늘의 알림장 · 급식 · 푸시 알림
+- **자동 작성**: 그날 알림장이 없으면 서버가 일정·기말고사·원반 이동·특별실에서 자동으로 만들어 `오늘의 알림장`에 보여 줍니다 (`src/daily.js`). 관리자/선생님이 직접 쓰면 그게 우선합니다.
+- **급식**: 나이스(NEIS) 오픈API로 오송고(`M10` / `8000283`) 급식을 가져와 KV(`meal:YYYYMMDD`)에 하루 캐시합니다. 조식은 기숙사생에게만 보입니다.
+- **기숙사 명단**: KV `dorm` = `{"번호":"호실"}` (예: `{"12":"302"}`). 저장소에는 넣지 않습니다. 바꾸려면 `npx wrangler kv key put --remote dorm --path dorm.json`. 내 정보에 `기숙사생 · 302호` / `통학생`으로 표시됩니다.
+- **푸시 알림**: 매일 07:30 KST(Cron `30 22 * * *`)에 알림을 켠 학생에게 발송. 구독은 KV `push:<번호>`. 공개키는 `wrangler.toml [vars] VAPID_PUBLIC`, 비공개키는 secret `VAPID_PRIVATE` (`node tools/gen-vapid.mjs`로 새로 만들 수 있음). 관리자 탭의 "지금 알림장 푸시 보내기"로 수동 발송. 아이폰은 홈 화면에 추가한 앱에서만 알림이 옵니다(iOS 16.4+).
+- 게스트 샘플 데이터는 `tools/gen-demo.py` → `public/demo.js`.

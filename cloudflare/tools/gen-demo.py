@@ -18,7 +18,8 @@ window.makeDemo=function(today){
   var days=B.cells.map(function(cells,i){var t=start+i*D, dt=new Date(t);return {date:iso(t),label:(dt.getUTCMonth()+1)+'/'+dt.getUTCDate()+'('+DOW[dt.getUTCDay()]+')',cells:cells};});
   return {
     updated:add(0), className:'2학년 6반',
-    me:{n:15,name:'게스트',role:'student',admin:false},
+    me:{n:15,name:'게스트',role:'student',admin:false,dorm:'302'},
+    today:{date:add(0),meals:[{name:'조식',dishes:['친환경흰쌀밥','미역국','계란말이','배추김치'],kcal:'650'},{name:'중식',dishes:['잡곡밥','김치찌개','제육볶음','시금치나물','깍두기'],kcal:'890'},{name:'석식',dishes:['흑미밥','된장국','치킨너겟','오이무침','배추김치'],kcal:'820'}]},
     events:[
       {title:'과학 탐구 실험',date:add(1),note:'실험복 지참',short:'과학실험'},
       {title:'수학 수행평가',date:add(4),note:'교과서 3단원 · 계산기 불가',short:'수학수행'},
@@ -33,7 +34,7 @@ window.makeDemo=function(today){
     updates:[{date:add(0),kind:'new',title:'게스트 둘러보기',detail:'로그인 없이 앱을 미리 볼 수 있어요. 모든 내용은 샘플이에요.'}],
     notices:[{title:'샘플 공지',text:'공지가 올라오면 홈과 일정 탭에 이렇게 보여요.'}],
     weekly:B.weekly, ddays:B.ddays,
-    daily:(function(){var o={};o[add(0)]={items:[{k:'notice',t:'내일 과학실에서 수업해요 (실험복 지참)'},{k:'hw',t:'수학 수행평가 준비 — 3단원 복습'},{k:'prep',t:'체육복, 단어장'}],by:'샘플',at:add(0)+'T08:00'};return o;})(),
+    daily:(function(){var o={};o[add(0)]={items:[{k:'notice',t:'내일 과학실에서 수업해요 (실험복 지참)'},{k:'hw',t:'수학 수행평가 준비 — 3단원 복습'},{k:'prep',t:'체육복, 단어장'}],by:'샘플',at:add(-1)+'T22:30'};return o;})(),
     prep:{'전체':{range:'',tips:['시험 2주 전부터 교과서 개념 먼저 훑기','수행평가 일정은 일정 탭에서 확인'],by:'샘플',at:add(0)}}
   };
 };

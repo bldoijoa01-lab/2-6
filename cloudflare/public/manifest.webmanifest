@@ -1,0 +1,1 @@
+{"name":"2학년 6반 알림장","short_name":"2-6 알림장","description":"우리 반 일정·시간표·급식 알림장","start_url":"/","scope":"/","display":"standalone","background_color":"#E9EEFF","theme_color":"#6A5AE0","lang":"ko","icons":[{"src":"/icon.png","sizes":"512x512","type":"image/png","purpose":"any"},{"src":"/icon.png","sizes":"512x512","type":"image/png","purpose":"maskable"}]}

@@ -5,6 +5,8 @@ import ASSETS from './assets.js';
 import FONT from './pretendard.woff2';
 import OG from './og.jpg';
 import ICON from './icon.png';
+import { kstISO, buildAutoDaily, parseMeals, timetableLine, pushText } from './daily.js';
+import { sendPush } from './webpush.js';
 const enc = new TextEncoder();
 const TTL = 60 * 60 * 24 * 30;
 const CUTS_URL = 'https://bldoijoa01-lab.github.io/gradecut/cuts.json'; // 등급컷 아카이브 저장소가 원본 (여기서 직접 가져옴)
@@ -72,6 +74,45 @@ async function savePrep(env, b, who) {
   return json({ ok: true });
 }
 
+// 오송고 급식(NEIS 오픈API). 하루치를 KV에 캐시해서 외부 호출을 최소화
+async function getMeals(env, iso) {
+  const ymd = iso.replace(/-/g, ''), key = 'meal:' + ymd, c = await env.CLASS_KV.get(key);
+  if (c) return JSON.parse(c);
+  let meals = [];
+  try {
+    const r = await fetch(`https://open.neis.go.kr/hub/mealServiceDietInfo?Type=json&ATPT_OFCDC_SC_CODE=M10&SD_SCHUL_CODE=8000283&MLSV_YMD=${ymd}`);
+    if (r.ok) meals = parseMeals(await r.json());
+  } catch { /* 급식 서버 장애면 빈 값 (1시간 뒤 재시도) */ }
+  await env.CLASS_KV.put(key, JSON.stringify(meals), { expirationTtl: meals.length ? 172800 : 3600 });
+  return meals;
+}
+// 오늘의 알림장 묶음: 직접 쓴 알림장이 있으면 그것, 없으면 자동 작성. 조식은 기숙사생에게만
+async function dailyBundle(env, data, me, iso, official, isDorm) {
+  const manual = data.daily && data.daily[iso];
+  const daily = manual ? { ...manual } : { ...buildAutoDaily({ data, me, iso, official }), by: '자동', auto: true };
+  let meals = await getMeals(env, iso);
+  if (!isDorm) meals = meals.filter((m) => m.name !== '조식');
+  return { date: iso, daily, meals, tt: timetableLine(data, iso, official) };
+}
+// 매일 아침 알림장 푸시 (Cron 07:30 KST 또는 관리자 수동 실행)
+async function dailyPush(env) {
+  const iso = env.TODAY_OVERRIDE || kstISO(), data = JSON.parse(await env.CLASS_KV.get('data') || '{}'), roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), dorm = JSON.parse(await env.CLASS_KV.get('dorm') || '{}');
+  const out = { sent: 0, gone: 0, failed: 0, skipped: 0, subs: 0 };
+  for (const k of (await env.CLASS_KV.list({ prefix: 'push:' })).keys) {
+    const n = parseInt(k.name.slice(5), 10), me = roster.find((x) => x.n === n && x.role !== 'teacher'); if (!me) continue;
+    const rec = JSON.parse(await env.CLASS_KV.get(k.name) || '{}'); if (!rec.subs || !rec.subs.length || rec.off) continue;
+    const official = JSON.parse(await env.CLASS_KV.get('official:' + n) || 'null');
+    const b = await dailyBundle(env, data, me, iso, official, !!dorm[n]);
+    const msg = pushText({ iso, daily: b.daily, meals: b.meals, tt: b.tt });
+    if (!msg) { out.skipped++; continue; }
+    msg.url = '/#home';
+    const keep = [];
+    for (const s of rec.subs) { out.subs++; const r = await sendPush(s, msg, env); if (r === 'gone') out.gone++; else { keep.push(s); if (r) out.sent++; else out.failed++; } }
+    if (keep.length !== rec.subs.length) { rec.subs = keep; await env.CLASS_KV.put(k.name, JSON.stringify(rec)); }
+  }
+  return out;
+}
+
 // 오늘의 알림장: 날짜별 전달사항·준비물·숙제 (관리자/교사가 씀, 학생은 읽기만). 최근 30일만 보관
 async function saveDaily(env, b, who) {
   const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -98,6 +139,13 @@ async function personalized(env, me) {
     });
   }
   if (me.role !== 'teacher' && await env.CLASS_KV.get('tut:' + me.n)) d.tutorial = true;   // 다음 로그인 때 가이드를 보여 달라고 표시된 학생
+  if (me.role !== 'teacher') {   // 오늘의 알림장(자동 작성) + 급식(조식은 기숙사생만) + 내 기숙사 호실
+    const iso = env.TODAY_OVERRIDE || kstISO(), dorm = JSON.parse(await env.CLASS_KV.get('dorm') || '{}'), official0 = JSON.parse(await env.CLASS_KV.get('official:' + me.n) || 'null');
+    d.me.dorm = dorm[me.n] || null;
+    const b = await dailyBundle(env, d, me, iso, official0, !!dorm[me.n]);
+    d.daily = d.daily || {}; if (!d.daily[iso]) d.daily[iso] = b.daily;
+    d.today = { date: iso, meals: b.meals };
+  }
   if (me.role !== 'teacher') { const ms = JSON.parse(await env.CLASS_KV.get('msg:' + me.n) || '[]'); if (ms.length) d.messages = ms.slice(-20).reverse(); }   // 관리자가 보낸 쪽지(받는 사람 본인 것만)
   const off = JSON.parse(await env.CLASS_KV.get('official:' + me.n) || 'null');   // 선생님이 올린 학교 기준 선택과목(암호화 대상 아님)
   if (off) d.official = off;
@@ -117,6 +165,7 @@ async function saveOfficial(env, roster, rows) {
 }
 
 export default {
+  async scheduled(event, env, ctx) { ctx.waitUntil(dailyPush(env)); },
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/api/login' && request.method === 'POST') {
@@ -255,6 +304,29 @@ export default {
       await env.CLASS_KV.put('msg:' + b.n, JSON.stringify(ms.filter((m) => !(m.id === b.id && m.fromN === tok.w))));
       return json({ ok: true });
     }
+    if (url.pathname === '/api/push/key' && request.method === 'GET') return json({ key: env.VAPID_PUBLIC || '' });
+    if (url.pathname.startsWith('/api/push/') && request.method === 'POST') {   // 푸시 알림 구독 관리 (로그인한 학생만)
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const b = await request.json().catch(() => ({})), key = 'push:' + tok.w, rec = JSON.parse(await env.CLASS_KV.get(key) || '{"subs":[]}'), act = url.pathname.slice('/api/push/'.length);
+      if (act === 'subscribe') {
+        const s = b.sub;
+        if (!s || typeof s.endpoint !== 'string' || !/^https:\/\//.test(s.endpoint) || s.endpoint.length > 600 || !s.keys || typeof s.keys.p256dh !== 'string' || typeof s.keys.auth !== 'string') return json({ error: 'bad' }, 400);
+        rec.subs = (rec.subs || []).filter((x) => x.endpoint !== s.endpoint);
+        rec.subs.push({ endpoint: s.endpoint, keys: { p256dh: s.keys.p256dh, auth: s.keys.auth }, at: Date.now() });
+        rec.subs = rec.subs.slice(-3); delete rec.off;
+        await env.CLASS_KV.put(key, JSON.stringify(rec));
+        return json({ ok: true });
+      }
+      if (act === 'unsubscribe') { rec.subs = (rec.subs || []).filter((x) => x.endpoint !== b.endpoint); await env.CLASS_KV.put(key, JSON.stringify(rec)); return json({ ok: true }); }
+      if (act === 'test') {
+        let ok = 0;
+        for (const s of rec.subs || []) if ((await sendPush(s, { title: '🔔 알림 테스트', body: '이렇게 알림이 와요! 매일 아침 오늘의 알림장을 보내 드릴게요.', tag: 'test', url: '/#home' }, env)) === true) ok++;
+        return json({ ok: true, delivered: ok, subs: (rec.subs || []).length });
+      }
+      return json({ error: 'not_found' }, 404);
+    }
     if (url.pathname === '/api/msg-read' && request.method === 'POST') {
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
       const tok = await verifyToken(env, auth, 'full');
@@ -306,6 +378,7 @@ export default {
       const sub = url.pathname.slice('/api/admin/'.length);
       if (sub === 'prep' && request.method === 'POST') return savePrep(env, await request.json().catch(() => ({})), me.name);
       if (sub === 'daily' && request.method === 'POST') return saveDaily(env, await request.json().catch(() => ({})), me.name);
+      if (sub === 'push-now' && request.method === 'POST') return json({ ok: true, ...(await dailyPush(env)) });   // 지금 알림장 푸시 보내기(테스트·재발송)
       if (sub === 'overview' && request.method === 'GET') {
         const names = async (prefix) => (await env.CLASS_KV.list({ prefix })).keys;
         const [pw, sh, off, subs, ups] = await Promise.all([names('pw:'), names('share:'), names('official:'), names('submit:'), names('upload:')]);
