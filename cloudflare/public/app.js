@@ -445,6 +445,13 @@
       h('div', { class: 'greet-s', text: me.n + '번 · ' + DATA.className })]));
     var mc0 = msgCard(); if (mc0) p.appendChild(mc0);   // 받은 쪽지
     p.appendChild(dailyCard());   // 오늘의 알림장
+    if (!PREVIEW) {   // 쪽지 보내기 (눌러서 펼침 — 펼칠 때 받는 사람 목록을 불러옴)
+      var mdet = h('details', { class: 'card el-card msg-det' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: 'MESSAGE' }), h('h2', { text: '💌 쪽지 보내기' })]), h('span', { class: 'el-count', text: '친구에게' })])]), mfilled = false;
+      function fillMsg() { if (mfilled || !mdet.open) return; mfilled = true; var c = msgComposer(); c.className = 'msg-inner'; var hd = c.querySelector('.card-h'); if (hd) hd.parentNode.removeChild(hd); mdet.appendChild(c); }
+      mdet.addEventListener('toggle', fillMsg);
+      if (MSG_REPLY) { mdet.setAttribute('open', ''); fillMsg(); setTimeout(function () { mdet.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100); }
+      p.appendChild(mdet);
+    }
 
     var grid = [];
     if (exam) {
@@ -1209,7 +1216,6 @@
   var KIND = { feature: ['새 기능', 'new'], design: ['디자인', 'design'], fix: ['수정', 'fix'] };
   function renderMore() {
     var p = document.getElementById('panel-more'); if (!p || !DATA) return; clear(p);
-    if (!PREVIEW && DATA.me.role !== 'teacher') p.appendChild(msgComposer());
     var about = DATA.about || {}, ups = (DATA.updates || []).slice().sort(function (x, y) { return x.date < y.date ? 1 : x.date > y.date ? -1 : 0; });
     p.appendChild(h('div', { class: 'card' }, [head('UPDATES', '업데이트 내역'), h('div', { class: 'card-b' },
       ups.length ? ups.map(function (u) {
@@ -2126,7 +2132,7 @@
       var rd = h('button', { class: 'btn msg-ok', type: 'button', text: '확인했어요' });
       rd.addEventListener('click', function () { m.read = true; msgApi('msg-read', { id: m.id }); renderHome(); });
       var rp = m.fromN ? h('button', { class: 'linkbtn', type: 'button', text: '↩ 답장' }) : null;
-      if (rp) rp.addEventListener('click', function () { MSG_REPLY = m.fromN; if (!m.read) { m.read = true; msgApi('msg-read', { id: m.id }); } goTab('more'); renderMore(); });
+      if (rp) rp.addEventListener('click', function () { MSG_REPLY = m.fromN; if (!m.read) { m.read = true; msgApi('msg-read', { id: m.id }); } goTab('home'); });
       return h('div', { class: 'msg' + (m.read ? ' read' : '') }, [h('div', { class: 'msg-h' }, [h('b', { text: '💌 ' + m.from }), h('small', { text: m.at.replace('T', ' ').slice(5) }), m.read ? null : h('span', { class: 'msg-new', text: 'NEW' })]), h('p', { class: 'msg-t', text: m.text }), h('div', { class: 'msg-act' }, [m.read ? null : rd, rp])]);
     }
     box.appendChild(head('MESSAGE', unread.length ? '쪽지가 왔어요 (' + unread.length + ')' : '받은 쪽지'));
@@ -2141,7 +2147,8 @@
   var MSG_REPLY = null;   // 답장: 받는 사람 미리 선택
   function msgGet(path) { return fetch('/api/' + path, { headers: { authorization: 'Bearer ' + (load('tok26') || '') }, cache: 'no-store' }).then(function (r) { return r.json().then(function (j) { j._ok = r.ok; return j; }); }); }
   function msgComposer() {   // 쪽지 보내기 (학생은 한 번에 5명까지, 관리자·선생님은 전체 가능) + 내가 보낸 쪽지
-    var power = DATA.me.admin || DATA.me.role === 'teacher', maxTo = power ? 40 : 5;
+    var power = DATA.me.admin || DATA.me.role === 'teacher', maxTo = power ? 40 : 5, pre = MSG_REPLY;
+    if (pre) setTimeout(function () { if (MSG_REPLY === pre) MSG_REPLY = null; }, 4000);   // 답장 대상은 잠깐만 유지
     var box = h('div', { class: 'card msg-compose' }), sel = {}, sent = h('div', { class: 'msg-sent' });
     var chips = h('div', { class: 'el-chips msg-to' }), ta = h('textarea', { class: 'field', rows: '3', maxlength: '300', placeholder: '쪽지 내용 (300자까지)' });
     var cnt = h('small', { class: 'msg-cnt', text: '받는 사람을 골라 주세요' }), send = h('button', { class: 'btn', type: 'button', text: '쪽지 보내기' });
@@ -2156,8 +2163,8 @@
         c.addEventListener('click', function () { if (sel[s.n]) delete sel[s.n]; else { if (Object.keys(sel).length >= maxTo) { alert('한 번에 ' + maxTo + '명까지 보낼 수 있어요.'); return; } sel[s.n] = 1; } paint(); });
         chips.appendChild(c);
       });
-      if (MSG_REPLY && list.some(function (s) { return s.n === MSG_REPLY; })) { sel[MSG_REPLY] = 1; }
-      MSG_REPLY = null; paint();
+      if (pre && list.some(function (s) { return s.n === pre; })) sel[pre] = 1;
+      paint();
     });
     function loadSent() {
       msgGet('msgs-sent').then(function (j) {
