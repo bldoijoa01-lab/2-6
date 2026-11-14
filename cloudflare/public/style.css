@@ -887,3 +887,9 @@ body.no-anim .panel,body.no-anim .panel *{animation:none !important}
 .push-ios{padding:12px 14px; border-radius:16px; background:var(--glass); border:1px solid var(--glass-line)} .push-ios ol{margin:6px 0; padding-left:20px; line-height:1.7; font-size:14px} .push-ios small{color:var(--mute)}
 .push-slot:empty{display:none}
 @media (min-width:1100px){ #panel-home > .push-slot{grid-column:1/-1} }
+
+.push-det{margin-bottom:14px} .push-inner .card-b{padding-top:6px}
+.push-opts{display:flex; flex-direction:column; gap:8px; margin:10px 0}
+.push-opt{display:flex; align-items:flex-start; gap:10px; padding:10px 12px; border-radius:14px; background:var(--glass); border:1px solid var(--glass-line); font-size:14px; line-height:1.45; cursor:pointer}
+.push-opt input{width:20px; height:20px; margin-top:1px; accent-color:#6A5AE0; flex:none}
+@media (min-width:1100px){ #panel-today > .push-det{max-width:none} }

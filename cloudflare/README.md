@@ -85,5 +85,5 @@ Pretendard(OFL)를 서브셋해서 `src/pretendard.woff2`로 Worker에 내장 (�
 - **자동 작성**: 그날 알림장이 없으면 서버가 일정·기말고사·원반 이동·특별실에서 자동으로 만들어 `오늘의 알림장`에 보여 줍니다 (`src/daily.js`). 관리자/선생님이 직접 쓰면 그게 우선합니다.
 - **급식**: 나이스(NEIS) 오픈API로 오송고(`M10` / `8000283`) 급식을 가져와 KV(`meal:YYYYMMDD`)에 하루 캐시합니다. 조식은 기숙사생에게만 보입니다.
 - **기숙사 명단**: KV `dorm` = `{"번호":"호실"}` (예: `{"12":"302"}`). 저장소에는 넣지 않습니다. 바꾸려면 `npx wrangler kv key put --remote dorm --path dorm.json`. 내 정보에 `기숙사생 · 302호` / `통학생`으로 표시됩니다.
-- **푸시 알림**: 매일 07:30 KST(Cron `30 22 * * *`)에 알림을 켠 학생에게 발송. 구독은 KV `push:<번호>`. 공개키는 `wrangler.toml [vars] VAPID_PUBLIC`, 비공개키는 secret `VAPID_PRIVATE` (`node tools/gen-vapid.mjs`로 새로 만들 수 있음). 관리자 탭의 "지금 알림장 푸시 보내기"로 수동 발송. 아이폰은 홈 화면에 추가한 앱에서만 알림이 옵니다(iOS 16.4+).
+- **푸시 알림**: 알림을 켠 학생에게 매일 07:30 KST(Cron `30 22 * * *`) 오늘의 알림장, 20:00 KST(Cron `0 11 * * *`) 내일 일정(있을 때만). 일정·더보기 탭에서 종류별로 끌 수 있고 설정은 KV `push:<번호>`의 `opts`. 구독은 KV `push:<번호>`. 공개키는 `wrangler.toml [vars] VAPID_PUBLIC`, 비공개키는 secret `VAPID_PRIVATE` (`node tools/gen-vapid.mjs`로 새로 만들 수 있음). 관리자 탭의 "지금 알림장 푸시 보내기"로 수동 발송. 아이폰은 홈 화면에 추가한 앱에서만 알림이 옵니다(iOS 16.4+).
 - 게스트 샘플 데이터는 `tools/gen-demo.py` → `public/demo.js`.

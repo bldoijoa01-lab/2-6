@@ -5,7 +5,7 @@ import ASSETS from './assets.js';
 import FONT from './pretendard.woff2';
 import OG from './og.jpg';
 import ICON from './icon.png';
-import { kstISO, buildAutoDaily, parseMeals, timetableLine, pushText } from './daily.js';
+import { kstISO, addDaysISO, buildAutoDaily, parseMeals, timetableLine, pushText, eveningText } from './daily.js';
 import { sendPush } from './webpush.js';
 const enc = new TextEncoder();
 const TTL = 60 * 60 * 24 * 30;
@@ -95,15 +95,17 @@ async function dailyBundle(env, data, me, iso, official, isDorm) {
   return { date: iso, daily, meals, tt: timetableLine(data, iso, official) };
 }
 // 매일 아침 알림장 푸시 (Cron 07:30 KST 또는 관리자 수동 실행)
-async function dailyPush(env) {
+async function dailyPush(env, kind = 'daily') {
   const iso = env.TODAY_OVERRIDE || kstISO(), data = JSON.parse(await env.CLASS_KV.get('data') || '{}'), roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), dorm = JSON.parse(await env.CLASS_KV.get('dorm') || '{}');
   const out = { sent: 0, gone: 0, failed: 0, skipped: 0, subs: 0 };
   for (const k of (await env.CLASS_KV.list({ prefix: 'push:' })).keys) {
     const n = parseInt(k.name.slice(5), 10), me = roster.find((x) => x.n === n && x.role !== 'teacher'); if (!me) continue;
     const rec = JSON.parse(await env.CLASS_KV.get(k.name) || '{}'); if (!rec.subs || !rec.subs.length || rec.off) continue;
+    if (rec.opts && rec.opts[kind] === false) { out.skipped++; continue; }   // 이 종류 알림을 끈 학생
     const official = JSON.parse(await env.CLASS_KV.get('official:' + n) || 'null');
-    const b = await dailyBundle(env, data, me, iso, official, !!dorm[n]);
-    const msg = pushText({ iso, daily: b.daily, meals: b.meals, tt: b.tt });
+    let msg;
+    if (kind === 'eve') { const tm = addDaysISO(iso, 1); msg = eveningText({ tomorrow: tm, items: buildAutoDaily({ data, me, iso: tm, official }).items }); }
+    else { const b = await dailyBundle(env, data, me, iso, official, !!dorm[n]); msg = pushText({ iso, daily: b.daily, meals: b.meals, tt: b.tt }); }
     if (!msg) { out.skipped++; continue; }
     msg.url = '/#home';
     const keep = [];
@@ -165,7 +167,7 @@ async function saveOfficial(env, roster, rows) {
 }
 
 export default {
-  async scheduled(event, env, ctx) { ctx.waitUntil(dailyPush(env)); },
+  async scheduled(event, env, ctx) { ctx.waitUntil(dailyPush(env, event.cron === '0 11 * * *' ? 'eve' : 'daily')); },   // 22:30 UTC=07:30 KST 아침 알림장 / 11:00 UTC=20:00 KST 전날 저녁 알림
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/api/login' && request.method === 'POST') {
@@ -319,6 +321,13 @@ export default {
         await env.CLASS_KV.put(key, JSON.stringify(rec));
         return json({ ok: true });
       }
+      if (act === 'status') return json({ ok: true, subs: (rec.subs || []).length, opts: { daily: true, eve: true, ...(rec.opts || {}) } });
+      if (act === 'opts') {
+        rec.opts = { daily: true, eve: true, ...(rec.opts || {}) };
+        for (const k of ['daily', 'eve']) if (typeof b[k] === 'boolean') rec.opts[k] = b[k];
+        await env.CLASS_KV.put(key, JSON.stringify(rec));
+        return json({ ok: true, opts: rec.opts });
+      }
       if (act === 'unsubscribe') { rec.subs = (rec.subs || []).filter((x) => x.endpoint !== b.endpoint); await env.CLASS_KV.put(key, JSON.stringify(rec)); return json({ ok: true }); }
       if (act === 'test') {
         let ok = 0;
@@ -378,7 +387,7 @@ export default {
       const sub = url.pathname.slice('/api/admin/'.length);
       if (sub === 'prep' && request.method === 'POST') return savePrep(env, await request.json().catch(() => ({})), me.name);
       if (sub === 'daily' && request.method === 'POST') return saveDaily(env, await request.json().catch(() => ({})), me.name);
-      if (sub === 'push-now' && request.method === 'POST') return json({ ok: true, ...(await dailyPush(env)) });   // 지금 알림장 푸시 보내기(테스트·재발송)
+      if (sub === 'push-now' && request.method === 'POST') { const b0 = await request.json().catch(() => ({})); return json({ ok: true, ...(await dailyPush(env, b0.kind === 'eve' ? 'eve' : 'daily')) }); }   // 지금 알림장 푸시 보내기(테스트·재발송)
       if (sub === 'overview' && request.method === 'GET') {
         const names = async (prefix) => (await env.CLASS_KV.list({ prefix })).keys;
         const [pw, sh, off, subs, ups] = await Promise.all([names('pw:'), names('share:'), names('official:'), names('submit:'), names('upload:')]);

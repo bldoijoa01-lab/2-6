@@ -17,4 +17,4 @@ fallthrough = true
 VAPID_PUBLIC = "BCeNtwIQwW1Bfsd1Z_ZuAnt25Scm0R_TfwrNFSs4PPLno1Fd1TLQaKIEw0R0tZt9xC2xjrV8Crdr2CUwMvBbJdA"   # 푸시 알림용 공개키 (비공개키는 secret VAPID_PRIVATE)
 
 [triggers]
-crons = ["30 22 * * *"]   # 매일 07:30 KST: 오늘의 알림장 푸시
+crons = ["30 22 * * *", "0 11 * * *"]   # 매일 07:30 KST 오늘의 알림장 / 20:00 KST 내일 일정 알림

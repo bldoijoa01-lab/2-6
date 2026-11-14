@@ -2063,6 +2063,11 @@
     });
     var nc = noticesCard(); if (nc) p.appendChild(nc);
     p.appendChild(h('div', { class: 'seg-row' }, [seg, addBtn])); p.appendChild(formSlot);
+    if (!PREVIEW && DATA.me.role !== 'teacher') {   // 일정 알림 설정 (펼칠 때 불러옴)
+      var pdet = h('details', { class: 'card el-card push-det' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: 'NOTIFICATION' }), h('h2', { text: '🔔 알림 설정' })]), h('span', { class: 'el-count', text: '일정 알림' })])]), pfilled = false;
+      pdet.addEventListener('toggle', function () { if (pfilled || !pdet.open) return; pfilled = true; pdet.appendChild(pushCard(true)); });
+      p.appendChild(pdet);
+    }
     p.appendChild(listCard); p.appendChild(calCard); p.appendChild(weeklyCard);
   }
 
@@ -2269,12 +2274,12 @@
   function pushDisable() {
     return navigator.serviceWorker.getRegistration().then(function (reg) { return reg ? reg.pushManager.getSubscription() : null; }).then(function (s) { if (!s) return; var ep = s.endpoint; return s.unsubscribe().then(function () { return msgApi('push/unsubscribe', { endpoint: ep }); }); }).then(function () { return 'off'; });
   }
-  function pushCard() {   // 더보기: 알림 켜기/끄기 + 테스트
-    var box = h('div', { class: 'card push-card' }), body = h('div', { class: 'card-b' });
-    box.appendChild(head('NOTIFICATION', '🔔 알림장 알림')); box.appendChild(body);
+  function pushCard(compact) {   // 알림 켜기/끄기 + 종류 선택 + 테스트 (compact: 일정 탭 안에 넣을 때 머리말 없이)
+    var box = h('div', { class: compact ? 'push-inner' : 'card push-card' }), body = h('div', { class: 'card-b' });
+    if (!compact) box.appendChild(head('NOTIFICATION', '🔔 알림 설정')); box.appendChild(body);
     function draw(st) {
       clear(body);
-      body.appendChild(h('div', { class: 'note-sm', text: '매일 아침 7시 30분에 오늘의 알림장(일정·일과·급식)을 알림으로 보내 드려요. 내용에 이름이나 성적은 들어가지 않아요.' }));
+      body.appendChild(h('div', { class: 'note-sm', text: '알림에는 일정·일과·급식 제목만 들어가요. 이름이나 성적은 들어가지 않아요.' }));
       if (st === 'unsupported') { body.appendChild(h('div', { class: 'empty', text: '이 브라우저는 알림을 지원하지 않아요. 크롬(안드로이드)이나 홈 화면에 추가한 앱(아이폰)에서 켜 주세요.' })); return; }
       if (st === 'ios-install') { body.appendChild(h('div', { class: 'push-ios' }, [h('b', { text: '아이폰은 먼저 홈 화면에 추가해야 해요' }), h('ol', null, [h('li', { text: '사파리에서 이 사이트를 열고 아래 공유 버튼(□↑)을 눌러요' }), h('li', { text: '"홈 화면에 추가"를 눌러요' }), h('li', { text: '홈 화면에 생긴 "2-6 알림장" 앱을 열고, 더보기에서 알림을 켜요' })]), h('small', { text: 'iOS 16.4 이상에서만 돼요.' })])); return; }
       if (st === 'denied') { body.appendChild(h('div', { class: 'empty', text: '알림이 차단돼 있어요. 브라우저(또는 휴대폰) 설정에서 이 사이트의 알림을 허용한 뒤 다시 눌러 주세요.' })); return; }
@@ -2282,6 +2287,18 @@
       btn.addEventListener('click', function () { btn.disabled = true; (st === 'on' ? pushDisable() : pushEnable()).then(draw).catch(function () { btn.disabled = false; alert('알림을 바꾸지 못했어요. 잠시 뒤에 다시 해 주세요.'); }); });
       body.appendChild(h('div', { class: 'push-st' + (st === 'on' ? ' on' : ''), text: st === 'on' ? '✅ 이 기기에서 알림을 받는 중이에요' : '이 기기에서는 아직 꺼져 있어요' }));
       body.appendChild(btn);
+      if (st === 'on') {   // 어떤 알림을 받을지
+        var opts = h('div', { class: 'push-opts' });
+        body.appendChild(opts);
+        msgApi('push/status', {}).then(function (j) {
+          var o = j.opts || { daily: true, eve: true };
+          [['daily', '☀️ 매일 아침 7:30 — 오늘의 알림장 (일정·일과·급식)'], ['eve', '🌙 매일 저녁 8:00 — 내일 일정이 있을 때만']].forEach(function (x) {
+            var cb = h('input', { type: 'checkbox', id: 'po-' + x[0] + (compact ? 'c' : '') }); cb.checked = o[x[0]] !== false;
+            cb.addEventListener('change', function () { var b = {}; b[x[0]] = cb.checked; msgApi('push/opts', b); });
+            opts.appendChild(h('label', { class: 'push-opt', for: cb.id }, [cb, h('span', { text: x[1] })]));
+          });
+        });
+      }
       if (st === 'on') { var t = h('button', { class: 'linkbtn', type: 'button', text: '테스트 알림 보내기' }); t.addEventListener('click', function () { t.textContent = '보내는 중…'; msgApi('push/test', {}).then(function (j) { t.textContent = '테스트 알림 보내기'; alert(j.delivered ? '알림을 보냈어요! 곧 도착해요.' : '보내지 못했어요. 알림을 껐다 다시 켜 보세요.'); }); }); body.appendChild(t); }
     }
     pushState().then(draw); return box;

@@ -14,7 +14,7 @@ export function buildAutoDaily({ data, me, iso, official }) {
   for (const e of events) {
     if (!e.date || /기말고사/.test(e.title)) continue;   // 기말고사는 아래 시험 규칙에서 따로
     const s = e.date, end = e.end || e.date, d = diff(s, iso), note = e.note ? ' · ' + e.note : '';
-    if (s <= iso && iso <= end) items.push({ k: DUE.test(e.title) ? 'hw' : 'notice', t: `오늘 ${e.title}${note}${end > s ? ` (${fmtKo(s)}~${fmtKo(end)})` : ''}` });
+    if (s <= iso && iso <= end) items.push({ k: DUE.test(e.title) ? 'hw' : 'notice', t: `오늘 ${e.title}${note}${end > s ? ` (${fmtKo(s)}~${fmtKo(end)})` : ''}`, s, e: end });
     else if (d === 1) items.push({ k: DUE.test(e.title) ? 'hw' : 'notice', t: `내일 ${e.title}${note}` });
     else if (d >= 2 && d <= 3 && DUE.test(e.title)) items.push({ k: 'hw', t: `${d}일 뒤(${fmtKo(s)}) ${e.title}${note}` });
   }
@@ -87,4 +87,12 @@ export function pushText({ iso, daily, meals, tt }) {
   if (!lines.length) return null;
   const body = lines.join('\n');
   return { title: `📒 오늘의 알림장 · ${fmtKo(iso)}`, body: body.length > 230 ? body.slice(0, 227) + '…' : body, tag: 'daily-' + iso };
+}
+
+// 전날 저녁 알림: 내일 일정만 (buildAutoDaily를 내일 날짜로 돌려 '오늘 …' 항목만 골라 '내일'로 바꿈). 없으면 null
+export function eveningText({ tomorrow, items }) {
+  const mine = (items || []).filter((i) => /^오늘 /.test(i.t) && (!i.s || i.s === tomorrow || i.e === tomorrow)).map((i) => ({ ...i, t: i.t.replace(/^오늘 /, '') }));
+  if (!mine.length) return null;
+  const body = mine.slice(0, 4).map((i) => { const t = i.t.split(' · ')[0]; return '• ' + (t.length > 40 ? t.slice(0, 39) + '…' : t); }).join('\n');
+  return { title: `⏰ 내일 일정 · ${fmtKo(tomorrow)}`, body, tag: 'eve-' + tomorrow };
 }
