@@ -978,7 +978,7 @@
       top.lastChild.appendChild(h('div', { class: 'note-sm', text: '관리자는 암호화된 성적·내신은 볼 수 없어요. 가입 여부, 공유 여부, 학생이 보낸 선택과목·파일만 보여요.  마지막 갱신 ' + new Date(j.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) }));
       top.lastChild.appendChild(refresh);
       clear(body);
-      body.appendChild(adminMsgCard(S));
+      body.appendChild(msgComposer());
 
       // 학생 표
       var tgl = h('button', { class: 'linkbtn', type: 'button', text: onlyNo ? '전체 보기' : '미가입만 보기' });
@@ -1032,6 +1032,7 @@
     var p = document.getElementById('panel-teacher'); clear(p);
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: DATA.me.name + ' 선생님, 안녕하세요 👋' }), h('div', { class: 'greet-s', text: DATA.className + ' 교사 도구' })]));
     p.appendChild(dailyCard());
+    p.appendChild(msgComposer());
 
 
     // 부반장의 쪽지: 전체 선택과목 명단 요청 (명단이 다 올라올 때까지 맨 위에 표시, 로그인 때 팝업으로 한 번)
@@ -1208,6 +1209,7 @@
   var KIND = { feature: ['새 기능', 'new'], design: ['디자인', 'design'], fix: ['수정', 'fix'] };
   function renderMore() {
     var p = document.getElementById('panel-more'); if (!p || !DATA) return; clear(p);
+    if (!PREVIEW && DATA.me.role !== 'teacher') p.appendChild(msgComposer());
     var about = DATA.about || {}, ups = (DATA.updates || []).slice().sort(function (x, y) { return x.date < y.date ? 1 : x.date > y.date ? -1 : 0; });
     p.appendChild(h('div', { class: 'card' }, [head('UPDATES', '업데이트 내역'), h('div', { class: 'card-b' },
       ups.length ? ups.map(function (u) {
@@ -2123,7 +2125,9 @@
     function one(m) {
       var rd = h('button', { class: 'btn msg-ok', type: 'button', text: '확인했어요' });
       rd.addEventListener('click', function () { m.read = true; msgApi('msg-read', { id: m.id }); renderHome(); });
-      return h('div', { class: 'msg' + (m.read ? ' read' : '') }, [h('div', { class: 'msg-h' }, [h('b', { text: '💌 ' + m.from }), h('small', { text: m.at.replace('T', ' ').slice(5) }), m.read ? null : h('span', { class: 'msg-new', text: 'NEW' })]), h('p', { class: 'msg-t', text: m.text }), m.read ? null : rd]);
+      var rp = m.fromN ? h('button', { class: 'linkbtn', type: 'button', text: '↩ 답장' }) : null;
+      if (rp) rp.addEventListener('click', function () { MSG_REPLY = m.fromN; if (!m.read) { m.read = true; msgApi('msg-read', { id: m.id }); } goTab('more'); renderMore(); });
+      return h('div', { class: 'msg' + (m.read ? ' read' : '') }, [h('div', { class: 'msg-h' }, [h('b', { text: '💌 ' + m.from }), h('small', { text: m.at.replace('T', ' ').slice(5) }), m.read ? null : h('span', { class: 'msg-new', text: 'NEW' })]), h('p', { class: 'msg-t', text: m.text }), h('div', { class: 'msg-act' }, [m.read ? null : rd, rp])]);
     }
     box.appendChild(head('MESSAGE', unread.length ? '쪽지가 왔어요 (' + unread.length + ')' : '받은 쪽지'));
     var body = h('div', { class: 'card-b' });
@@ -2134,26 +2138,34 @@
     if (!unread.length) box.classList.add('msg-quiet');
     return box;
   }
-  function adminMsgCard(S) {   // 관리자: 쪽지 보내기 + 보낸 목록
-    var box = h('div', { class: 'card' }), sel = {}, sent = h('div', { class: 'msg-sent' });
+  var MSG_REPLY = null;   // 답장: 받는 사람 미리 선택
+  function msgGet(path) { return fetch('/api/' + path, { headers: { authorization: 'Bearer ' + (load('tok26') || '') }, cache: 'no-store' }).then(function (r) { return r.json().then(function (j) { j._ok = r.ok; return j; }); }); }
+  function msgComposer() {   // 쪽지 보내기 (학생은 한 번에 5명까지, 관리자·선생님은 전체 가능) + 내가 보낸 쪽지
+    var power = DATA.me.admin || DATA.me.role === 'teacher', maxTo = power ? 40 : 5;
+    var box = h('div', { class: 'card msg-compose' }), sel = {}, sent = h('div', { class: 'msg-sent' });
     var chips = h('div', { class: 'el-chips msg-to' }), ta = h('textarea', { class: 'field', rows: '3', maxlength: '300', placeholder: '쪽지 내용 (300자까지)' });
-    var cnt = h('small', { class: 'msg-cnt', text: '0명 선택' }), send = h('button', { class: 'btn', type: 'button', text: '쪽지 보내기' });
-    function upd() { cnt.textContent = Object.keys(sel).length + '명 선택'; }
-    var allB = h('button', { class: 'el-chip', type: 'button', text: '전체 선택' });
-    allB.addEventListener('click', function () { var all = Object.keys(sel).length === S.length; S.forEach(function (s) { if (all) delete sel[s.n]; else sel[s.n] = 1; }); Array.prototype.forEach.call(chips.querySelectorAll('.msg-chip'), function (c, i) { var on = !!sel[S[i].n]; c.classList.toggle('on', on); c.setAttribute('aria-pressed', on ? 'true' : 'false'); }); upd(); });
-    chips.appendChild(allB);
-    S.forEach(function (s) {
-      var c = h('button', { class: 'el-chip msg-chip', type: 'button', 'aria-pressed': 'false', text: s.n + ' ' + s.name });
-      c.addEventListener('click', function () { if (sel[s.n]) delete sel[s.n]; else sel[s.n] = 1; var on = !!sel[s.n]; c.classList.toggle('on', on); c.setAttribute('aria-pressed', on ? 'true' : 'false'); upd(); });
-      chips.appendChild(c);
+    var cnt = h('small', { class: 'msg-cnt', text: '받는 사람을 골라 주세요' }), send = h('button', { class: 'btn', type: 'button', text: '쪽지 보내기' });
+    function upd() { var n = Object.keys(sel).length; cnt.textContent = n ? n + '명 선택' + (power ? '' : ' (최대 ' + maxTo + '명)') : '받는 사람을 골라 주세요' + (power ? '' : ' (최대 ' + maxTo + '명)'); }
+    var list = [];
+    function paint() { Array.prototype.forEach.call(chips.querySelectorAll('.msg-chip'), function (c, i) { var on = !!sel[list[i].n]; c.classList.toggle('on', on); c.setAttribute('aria-pressed', on ? 'true' : 'false'); }); upd(); }
+    msgGet('classmates').then(function (j) {
+      if (!j._ok) return; list = j.students.filter(function (s) { return s.n !== DATA.me.n; });
+      if (power) { var allB = h('button', { class: 'el-chip', type: 'button', text: '전체 선택' }); allB.addEventListener('click', function () { var all = Object.keys(sel).length === list.length; list.forEach(function (s) { if (all) delete sel[s.n]; else sel[s.n] = 1; }); paint(); }); chips.appendChild(allB); }
+      list.forEach(function (s) {
+        var c = h('button', { class: 'el-chip msg-chip', type: 'button', 'aria-pressed': 'false', text: s.n + ' ' + s.name });
+        c.addEventListener('click', function () { if (sel[s.n]) delete sel[s.n]; else { if (Object.keys(sel).length >= maxTo) { alert('한 번에 ' + maxTo + '명까지 보낼 수 있어요.'); return; } sel[s.n] = 1; } paint(); });
+        chips.appendChild(c);
+      });
+      if (MSG_REPLY && list.some(function (s) { return s.n === MSG_REPLY; })) { sel[MSG_REPLY] = 1; }
+      MSG_REPLY = null; paint();
     });
     function loadSent() {
-      aApi('msgs').then(function (j) {
+      msgGet('msgs-sent').then(function (j) {
         clear(sent); if (!j._ok || !j.msgs.length) return;
-        sent.appendChild(h('div', { class: 'eyebrow', text: '보낸 쪽지' }));
-        j.msgs.slice(0, 20).forEach(function (m) {
+        sent.appendChild(h('div', { class: 'eyebrow', text: '내가 보낸 쪽지' }));
+        j.msgs.slice(0, 15).forEach(function (m) {
           var del = h('button', { class: 'linkbtn del-b', type: 'button', text: '삭제' });
-          del.addEventListener('click', function () { if (!confirm(m.name + '에게 보낸 쪽지를 지울까요? 받은 사람 화면에서도 사라져요.')) return; aApi('msg-del', { n: m.n, id: m.id }).then(loadSent); });
+          del.addEventListener('click', function () { if (!confirm(m.name + '에게 보낸 쪽지를 지울까요? 받은 사람 화면에서도 사라져요.')) return; msgApi('msg-del', { n: m.n, id: m.id }).then(loadSent); });
           sent.appendChild(h('div', { class: 'msg-row' }, [h('div', null, [h('b', { text: m.n + '번 ' + m.name }), h('span', { class: 'msg-st' + (m.read ? ' ok' : ''), text: m.read ? '읽음' : '안 읽음' }), h('small', { text: m.at.replace('T', ' ').slice(5) })]), h('p', { text: m.text }), del]));
         });
       });
@@ -2163,10 +2175,10 @@
       if (!to.length) { alert('받는 사람을 골라 주세요.'); return; } if (!text) { alert('내용을 써 주세요.'); return; }
       if (!confirm(to.length + '명에게 쪽지를 보낼까요?')) return;
       send.disabled = true;
-      aApi('msg', { to: to, text: text }).then(function (j) { send.disabled = false; if (!j._ok) { alert('보내지 못했어요.'); return; } ta.value = ''; alert(j.sent + '명에게 보냈어요.'); loadSent(); });
+      msgApi('msg', { to: to, text: text }).then(function (j) { send.disabled = false; if (!j._ok) { alert(j.error === 'too_many' ? '오늘 보낼 수 있는 쪽지를 다 썼어요. 내일 다시 보내 주세요.' : '보내지 못했어요.'); return; } ta.value = ''; sel = {}; paint(); alert(j.sent + '명에게 보냈어요.'); loadSent(); });
     });
     box.appendChild(head('MESSAGE', '쪽지 보내기'));
-    box.appendChild(h('div', { class: 'card-b' }, [h('div', { class: 'note-sm', text: '고른 사람의 홈 화면에만 보여요. 받은 사람이 "확인했어요"를 누르면 읽음으로 표시돼요.' }), chips, cnt, ta, send, sent]));
+    box.appendChild(h('div', { class: 'card-b' }, [h('div', { class: 'note-sm', text: '고른 사람의 홈 화면에만 보여요. 이름이 함께 표시되고, 받은 사람이 "확인했어요"를 누르면 읽음으로 바뀌어요. 장난·괴롭힘 쪽지는 안 돼요!' }), chips, cnt, ta, send, sent]));
     loadSent(); return box;
   }
 

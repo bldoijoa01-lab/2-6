@@ -200,6 +200,61 @@ export default {
       await env.CLASS_KV.put(key, JSON.stringify({ n: me.n, name: me.name, text: msg, file, at: ts }));
       return json({ ok: true });
     }
+    if (url.pathname === '/api/classmates' && request.method === 'GET') {   // 쪽지 받는 사람 고르기용 (이름·번호만)
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]');
+      return json({ students: roster.filter((x) => x.role !== 'teacher').map((x) => ({ n: x.n, name: x.name })) });
+    }
+    if (url.pathname === '/api/msg' && request.method === 'POST') {   // 쪽지 보내기: 학생·관리자·선생님 누구나 (학생→학생). 받는 사람에게만 보임
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]');
+      const me = roster.find((x) => x.n === tok.w); if (!me) return json({ error: 'unauthorized' }, 401);
+      const b = await request.json().catch(() => ({}));
+      const text = typeof b.text === 'string' ? b.text.trim().slice(0, 300) : '';
+      if (!text) return json({ error: 'text' }, 400);
+      const power = me.admin || me.role === 'teacher';
+      const students = roster.filter((x) => x.role !== 'teacher' && x.n !== me.n);
+      const want = b.to === 'all' && power ? students.map((x) => x.n) : (Array.isArray(b.to) ? b.to : []);
+      const targets = students.filter((x) => want.includes(x.n));
+      if (!targets.length || targets.length > (power ? 40 : 5)) return json({ error: 'to' }, 400);
+      if (!power) {   // 하루 쪽지 수 제한 (도배 방지)
+        const key = 'rl:msg:' + me.n + ':' + new Date().toISOString().slice(0, 10), used = parseInt(await env.CLASS_KV.get(key) || '0', 10);
+        if (used + targets.length > 30) return json({ error: 'too_many' }, 429);
+        await env.CLASS_KV.put(key, String(used + targets.length), { expirationTtl: 172800 });
+      }
+      const at = new Date().toISOString().slice(0, 16);
+      for (const t of targets) {
+        const ms = JSON.parse(await env.CLASS_KV.get('msg:' + t.n) || '[]');
+        ms.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), from: me.role === 'teacher' ? me.name + ' 선생님' : me.name, fromN: me.n, text, at, read: false });
+        await env.CLASS_KV.put('msg:' + t.n, JSON.stringify(ms.slice(-20)));
+      }
+      return json({ ok: true, sent: targets.length });
+    }
+    if (url.pathname === '/api/msgs-sent' && request.method === 'GET') {   // 내가 보낸 쪽지 (읽음 여부 포함) — 본인이 보낸 것만
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), out = [];
+      for (const k of (await env.CLASS_KV.list({ prefix: 'msg:' })).keys) {
+        const n = parseInt(k.name.slice(4), 10), st = roster.find((x) => x.n === n);
+        for (const m of JSON.parse(await env.CLASS_KV.get(k.name) || '[]')) if (m.fromN === tok.w) out.push({ id: m.id, n, name: st ? st.name : String(n), text: m.text, at: m.at, read: !!m.read });
+      }
+      out.sort((x, y) => (x.at < y.at ? 1 : -1));
+      return json({ msgs: out.slice(0, 40) });
+    }
+    if (url.pathname === '/api/msg-del' && request.method === 'POST') {   // 내가 보낸 쪽지 지우기
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const b = await request.json().catch(() => ({}));
+      const ms = JSON.parse(await env.CLASS_KV.get('msg:' + b.n) || '[]');
+      await env.CLASS_KV.put('msg:' + b.n, JSON.stringify(ms.filter((m) => !(m.id === b.id && m.fromN === tok.w))));
+      return json({ ok: true });
+    }
     if (url.pathname === '/api/msg-read' && request.method === 'POST') {
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
       const tok = await verifyToken(env, auth, 'full');
@@ -251,37 +306,6 @@ export default {
       const sub = url.pathname.slice('/api/admin/'.length);
       if (sub === 'prep' && request.method === 'POST') return savePrep(env, await request.json().catch(() => ({})), me.name);
       if (sub === 'daily' && request.method === 'POST') return saveDaily(env, await request.json().catch(() => ({})), me.name);
-      if (sub === 'msg' && request.method === 'POST') {   // 쪽지 보내기: 받는 사람(들)에게만 보임
-        const b = await request.json().catch(() => ({}));
-        const text = typeof b.text === 'string' ? b.text.trim().slice(0, 300) : '';
-        if (!text) return json({ error: 'text' }, 400);
-        const students = roster.filter((x) => x.role !== 'teacher');
-        const want = b.to === 'all' ? students.map((x) => x.n) : (Array.isArray(b.to) ? b.to : []);
-        const targets = students.filter((x) => want.includes(x.n));
-        if (!targets.length || targets.length > 40) return json({ error: 'to' }, 400);
-        const at = new Date().toISOString().slice(0, 16);
-        for (const t of targets) {
-          const ms = JSON.parse(await env.CLASS_KV.get('msg:' + t.n) || '[]');
-          ms.push({ id: Date.now().toString(36) + Math.random().toString(36).slice(2, 7), from: me.name, text, at, read: false });
-          await env.CLASS_KV.put('msg:' + t.n, JSON.stringify(ms.slice(-20)));
-        }
-        return json({ ok: true, sent: targets.length });
-      }
-      if (sub === 'msgs' && request.method === 'GET') {   // 보낸 쪽지 목록(읽음 여부 포함)
-        const out = [];
-        for (const k of (await env.CLASS_KV.list({ prefix: 'msg:' })).keys) {
-          const n = parseInt(k.name.slice(4), 10), st = roster.find((x) => x.n === n);
-          for (const m of JSON.parse(await env.CLASS_KV.get(k.name) || '[]')) out.push({ id: m.id, n, name: st ? st.name : String(n), text: m.text, at: m.at, read: !!m.read });
-        }
-        out.sort((x, y) => (x.at < y.at ? 1 : -1));
-        return json({ msgs: out.slice(0, 60) });
-      }
-      if (sub === 'msg-del' && request.method === 'POST') {
-        const b = await request.json().catch(() => ({}));
-        const ms = JSON.parse(await env.CLASS_KV.get('msg:' + b.n) || '[]');
-        await env.CLASS_KV.put('msg:' + b.n, JSON.stringify(ms.filter((m) => m.id !== b.id)));
-        return json({ ok: true });
-      }
       if (sub === 'overview' && request.method === 'GET') {
         const names = async (prefix) => (await env.CLASS_KV.list({ prefix })).keys;
         const [pw, sh, off, subs, ups] = await Promise.all([names('pw:'), names('share:'), names('official:'), names('submit:'), names('upload:')]);
