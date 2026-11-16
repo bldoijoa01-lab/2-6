@@ -1058,13 +1058,13 @@
       top.lastChild.appendChild(h('div', { class: 'note-sm', text: '관리자는 암호화된 성적·내신은 볼 수 없어요. 가입 여부, 공유 여부, 학생이 보낸 선택과목·파일만 보여요.  마지막 갱신 ' + new Date(j.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) }));
       top.lastChild.appendChild(refresh);
       clear(body);
+      var bcc2 = boardControlCard(); if (bcc2) body.appendChild(bcc2);   // 전자칠판 띄우기는 맨 위
       var pnow = h('button', { class: 'btn out', type: 'button', text: '📣 지금 알림장 푸시 보내기 (테스트·재발송)' });
       pnow.addEventListener('click', function () { if (!confirm('알림을 켠 모든 학생에게 지금 오늘의 알림장을 보낼까요?')) return; pnow.disabled = true; aApi('push-now', {}).then(function (j) { pnow.disabled = false; alert(j._ok ? '보냄 ' + j.sent + '건 · 실패 ' + j.failed + '건 · 만료 정리 ' + j.gone + '건 · 건너뜀(보낼 내용 없음) ' + j.skipped + '명' : '실행하지 못했어요.'); }); });
       var reqOn = DATA.pushRequired !== false, reqSw = h('button', { class: 'sw' + (reqOn ? ' on' : ''), type: 'button', role: 'switch', 'aria-checked': reqOn ? 'true' : 'false', 'aria-label': '알림 필수' }, [h('i')]);
       reqSw.addEventListener('click', function () { var nv = !(DATA.pushRequired !== false); reqSw.disabled = true; aApi('setting', { pushRequired: nv }).then(function (j) { reqSw.disabled = false; if (!j._ok) { alert('바꾸지 못했어요.'); return; } DATA.pushRequired = nv; reqSw.classList.toggle('on', nv); reqSw.setAttribute('aria-checked', nv ? 'true' : 'false'); }); });
       body.appendChild(h('div', { class: 'card' }, [head('NOTIFICATION', '알림장 푸시'), h('div', { class: 'card-b' }, [h('div', { class: 'note-sm', text: '알림을 켠 학생에게만 가요. 시각은 학생마다 정해요(기본 아침 7:30, 저녁 20:00).' }),
         h('div', { class: 'push-row' }, [h('div', null, [h('b', { text: '알림 필수' }), h('small', { text: '켜면 학생이 알림을 켜기 전에는 앱을 못 써요 (교사·관리자 제외)' })]), reqSw]), pnow])]));
-      var bcc2 = boardControlCard(); if (bcc2) body.appendChild(bcc2);
       body.appendChild(msgComposer());
 
       // 학생 표
@@ -1118,8 +1118,8 @@
   function renderTeacher() {
     var p = document.getElementById('panel-teacher'); clear(p);
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: DATA.me.name + ' 선생님, 안녕하세요 👋' }), h('div', { class: 'greet-s', text: DATA.className + ' 교사 도구' })]));
+    var bcc = boardControlCard(); if (bcc) p.appendChild(bcc);   // 수업 의견 보드(전자칠판) — 선생님 화면 맨 위
     p.appendChild(dailyCard());
-    var bcc = boardControlCard(); if (bcc) p.appendChild(bcc);
     p.appendChild(msgComposer());
 
 
