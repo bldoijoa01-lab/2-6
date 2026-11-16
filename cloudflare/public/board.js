@@ -14,7 +14,7 @@
   var reduce = function () { return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); };
 
   // ---- 물리 상수 (px, 초 단위) ----
-  var BUOY = 620, DRAG = 2.6, GAP = 12, MARGIN = 14, MAXLIST = 40, FLING = 2600;
+  var BUOY = 620, DRAG = 2.6, GAP = -16, MARGIN = 14, MAXLIST = 70, FLING = 2600;
 
   function show(opts) {
     if (cur) return; opts = opts || {};
@@ -40,7 +40,7 @@
       var o = { id: m.id, msg: m, el: b, w: w, h: h, x: w / 2 + MARGIN + Math.random() * Math.max(1, S.w - w - MARGIN * 2), y: S.h + h / 2 + 30, vx: (Math.random() - 0.5) * 60, vy: -140 - Math.random() * 80, ph: Math.random() * 6.28, born: performance.now(), dead: false };
       if (instant || reduce()) { o.y = h / 2 + MARGIN; o.vy = 0; }
       bubbles[m.id] = o; list.push(o);
-      b.classList.add('new'); setTimeout(function () { b.classList.remove('new'); }, 2600);
+      b.style.zIndex = String(1 + (m.id % 1000)); b.classList.add('new'); setTimeout(function () { b.classList.remove('new'); }, 2600);
       b.addEventListener('click', function (ev) { ev.stopPropagation(); if (o.moved) { o.moved = false; return; } if (power) selectBubble(m.id); });
       grab(o); place(o); kick();
     }
@@ -102,11 +102,11 @@
       n = Math.max(1, Math.min(6, Math.ceil(mv * dt / 30)));   // 빨리 날아가는 말풍선이 다른 걸 뚫고 지나가지 않게 잘게 나눠 계산
       for (i = 0; i < n; i++) sub(dt / n, t);
       var S = size(); list.forEach(place);
-      list.forEach(function (o) { if (!o.drag && Math.abs(o.vy) < 12 && o.y + o.h / 2 > S.h - 18) o.low = (o.low || 0) + dt; else o.low = 0; });
+      list.forEach(function (o) { if (!o.drag && Math.abs(o.vy) < 45 && o.y + o.h / 2 > S.h - 18) o.low = (o.low || 0) + dt; else o.low = 0; });
       // 더미가 화면 아래까지 막혀서 1.6초 넘게 내려와 있으면 가장 오래된 말풍선이 터지고 나머지가 떠오름 (바닥에 잠깐 튕긴 건 제외)
       var blocked = list.some(function (o) { return o.low > 1.6; });
       if ((list.length > MAXLIST || blocked) && t - lastRetire > 700) {
-        var oldest = list.filter(function (o) { return !o.drag; }).sort(function (p, q) { return p.id - q.id; })[0]; if (oldest) { lastRetire = t; pop(oldest.id); paintHead(); list.forEach(function (o) { o.low = 0; }); }
+        var oldest = list.filter(function (o) { return !o.drag; }).sort(function (p, q) { return p.id - q.id; })[0]; if (oldest) { lastRetire = t; pop(oldest.id); paintHead(); list.forEach(function (o) { o.low = Math.min(o.low, 1.0); }); }
       }
     }
     function sub(dt, t) {
@@ -136,12 +136,12 @@
             if (lo.drag) { up.y -= oy; if (up.vy < 0) up.vy = 0; continue; }
             if (up.drag) { lo.y += oy; if (lo.vy < 0) lo.vy *= 0.15; continue; }
             if (vn < -90) { var jv = -(1 + 0.55) * vn / 2; lo.vy += jv; up.vy -= jv; hit(lo, 'y', vn); hit(up, 'y', vn); lo.y += oy / 2; up.y -= oy / 2; }   // 세게 부딪히면 통! 하고 서로 튕김
-            else { lo.y += oy; if (lo.vy < 0) lo.vy *= 0.15; }
+            else { lo.y += oy * 0.5; up.y -= oy * 0.08; if (lo.vy < 0) lo.vy *= 0.35; }   // 살짝 겹친 채로 포개져 쌓임
             var side = lo.x - up.x; if (Math.abs(side) < (lo.w + up.w) * 0.25) lo.vx += (side >= 0 ? 1 : -1) * 40 * (1 + Math.random());
           } else {                                              // 좌우로 겹침
             var sg = dx >= 0 ? 1 : -1, vr = (b.vx - a.vx) * sg;   // vr<0: 다가오는 중
             if (a.drag) { b.x += sg * ox; continue; } if (b.drag) { a.x -= sg * ox; continue; }
-            a.x -= sg * ox / 2; b.x += sg * ox / 2;
+            a.x -= sg * ox * 0.28; b.x += sg * ox * 0.28;
             if (vr < -60) { var jh = -(1 + 0.7) * vr / 2 * sg; b.vx += jh; a.vx -= jh; hit(a, 'x', vr); hit(b, 'x', vr); } else { a.vx = a.vx * 0.4 - sg * 12; b.vx = b.vx * 0.4 + sg * 12; }
           }
         }
