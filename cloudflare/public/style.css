@@ -942,9 +942,10 @@ body.no-anim .panel,body.no-anim .panel *{animation:none !important}
 .bd-tools{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end}
 .bd-btn{border:1px solid rgba(255,255,255,.28); background:rgba(255,255,255,.12); color:#fff; border-radius:999px; padding:10px 18px; font:inherit; font-size:16px; font-weight:800; cursor:pointer; backdrop-filter:blur(8px)} .bd-btn:hover{background:rgba(255,255,255,.22)}
 .bd-stage{position:relative; flex:1; overflow:hidden}
-.bd-pos{position:absolute; width:0; height:0; will-change:transform,opacity}
-.bd-fl{position:absolute; left:0; top:0; transform:translate(-50%,-50%)}
-.bd-b{position:relative; padding:.62em .95em .7em; border-radius:28px; box-shadow:0 14px 34px rgba(0,0,0,.32); font-weight:800; line-height:1.3; word-break:keep-all; overflow-wrap:anywhere; width:max-content; animation:bdBob 4s ease-in-out infinite alternate; transition:filter .9s ease; cursor:default}
+.bd-b{position:absolute; left:0; top:0; padding:.62em .95em .7em; border-radius:28px; box-shadow:0 14px 34px rgba(0,0,0,.32); font-weight:800; line-height:1.3; word-break:keep-all; overflow-wrap:anywhere; width:max-content; will-change:transform; transition:filter .9s ease,opacity .45s ease,scale .45s cubic-bezier(.3,1.6,.5,1); animation:bdIn .7s cubic-bezier(.3,1.5,.5,1) both; cursor:grab; user-select:none; -webkit-user-select:none}
+.bd-b.held{cursor:grabbing; z-index:5; scale:1.06; box-shadow:0 26px 50px rgba(0,0,0,.42)}
+.bd-b.pop{opacity:0; scale:1.35; filter:blur(5px); pointer-events:none}
+@keyframes bdIn{from{opacity:0; scale:.55} to{opacity:1; scale:1}}
 .bd-b::after{content:''; position:absolute; left:28px; bottom:-15px; width:26px; height:18px; background:var(--tail); clip-path:polygon(0 0,100% 0,28% 100%)}
 .bd-b.new{filter:drop-shadow(0 0 26px rgba(255,255,255,.95))}
 .bd-n{font-size:.5em; opacity:.68; font-weight:800; margin-bottom:.18em}
@@ -1032,3 +1033,21 @@ body.kiosk{overflow:hidden}
 .ks-in{font:inherit; font-size:1.15em; padding:.35em .7em; border-radius:.7em; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.1); color:#fff} .ks-in::-webkit-calendar-picker-indicator{filter:invert(1)}
 .ks-row.left{justify-content:flex-start} .ks-sec{margin-top:.5em; font-weight:800; font-size:1.2em; color:#FFE08A}
 @media (max-width:900px){ .ks-jcols{grid-template-columns:1fr} }
+
+/* 자습시간 · 자리바꾸기 (전자칠판) */
+.ks-study{display:grid; grid-template-columns:minmax(17em,26%) 1fr; gap:1.2em; height:100%; min-height:60vh}
+.ks-side{display:flex; flex-direction:column; gap:1em} .ks-sbox{background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); border-radius:1.1em; padding:1em 1.2em; display:flex; flex-direction:column; gap:.3em}
+.ks-sbox small{opacity:.75; font-size:.95em} .ks-sclock{font-size:2.3em; font-variant-numeric:tabular-nums; letter-spacing:.02em} .ks-scd{font-size:3.4em; color:#7FE0FF; font-variant-numeric:tabular-nums; line-height:1.05}
+.ks-sbar{height:.7em; border-radius:99px; background:rgba(255,255,255,.18); overflow:hidden; margin-top:.4em} .ks-sbar i{display:block; height:100%; width:0; background:linear-gradient(90deg,#7FE0FF,#9BF0A8); transition:width 1s linear} .ks-srange{align-self:flex-end}
+.ks-slist{margin:.2em 0 0; padding-left:1.1em; line-height:1.55}
+.ks-smain{display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.6em; text-align:center}
+.ks-srules{display:flex; gap:.8em; flex-wrap:wrap; justify-content:center; margin-top:1em} .ks-srules span{background:rgba(255,255,255,.12); border-radius:99px; padding:.5em 1.1em; font-weight:800}
+.ks-seat{display:flex; flex-direction:column; gap:1em; align-items:center}
+.ks-swrap{display:flex; flex-direction:column; align-items:center; gap:.8em; width:100%}
+.ks-sgrid{display:flex; gap:2.2em; align-items:flex-start; justify-content:center; width:100%}
+.ks-scol{display:flex; flex-direction:column; gap:.35em} .ks-srow{display:flex; gap:.35em}
+.ks-sdesk{min-width:5.6em; padding:.75em .5em; border-radius:.7em; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.13); color:#fff; font:inherit; font-weight:800; font-size:1.25em; cursor:pointer}
+.ks-sdesk.empty{visibility:hidden} .ks-sdesk.sel{background:#FFE08A; color:#3a2a00; transform:scale(1.07)} .ks-sdesk.shuf{animation:ksShuf .5s both}
+@keyframes ksShuf{from{opacity:0; transform:translateY(-12px) scale(.9)}to{opacity:1; transform:none}}
+.ks-podium{padding:.6em 3em; border-radius:.6em; border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.08); font-weight:900}
+@media (max-width:900px){.ks-study{grid-template-columns:1fr}.ks-sgrid{gap:1em}.ks-sdesk{min-width:4em;font-size:1em}}
