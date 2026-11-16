@@ -52,7 +52,7 @@
         if (id !== null || (ev.button && ev.button !== 0) || ev.target.closest('.bd-sel')) return;
         id = ev.pointerId; try { b.setPointerCapture(id); } catch (e) {}
         var r = stage.getBoundingClientRect(); ox = ev.clientX - r.left - o.x; oy = ev.clientY - r.top - o.y; sx = ev.clientX; sy = ev.clientY;
-        o.drag = true; o.moved = false; o.vx = 0; o.vy = 0; hist = [[performance.now(), ev.clientX, ev.clientY]]; b.classList.add('held'); kick();
+        o.drag = true; o.moved = false; o.sa = 'y'; o.sqv = 6; o.vx = 0; o.vy = 0; hist = [[performance.now(), ev.clientX, ev.clientY]]; b.classList.add('held'); kick();
       });
       b.addEventListener('pointermove', function (ev) {
         if (ev.pointerId !== id) return;
@@ -67,13 +67,20 @@
         if (ev.pointerId !== id) return; id = null; o.drag = false; b.classList.remove('held');
         var f = hist[0], l = hist[hist.length - 1], dt = Math.max(16, l[0] - f[0]) / 1000;
         if (o.moved && hist.length > 1 && performance.now() - l[0] < 120) {
-          o.vx = Math.max(-FLING, Math.min(FLING, (l[1] - f[1]) / dt)); o.vy = Math.max(-FLING, Math.min(FLING, (l[2] - f[2]) / dt)); o.entered = true;
-        } else { o.vx = 0; o.vy = 0; }
+          o.vx = Math.max(-FLING, Math.min(FLING, (l[1] - f[1]) / dt)); o.vy = Math.max(-FLING, Math.min(FLING, (l[2] - f[2]) / dt)); o.entered = true; o.sa = Math.abs(o.vx) > Math.abs(o.vy) ? 'x' : 'y'; o.sqv = -9;   // 놓는 순간 쭉 늘어났다가 출발
+        } else { o.vx = 0; o.vy = 0; o.sqv = -5; }
         kick();
       }
       b.addEventListener('pointerup', release); b.addEventListener('pointercancel', release);
     }
-    function place(o) { o.el.style.transform = 'translate3d(' + (o.x - o.w / 2).toFixed(1) + 'px,' + (o.y - o.h / 2).toFixed(1) + 'px,0) rotate(' + Math.max(-7, Math.min(7, o.vx * 0.035)).toFixed(2) + 'deg)'; }
+    function place(o) {
+      var sx = 1, sy = 1, q = Math.max(-0.5, Math.min(0.5, o.sq || 0));   // 찌부: q>0이면 부딪힌 축으로 납작해지고 반대로 퉁퉁해짐 (부피 유지)
+      if (o.sa === 'x') { sx = 1 - q * 0.55; sy = 1 + q * 0.55; } else { sy = 1 - q * 0.55; sx = 1 + q * 0.55; }
+      o.el.style.transform = 'translate3d(' + (o.x - o.w / 2).toFixed(1) + 'px,' + (o.y - o.h / 2).toFixed(1) + 'px,0) rotate(' + Math.max(-9, Math.min(9, o.vx * 0.04)).toFixed(2) + 'deg) scale(' + sx.toFixed(3) + ',' + sy.toFixed(3) + ')';
+    }
+    function hit(o, axis, v) {   // 부딪힘 → 찌부러졌다가 통통 튀며 돌아옴
+      v = Math.abs(v); if (v < 60) return; o.sa = axis; o.sqv = Math.max(o.sqv || 0, 0) + Math.min(8, v * 0.016);
+    }
     function pop(id) {   // 터지며 사라짐
       var o = bubbles[id]; if (!o || o.dead) return; o.dead = true; delete bubbles[id];
       list = list.filter(function (x) { return x !== o; }); o.el.classList.add('pop');
@@ -91,43 +98,53 @@
       if (busy || list.length) raf = requestAnimationFrame(frame);
     }
     function step(dt, t) {
+      var mv = 0, n, i; for (i = 0; i < list.length; i++) mv = Math.max(mv, Math.abs(list[i].vx), Math.abs(list[i].vy));
+      n = Math.max(1, Math.min(6, Math.ceil(mv * dt / 30)));   // 빨리 날아가는 말풍선이 다른 걸 뚫고 지나가지 않게 잘게 나눠 계산
+      for (i = 0; i < n; i++) sub(dt / n, t);
+      var S = size(); list.forEach(place);
+      list.forEach(function (o) { if (!o.drag && Math.abs(o.vy) < 12 && o.y + o.h / 2 > S.h - 18) o.low = (o.low || 0) + dt; else o.low = 0; });
+      // 더미가 화면 아래까지 막혀서 1.6초 넘게 내려와 있으면 가장 오래된 말풍선이 터지고 나머지가 떠오름 (바닥에 잠깐 튕긴 건 제외)
+      var blocked = list.some(function (o) { return o.low > 1.6; });
+      if ((list.length > MAXLIST || blocked) && t - lastRetire > 700) {
+        var oldest = list.filter(function (o) { return !o.drag; }).sort(function (p, q) { return p.id - q.id; })[0]; if (oldest) { lastRetire = t; pop(oldest.id); paintHead(); list.forEach(function (o) { o.low = 0; }); }
+      }
+    }
+    function sub(dt, t) {
       var S = size(), top = MARGIN, i, j, a, b;
       for (i = 0; i < list.length; i++) {
         a = list[i]; if (a.drag) continue;
-        a.vy -= BUOY * dt; a.vy -= a.vy * DRAG * dt;                                        // 부력 + 항력 (끝속도에서 일정하게 떠오름)
-        a.vx += Math.sin(t / 700 + a.ph) * 18 * dt - a.vx * (Math.abs(a.vx) > 120 ? 0.9 : 1.8) * dt;   // 좌우로 살랑살랑 (세게 날린 건 천천히 줄어듦)
+        a.vy -= BUOY * dt; a.vy -= a.vy * DRAG * dt;                                        // 부력 + 항력
+        a.vx += Math.sin(t / 700 + a.ph) * 18 * dt - a.vx * (Math.abs(a.vx) > 120 ? 0.7 : 1.8) * dt;   // 좌우로 살랑살랑 (세게 날린 건 오래 날아감)
         a.x += a.vx * dt; a.y += a.vy * dt;
         if (!a.entered && a.y + a.h / 2 < S.h) a.entered = true;
+        a.sqv = (a.sqv || 0) + (-170 * (a.sq || 0) - 9 * (a.sqv || 0)) * dt; a.sq = (a.sq || 0) + a.sqv * dt;   // 찌부 스프링(출렁출렁)
       }
-      for (var pass = 0; pass < 4; pass++) {
+      for (var pass = 0; pass < 3; pass++) {
         for (i = 0; i < list.length; i++) {
-          a = list[i];
-          if (a.drag) continue;
-          if (a.y < top + a.h / 2) { a.y = top + a.h / 2; if (a.vy < 0) a.vy = a.vy < -300 ? -a.vy * 0.35 : 0; }       // 천장 (세게 부딪히면 살짝 튕김)
-          if (a.entered && a.y > S.h - MARGIN - a.h / 2) { a.y = S.h - MARGIN - a.h / 2; if (a.vy > 0) a.vy = -a.vy * 0.4; }   // 바닥 (날아온 뒤엔 튕기고 다시 떠오름)
-          if (a.x < MARGIN + a.w / 2) { a.x = MARGIN + a.w / 2; a.vx = Math.abs(a.vx) * 0.6; }
-          if (a.x > S.w - MARGIN - a.w / 2) { a.x = S.w - MARGIN - a.w / 2; a.vx = -Math.abs(a.vx) * 0.6; }
+          a = list[i]; if (a.drag) continue;
+          if (a.y < top + a.h / 2) { a.y = top + a.h / 2; if (a.vy < 0) { hit(a, 'y', a.vy); a.vy = a.vy < -120 ? -a.vy * 0.55 : 0; } }       // 천장: 쿵 하고 튕김
+          if (a.entered && a.y > S.h - MARGIN - a.h / 2) { a.y = S.h - MARGIN - a.h / 2; if (a.vy > 0) { hit(a, 'y', a.vy); a.vy = -a.vy * 0.6; } }   // 바닥
+          if (a.x < MARGIN + a.w / 2) { a.x = MARGIN + a.w / 2; hit(a, 'x', a.vx); a.vx = Math.abs(a.vx) * 0.72; }
+          if (a.x > S.w - MARGIN - a.w / 2) { a.x = S.w - MARGIN - a.w / 2; hit(a, 'x', a.vx); a.vx = -Math.abs(a.vx) * 0.72; }
         }
         for (i = 0; i < list.length; i++) for (j = i + 1; j < list.length; j++) {
           a = list[i]; b = list[j];
           var dx = b.x - a.x, dy = b.y - a.y, ox = (a.w + b.w) / 2 + GAP - Math.abs(dx), oy = (a.h + b.h) / 2 + GAP - Math.abs(dy);
           if (ox <= 0 || oy <= 0) continue;
-          if (oy <= ox * 1.15) {                                // 위아래로 겹침 → 아래 것이 위 것 밑에서 멈춤
-            var lo = dy > 0 ? b : a, up = dy > 0 ? a : b;
+          if (oy <= ox * 1.15) {                                // 위아래로 겹침
+            var lo = dy > 0 ? b : a, up = dy > 0 ? a : b, vn = lo.vy - up.vy;   // vn<0: 서로 다가오는 중
             if (lo.drag) { up.y -= oy; if (up.vy < 0) up.vy = 0; continue; }
             if (up.drag) { lo.y += oy; if (lo.vy < 0) lo.vy *= 0.15; continue; }
-            lo.y += oy; if (lo.vy < 0) lo.vy *= 0.15;
-            var side = lo.x - up.x; if (Math.abs(side) < (lo.w + up.w) * 0.25) lo.vx += (side >= 0 ? 1 : -1) * 40 * (1 + Math.random());   // 정확히 밑에 걸리면 옆으로 빠져나가 빈틈을 찾음
-          } else {                                              // 좌우로 겹침 → 서로 밀어냄
-            var s = dx >= 0 ? 1 : -1; if (a.drag) b.x += s * ox; else if (b.drag) a.x -= s * ox; else { a.x -= s * ox / 2; b.x += s * ox / 2; } if (a.drag || b.drag) continue;  a.vx = a.vx * 0.4 - s * 12; b.vx = b.vx * 0.4 + s * 12;
+            if (vn < -90) { var jv = -(1 + 0.55) * vn / 2; lo.vy += jv; up.vy -= jv; hit(lo, 'y', vn); hit(up, 'y', vn); lo.y += oy / 2; up.y -= oy / 2; }   // 세게 부딪히면 통! 하고 서로 튕김
+            else { lo.y += oy; if (lo.vy < 0) lo.vy *= 0.15; }
+            var side = lo.x - up.x; if (Math.abs(side) < (lo.w + up.w) * 0.25) lo.vx += (side >= 0 ? 1 : -1) * 40 * (1 + Math.random());
+          } else {                                              // 좌우로 겹침
+            var sg = dx >= 0 ? 1 : -1, vr = (b.vx - a.vx) * sg;   // vr<0: 다가오는 중
+            if (a.drag) { b.x += sg * ox; continue; } if (b.drag) { a.x -= sg * ox; continue; }
+            a.x -= sg * ox / 2; b.x += sg * ox / 2;
+            if (vr < -60) { var jh = -(1 + 0.7) * vr / 2 * sg; b.vx += jh; a.vx -= jh; hit(a, 'x', vr); hit(b, 'x', vr); } else { a.vx = a.vx * 0.4 - sg * 12; b.vx = b.vx * 0.4 + sg * 12; }
           }
         }
-      }
-      for (i = 0; i < list.length; i++) place(list[i]);
-      // 쌓인 더미가 화면 아래까지 차면 가장 오래된(맨 위) 말풍선이 터지고 나머지가 떠오름
-      var bottom = 0, rest = 0; list.forEach(function (o) { if (!o.drag && Math.abs(o.vy) < 12) { rest++; bottom = Math.max(bottom, o.y + o.h / 2); } });
-      if ((list.length > MAXLIST || (rest > 1 && bottom > S.h - 18)) && t - lastRetire > 450) {
-        var oldest = list.filter(function (o) { return !o.drag; }).sort(function (p, q) { return p.id - q.id; })[0]; if (oldest) { lastRetire = t; pop(oldest.id); paintHead(); }
       }
     }
     function settleNow() { for (var k = 0; k < 160; k++) step(0.03, k * 30); }   // 애니메이션 줄이기 설정: 바로 쌓인 상태로
