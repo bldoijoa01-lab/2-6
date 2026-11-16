@@ -248,6 +248,25 @@ export class Board {
       await this.state.storage.put('s', s);
       return out(view());
     }
+    // ---- 전자칠판 원격 제어: 관리자·교사가 명령(kcmd)을 올리면 전자칠판이 주기적으로(kpoll) 가져가 실행하고 상태를 알려 줌 ----
+    if (b.op === 'kcmd' || b.op === 'kpoll' || b.op === 'kstate') {
+      if (!this.k) this.k = { id: 0, q: [], st: null, ts: 0 };
+      const k = this.k, ctl = !!(me.admin || me.role === 'teacher');
+      if (b.op === 'kcmd') {
+        if (!ctl) return out({ error: 'forbidden' }, 403);
+        const cmd = String(b.cmd || '').slice(0, 20); if (!/^[a-z]+$/.test(cmd)) return out({ error: 'bad' }, 400);
+        k.id++; k.q.push({ id: k.id, cmd, args: b.args && typeof b.args === 'object' ? b.args : {}, by: me.name, at: Date.now() }); if (k.q.length > 20) k.q.shift();
+        return out({ ok: true, id: k.id });
+      }
+      if (b.op === 'kpoll') {
+        if (me.role !== 'board') return out({ error: 'forbidden' }, 403);
+        if (b.state && typeof b.state === 'object') { k.st = b.state; k.ts = Date.now(); }
+        if (b.since == null) return out({ last: k.id, cmds: [] });
+        return out({ last: k.id, cmds: k.q.filter((c) => c.id > b.since && Date.now() - c.at < 120000) });
+      }
+      if (!ctl) return out({ error: 'forbidden' }, 403);
+      return out({ online: Date.now() - k.ts < 20000, state: k.st, age: k.ts ? Date.now() - k.ts : null });
+    }
     return out({ error: 'bad' }, 400);
   }
 }
@@ -426,14 +445,15 @@ export default {
       await env.CLASS_KV.put('pins:' + tok.w, JSON.stringify(pins));
       return json({ ok: true, pins });
     }
-    if (url.pathname.startsWith('/api/board/') && env.BOARD) {   // 수업 의견 보드: 로그인한 누구나 보고 올리고, 교사·관리자만 조작
+    if ((url.pathname.startsWith('/api/board/') || url.pathname.startsWith('/api/kiosk/')) && env.BOARD) {   // 수업 의견 보드: 로그인한 누구나 보고 올리고, 교사·관리자만 조작
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
       const tok = await verifyToken(env, auth, 'full');
       if (!tok) return json({ error: 'unauthorized' }, 401);
       const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), me0 = roster.find((x) => x.n === tok.w);
       if (!me0) return json({ error: 'unauthorized' }, 401);
-      const act = url.pathname.slice('/api/board/'.length), body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
-      if (!['state', 'post', 'ctl'].includes(act)) return json({ error: 'not_found' }, 404);
+      const isK = url.pathname.startsWith('/api/kiosk/'), act = isK ? 'k' + url.pathname.slice('/api/kiosk/'.length) : url.pathname.slice('/api/board/'.length), body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+      if (!(isK ? ['kcmd', 'kpoll', 'kstate'] : ['state', 'post', 'ctl']).includes(act)) return json({ error: 'not_found' }, 404);
+      if (isK && request.method !== 'POST') return json({ error: 'not_found' }, 404);
       const stub = env.BOARD.get(env.BOARD.idFromName('main'));
       const r = await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ ...body, op: act, me: { n: me0.n, name: me0.name, role: me0.role === 'teacher' ? 'teacher' : me0.role === 'board' ? 'board' : 'student', admin: !!me0.admin } }) });
       return new Response(await r.text(), { status: r.status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });

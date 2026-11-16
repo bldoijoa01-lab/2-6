@@ -31,7 +31,7 @@
     document.body.classList.add('kiosk'); document.body.classList.remove('locked');
     var scale = parseFloat(load('ks_scale') || '1'); root.style.setProperty('--ks', scale);
     var names = null;   // 학생 이름(뽑기·모둠)
-    var SC = loadSched(), barEl = null, cdEl = null, cdEnd = 0, lastPhase = null;
+    var KAPI = {}, alertEl = null, alertText = '', SC = loadSched(), barEl = null, cdEl = null, cdEnd = 0, lastPhase = null;
     function later(fn, ms) { var t = setTimeout(fn, ms); timers.push(t); return t; }
     function resetTimers() { timers.forEach(clearTimeout); timers = []; }
 
@@ -214,6 +214,7 @@
       go.addEventListener('click', function () { put(shuffle(flat())); sel = null; save(); draw(true); note.textContent = '새 자리예요! 이동하세요 🪑 (두 자리를 차례로 누르면 서로 바뀌어요)'; });
       rs.addEventListener('click', function () { seats = JSON.parse(JSON.stringify(SEAT_DEF)); sel = null; save(); draw(true); note.textContent = '처음 배치로 돌아왔어요'; });
       by.addEventListener('click', function () { getNames(function (all) { var a = all.slice().sort(function (p, q) { return p.n - q.n; }).map(function (x) { return x.name; }); if (a.length === flat().length) { put(a); save(); draw(true); note.textContent = '번호순으로 앉아 봤어요'; } else note.textContent = '학생 수가 달라서 번호순은 못 만들었어요'; }); });
+      KAPI.seat = { shuffle: function () { go.click(); }, reset: function () { rs.click(); }, num: function () { by.click(); }, state: function () { return { seats: seats }; } };
       [go, rs, by].forEach(function (x) { ctl.appendChild(x); }); note.textContent = '자리를 누르고 다른 자리를 누르면 서로 바뀌어요 · 배치는 이 전자칠판에 저장돼요';
       var wrap = el('div', 'ks-swrap'); wrap.appendChild(grid); wrap.appendChild(el('div', 'ks-podium', '교탁'));
       box.appendChild(ctl); box.appendChild(wrap); box.appendChild(note); main.appendChild(box); draw();
@@ -237,6 +238,7 @@
       [1, 3, 5, 10, 15, 20, 30].forEach(function (m) { var b = el('button', 'ks-chip', m + '분'); b.addEventListener('click', function () { stop(); total = left = m * 60; box.classList.remove('done'); show(); }); presets.appendChild(b); });
       var adj = el('div', 'ks-adj'); [['-1분', -60], ['-10초', -10], ['+10초', 10], ['+1분', 60]].forEach(function (a) { var b = el('button', 'ks-chip', a[0]); b.addEventListener('click', function () { var was = running; if (was) stop(); total = left = Math.max(10, Math.min(5999, left + a[1])); show(); if (was) go(); }); adj.appendChild(b); });
       box.appendChild(wrap); box.appendChild(presets); box.appendChild(adj); var row = el('div', 'ks-row'); row.appendChild(startBtn); row.appendChild(reset); box.appendChild(row);
+      KAPI.timer = { set: function (sec) { stop(); total = left = Math.max(10, Math.min(5999, sec | 0)); box.classList.remove('done'); show(); }, start: function () { if (!running) go(); }, stop: function () { if (running) stop(); }, reset: function () { reset.click(); }, state: function () { return { left: left, total: total, running: running, done: left === 0 }; } };
       show(); main.appendChild(box); cleanups.push(function () { clearInterval(iv); });
     }
     var cleanups = [];
@@ -267,11 +269,12 @@
       });
       clr.addEventListener('click', function () { picked = []; paintHist(); big.textContent = '🎲'; sub.textContent = '버튼을 눌러 발표자를 뽑아요'; stage.classList.remove('hit'); });
       var row = el('div', 'ks-row'); row.appendChild(go); row.appendChild(exBtn); row.appendChild(clr);
+      KAPI.pick = { go: function () { go.click(); }, reset: function () { clr.click(); }, state: function () { return { picked: picked.map(function (p) { return p.n + ' ' + p.name; }), now: stage.classList.contains('hit') ? big.textContent : '' }; } };
       box.appendChild(stage); box.appendChild(row); box.appendChild(hist); main.appendChild(box); paintHist();
     }
 
     // ---------- 모둠 나누기 ----------
-    var groupN = 6;
+    var groupN = 6, lastGroups = [];
     function paintGroup() {
       var box = el('div', 'ks-group'), ctl = el('div', 'ks-row'), out = el('div', 'ks-groups');
       var minus = el('button', 'ks-chip', '－'), plus = el('button', 'ks-chip', '＋'), lab = el('b', 'ks-glab', groupN + '모둠'), go = el('button', 'ks-btn big', '🔀 섞기');
@@ -283,9 +286,11 @@
           var sh = shuffle(all), groups = []; for (var g = 0; g < groupN; g++) groups.push([]);
           sh.forEach(function (s, i) { groups[i % groupN].push(s); });
           clear(out);
+          lastGroups = groups.map(function (g) { return g.map(function (x) { return x.name; }); });
           groups.forEach(function (g, gi) { var c = el('div', 'ks-gcard'); c.style.animationDelay = (gi * 90) + 'ms'; c.appendChild(el('div', 'ks-gh', (gi + 1) + '모둠 · ' + g.length + '명')); g.forEach(function (s) { c.appendChild(el('div', 'ks-gn', s.name)); }); out.appendChild(c); });
         });
       });
+      KAPI.group = { set: function (n) { groupN = Math.max(2, Math.min(10, parseInt(n, 10) || 6)); draw(); go.click(); }, go: function () { go.click(); }, state: function () { return { n: groupN, groups: lastGroups }; } };
       [minus, lab, plus, go].forEach(function (x) { ctl.appendChild(x); }); box.appendChild(ctl); box.appendChild(out); main.appendChild(box);
       go.click();
     }
@@ -322,10 +327,43 @@
     }
     function setMode(m) {
       if (m === 'board') { if (window.Board26) window.Board26.show({ power: true, onExit: function () { paintDock(); } }); return; }
-      cleanups.forEach(function (f) { f(); }); cleanups = []; resetTimers(); cdEl = null; mode = m; clear(main); main.scrollTop = 0; paintDock(); root.classList.toggle('ks-solid', m === 'clean' || m === 'jongrye' || m === 'study');
+      cleanups.forEach(function (f) { f(); }); cleanups = []; KAPI = {}; resetTimers(); cdEl = null; mode = m; clear(main); main.scrollTop = 0; paintDock(); root.classList.toggle('ks-solid', m === 'clean' || m === 'jongrye' || m === 'study');
       if (m === 'today') { todayEl = null; paintToday(); main.appendChild(todayEl); lastIdx = -2; tick(); }
       else if (m === 'clean') { paintClean(); tick(); } else if (m === 'jongrye') { paintJongrye(); tick(); } else if (m === 'study') { paintStudy(); tick(); } else if (m === 'seat') paintSeat();
       else if (m === 'timer') paintTimer(); else if (m === 'pick') paintPick(); else if (m === 'group') paintGroup();
+    }
+
+    // ---------- 원격 제어 (관리자·교사 폰 → 전자칠판) ----------
+    function showAlert(text) {
+      if (alertEl) { alertEl.remove(); alertEl = null; } alertText = text || ''; if (!alertText) return;
+      alertEl = el('div', 'ks-alert'); alertEl.appendChild(el('div', 'ks-alert-t', alertText)); var x = el('button', 'ks-alert-x', '✕ 닫기'); x.addEventListener('click', function () { showAlert(''); }); alertEl.appendChild(x); root.appendChild(alertEl);
+    }
+    function runCmd(c) {
+      var a = c.args || {}, t = (a.sec != null ? a.sec : 0);
+      if (c.cmd === 'mode' && a.m) { if (a.m === 'board') return; if (a.m !== mode) setMode(a.m); }
+      else if (c.cmd === 'timer') { if (mode !== 'timer') setMode('timer'); var T = KAPI.timer; if (!T) return; if (a.action === 'set') { T.set(t); T.start(); } else if (a.action === 'stop') T.stop(); else if (a.action === 'start') T.start(); else if (a.action === 'reset') T.reset(); }
+      else if (c.cmd === 'seat') { if (mode !== 'seat') setMode('seat'); var S = KAPI.seat; if (S && S[a.action]) S[a.action](); }
+      else if (c.cmd === 'pick') { if (mode !== 'pick') setMode('pick'); if (KAPI.pick) (a.action === 'reset' ? KAPI.pick.reset : KAPI.pick.go)(); }
+      else if (c.cmd === 'group') { if (mode !== 'group') setMode('group'); if (KAPI.group) KAPI.group.set(a.n); }
+      else if (c.cmd === 'banner') showAlert(a.text ? String(a.text).slice(0, 120) : '');
+      else if (c.cmd === 'cleansync') { if (mode === 'clean') pullLog(); else api('GET').then(function (j) { if (j && j.logs) CL = j.logs[j.today] || {}; }).catch(function () {}); }
+      else if (c.cmd === 'chime') chime();
+      else if (c.cmd === 'reload') location.reload();
+    }
+    var rSince = null, rBusy = false;
+    function remoteState() {
+      var st = { mode: mode, at: Date.now(), alert: alertText };
+      try { Object.keys(KAPI).forEach(function (k) { st[k] = KAPI[k].state(); }); } catch (e) {}
+      if (mode === 'clean') { var all = {}; chips.forEach(function (b) { all[b.dataset.name] = !!CL[b.dataset.name]; }); st.clean = all; }
+      return st;
+    }
+    function rpoll() {
+      var hr = kst().getUTCHours(), delay = hr >= 7 && hr < 22 ? 3000 : 15000;
+      if (!rBusy) { rBusy = true;
+        fetch('/api/kiosk/poll', { method: 'POST', headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: JSON.stringify({ since: rSince, state: remoteState() }), cache: 'no-store' })
+          .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { rBusy = false; if (!j) return; rSince = j.last; (j.cmds || []).forEach(function (c) { try { runCmd(c); } catch (e) {} }); }).catch(function () { rBusy = false; });
+      }
+      setTimeout(rpoll, delay);
     }
 
     // ---------- 데이터 새로 고침 · 화면 켜짐 유지 ----------
@@ -334,7 +372,7 @@
     document.addEventListener('visibilitychange', function () { if (!document.hidden && !wakeLock) keepAwake(); });
     function refresh() { fetch('/api/data', { headers: { authorization: 'Bearer ' + tok() }, cache: 'no-store' }).then(function (r) { if (r.status === 401) { store('tok26', null); location.reload(); return null; } return r.ok ? r.json() : null; }).then(function (d) { if (d && d.me) { D = d; if (mode === 'today') { paintToday(true); } } }).catch(function () {}); }
     setInterval(tick, 1000); setInterval(refresh, 5 * 60 * 1000); keepAwake();
-    document.body.appendChild(root); setMode('today'); tick();
+    document.body.appendChild(root); setMode('today'); tick(); setTimeout(rpoll, 1500);
   }
   window.Kiosk26 = { start: start };
 })();

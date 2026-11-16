@@ -1060,3 +1060,16 @@ body.kiosk{overflow:hidden}
 .ks-sum{align-self:flex-start; margin:.2em 0 .6em; padding:.45em 1.1em; border-radius:99px; background:rgba(255,255,255,.14); font-weight:900} .ks-sum.all{background:#2fbf71; color:#05301a}
 
 .cl-logrow{padding:.55em 0; border-bottom:1px dashed var(--line,rgba(128,128,128,.3))} .cl-ok{font-size:.92em; margin-top:.15em} .cl-miss{font-size:.88em; opacity:.7; margin-top:.1em}
+
+/* 원격 공지 배너 */
+.ks-alert{position:fixed; left:0; right:0; top:0; z-index:60; display:flex; align-items:center; justify-content:center; gap:1.2em; padding:1.1em 1.6em; background:linear-gradient(90deg,#ff3d6e,#ff8a00); color:#fff; box-shadow:0 14px 40px rgba(0,0,0,.45); animation:ksAl .45s cubic-bezier(.2,1.4,.4,1)}
+.ks-alert-t{font-size:2.6em; font-weight:900; text-align:center; line-height:1.2; word-break:keep-all} .ks-alert-x{border:0; border-radius:99px; padding:.5em 1em; font:inherit; font-weight:800; background:rgba(0,0,0,.28); color:#fff; cursor:pointer}
+@keyframes ksAl{from{transform:translateY(-100%)}to{transform:none}}
+
+/* 전자칠판 리모컨 */
+.rc-status{font-weight:800; margin-bottom:.6em} .rc-status.off{opacity:.75}
+.rc-sec{margin:.8em 0} .rc-sec>b,.rc-h{display:block; margin-bottom:.3em} .rc-row,.rc-clean{display:flex; flex-wrap:wrap; gap:.4em; align-items:center}
+.rc-b{padding:.5em .85em; width:auto; flex:none} .rc-b.rc-on{background:var(--accent,#4f7cff); color:#fff}
+.rc-in{width:4.2em; padding:.5em; border-radius:.6em; border:1px solid rgba(128,128,128,.4); background:transparent; color:inherit; font:inherit} .rc-in.wide{width:100%; flex:1 1 14em}
+.rc-live{font-size:.92em; line-height:1.6; padding:.6em .8em; border-radius:.7em; background:rgba(128,128,128,.12)} .rc-seat div{white-space:pre-wrap}
+.rc-card .rc-b{display:inline-flex; width:auto !important; min-width:0; flex:0 0 auto; justify-content:center; margin:0; padding:.55em .9em; font-size:.95em}

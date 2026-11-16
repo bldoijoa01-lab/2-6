@@ -1058,7 +1058,7 @@
       top.lastChild.appendChild(h('div', { class: 'note-sm', text: '관리자는 암호화된 성적·내신은 볼 수 없어요. 가입 여부, 공유 여부, 학생이 보낸 선택과목·파일만 보여요.  마지막 갱신 ' + new Date(j.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) }));
       top.lastChild.appendChild(refresh);
       clear(body);
-      var bcc2 = boardControlCard(); if (bcc2) body.appendChild(bcc2); body.appendChild(cleanLogCard());   // 전자칠판 띄우기는 맨 위
+      var bcc2 = boardControlCard(); if (bcc2) body.appendChild(bcc2); body.appendChild(remoteCard()); body.appendChild(cleanLogCard());   // 전자칠판 띄우기는 맨 위
       var pnow = h('button', { class: 'btn out', type: 'button', text: '📣 지금 알림장 푸시 보내기 (테스트·재발송)' });
       pnow.addEventListener('click', function () { if (!confirm('알림을 켠 모든 학생에게 지금 오늘의 알림장을 보낼까요?')) return; pnow.disabled = true; aApi('push-now', {}).then(function (j) { pnow.disabled = false; alert(j._ok ? '보냄 ' + j.sent + '건 · 실패 ' + j.failed + '건 · 만료 정리 ' + j.gone + '건 · 건너뜀(보낼 내용 없음) ' + j.skipped + '명' : '실행하지 못했어요.'); }); });
       var reqOn = DATA.pushRequired !== false, reqSw = h('button', { class: 'sw' + (reqOn ? ' on' : ''), type: 'button', role: 'switch', 'aria-checked': reqOn ? 'true' : 'false', 'aria-label': '알림 필수' }, [h('i')]);
@@ -1118,7 +1118,7 @@
   function renderTeacher() {
     var p = document.getElementById('panel-teacher'); clear(p);
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: DATA.me.name + ' 선생님, 안녕하세요 👋' }), h('div', { class: 'greet-s', text: DATA.className + ' 교사 도구' })]));
-    var bcc = boardControlCard(); if (bcc) p.appendChild(bcc); p.appendChild(cleanLogCard());   // 수업 의견 보드(전자칠판) — 선생님 화면 맨 위
+    var bcc = boardControlCard(); if (bcc) p.appendChild(bcc); p.appendChild(remoteCard()); p.appendChild(cleanLogCard());   // 수업 의견 보드(전자칠판) — 선생님 화면 맨 위
     p.appendChild(dailyCard());
     p.appendChild(msgComposer());
 
@@ -2486,6 +2486,48 @@
     var open = h('button', { class: 'btn', type: 'button', text: '🖥 전자칠판에 띄우기' }); open.addEventListener('click', function () { window.Board26.show({ power: true }); });
     var link = h('div', { class: 'note-sm', text: '전자칠판 컴퓨터에서 이 앱에 로그인한 뒤 "전자칠판에 띄우기"를 누르세요. 화면 위쪽에서 질문을 정하고 "받기 열기"를 누르면 학생 폰 홈에 의견 칸이 나타나요. 올라온 의견은 말풍선으로 떠올라요. 말풍선을 누르면 작성자 확인·삭제가 돼요.' });
     return h('div', { class: 'card' }, [head('CLASS BOARD', '💬 수업 의견 보드'), h('div', { class: 'card-b' }, [link, open])]);
+  }
+
+  // 전자칠판 리모컨: 관리자·교사 폰에서 교실 전자칠판을 원격으로 조작
+  function remoteCard() {
+    var tk = function () { try { return localStorage.getItem('tok26') || ''; } catch (e) { return ''; } };
+    function kapi(path, body) { return fetch('/api/kiosk/' + path, { method: 'POST', headers: { authorization: 'Bearer ' + tk(), 'content-type': 'application/json' }, body: JSON.stringify(body || {}) }).then(function (r) { return r.json(); }); }
+    var status = h('div', { class: 'rc-status', text: '전자칠판 연결 확인 중…' }), body = h('div', { class: 'card-b' }), box = h('div', { class: 'card rc-card' }, [head('REMOTE', '🎛 전자칠판 리모컨'), body]), live = h('div', { class: 'rc-live' });
+    var toast = h('div', { class: 'note-sm', text: '' });
+    function send(cmd, args, label) { return kapi('cmd', { cmd: cmd, args: args || {} }).then(function (j) { toast.textContent = j.ok ? '✅ ' + (label || '보냈어요') + ' (전자칠판에 2~3초 안에 반영)' : '⚠ 보내지 못했어요'; setTimeout(refresh, 3500); return j; }); }
+    function btn(label, fn, cls) { var b = h('button', { class: 'btn out rc-b' + (cls ? ' ' + cls : ''), type: 'button', text: label }); b.addEventListener('click', fn); return b; }
+    function sec(title, kids) { return h('div', { class: 'rc-sec' }, [h('b', { text: title }), h('div', { class: 'rc-row' }, kids)]); }
+    var MODES = [['today', '🏠 오늘'], ['clean', '🧹 청소'], ['jongrye', '📣 종례'], ['study', '📖 자습'], ['seat', '🪑 자리'], ['timer', '⏱ 타이머'], ['pick', '🎲 뽑기'], ['group', '👥 모둠']], modeBtns = {};
+    body.appendChild(status); body.appendChild(sec('화면 전환', MODES.map(function (m) { var b = btn(m[1], function () { send('mode', { m: m[0] }, m[1] + ' 화면'); }); modeBtns[m[0]] = b; return b; })));
+    var mins = h('input', { type: 'number', class: 'rc-in', min: '1', max: '99', value: '5', inputmode: 'numeric' });
+    body.appendChild(sec('타이머', [[1, 3, 5, 10, 15, 20].map(function (m) { return btn(m + '분', function () { send('timer', { action: 'set', sec: m * 60 }, m + '분 타이머 시작'); }); }), mins, h('span', { text: '분' }), btn('▶ 시작', function () { send('timer', { action: 'set', sec: Math.max(1, +mins.value || 5) * 60 }, '타이머 시작'); }), btn('⏸ 정지', function () { send('timer', { action: 'stop' }, '타이머 정지'); }), btn('↺ 처음', function () { send('timer', { action: 'reset' }, '타이머 처음으로'); })].reduce(function (a, x) { return a.concat(x); }, [])));
+    body.appendChild(sec('자리 바꾸기', [btn('🔀 자리 섞기', function () { send('seat', { action: 'shuffle' }, '자리 섞기'); }), btn('↺ 처음 배치', function () { send('seat', { action: 'reset' }, '처음 배치'); }), btn('🔢 번호순', function () { send('seat', { action: 'num' }, '번호순'); })]));
+    var gn = h('input', { type: 'number', class: 'rc-in', min: '2', max: '10', value: '6', inputmode: 'numeric' });
+    body.appendChild(sec('발표자 · 모둠', [btn('🎲 발표자 뽑기', function () { send('pick', { action: 'go' }, '발표자 뽑기'); }), btn('처음부터', function () { send('pick', { action: 'reset' }, '뽑기 초기화'); }), gn, h('span', { text: '모둠' }), btn('🔀 모둠 섞기', function () { send('group', { n: +gn.value || 6 }, '모둠 나누기'); })]));
+    var msg = h('input', { type: 'text', class: 'rc-in wide', maxlength: '120', placeholder: '전자칠판에 크게 띄울 공지 (예: 조용히 해주세요)' });
+    body.appendChild(sec('공지 띄우기', [msg, btn('📢 띄우기', function () { if (msg.value.trim()) send('banner', { text: msg.value.trim() }, '공지 띄움'); }), btn('✕ 내리기', function () { send('banner', { text: '' }, '공지 내림'); })]));
+    body.appendChild(sec('기타', [btn('🔔 딩동', function () { send('chime', {}, '딩동'); }), btn('🔄 화면 새로고침', function () { if (confirm('전자칠판 화면을 새로고침할까요?')) send('reload', {}, '새로고침'); })]));
+    var cleanBox = h('div', { class: 'rc-clean' }); body.appendChild(h('div', { class: 'rc-sec' }, [h('b', { text: '청소 체크 (오늘)' }), cleanBox]));
+    body.appendChild(toast); body.appendChild(h('b', { class: 'rc-h', text: '전자칠판 현재 화면' })); body.appendChild(live);
+    var C = DATA.clean, names = []; if (C && C.zones) C.zones.forEach(function (z) { (z.rows || []).forEach(function (r) { (r.who || []).forEach(function (n) { if (names.indexOf(n) < 0) names.push(n); }); }); });
+    var done = {};
+    function paintClean() { clear(cleanBox); if (!names.length) { cleanBox.appendChild(h('div', { class: 'empty', text: '이번 달 청소표가 없어요' })); return; } names.forEach(function (n) { var b = btn((done[n] ? '✓ ' : '') + n, function () { var d = !done[n]; fetch('/api/clean', { method: 'POST', headers: { authorization: 'Bearer ' + tk(), 'content-type': 'application/json' }, body: JSON.stringify({ name: n, done: d }) }).then(function (r) { return r.json(); }).then(function (j) { if (j.log) { done = j.log; paintClean(); send('cleansync', {}, n + (d ? ' 체크' : ' 체크 취소')); } }); }, done[n] ? 'rc-on' : ''); cleanBox.appendChild(b); }); }
+    function loadClean() { fetch('/api/clean?days=1', { headers: { authorization: 'Bearer ' + tk() }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { done = (j.logs && j.logs[j.today]) || {}; paintClean(); }).catch(function () {}); }
+    function paintLive(st) {
+      clear(live); if (!st) return;
+      Object.keys(modeBtns).forEach(function (k) { modeBtns[k].classList.toggle('rc-on', st.mode === k); });
+      live.appendChild(h('div', { text: '화면: ' + ((MODES.filter(function (m) { return m[0] === st.mode; })[0] || ['', st.mode])[1]) + (st.alert ? ' · 공지 표시 중: ' + st.alert : '') }));
+      if (st.timer) { var l = st.timer.left; live.appendChild(h('div', { text: '⏱ 남은 시간 ' + Math.floor(l / 60) + ':' + ('0' + (l % 60)).slice(-2) + (st.timer.running ? ' (진행 중)' : st.timer.done ? ' (종료)' : ' (멈춤)') })); }
+      if (st.pick) live.appendChild(h('div', { text: '🎲 ' + (st.pick.now ? '방금 뽑힌 사람: ' + st.pick.now : '아직 안 뽑았어요') + (st.pick.picked.length ? ' · 지금까지: ' + st.pick.picked.join(', ') : '') }));
+      if (st.group && st.group.groups.length) st.group.groups.forEach(function (g, i) { live.appendChild(h('div', { class: 'rc-g', text: (i + 1) + '모둠: ' + g.join(', ') })); });
+      if (st.seat && st.seat.seats) { var rows = []; st.seat.seats.forEach(function (col, ci) { col.forEach(function (r, ri) { rows[ri] = rows[ri] || []; rows[ri][ci] = r.filter(Boolean).join(' · '); }); }); live.appendChild(h('div', { class: 'rc-seat' }, rows.map(function (r) { return h('div', { text: r.map(function (x) { return x || '—'; }).join('  |  ') }); }))); }
+    }
+    function refresh() {
+      if (!document.body.contains(box)) { clearInterval(iv); return; }
+      kapi('state').then(function (j) { if (j.error) { status.textContent = '권한이 없어요'; return; } status.textContent = j.online ? '🟢 전자칠판 연결됨' : '🔴 전자칠판이 꺼져 있거나 연결이 없어요 (전자칠판 계정으로 로그인된 화면이 켜져 있어야 해요)'; status.classList.toggle('off', !j.online); paintLive(j.online ? j.state : null); if (j.online && j.state && j.state.clean) { done = {}; Object.keys(j.state.clean).forEach(function (n) { if (j.state.clean[n]) done[n] = 1; }); paintClean(); } }).catch(function () {});
+    }
+    var iv = setInterval(refresh, 3500); refresh(); loadClean();
+    return box;
   }
 
   // 청소 기록 (전자칠판에서 체크한 내용): 교사·관리자만
