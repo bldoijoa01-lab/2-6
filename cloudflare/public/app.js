@@ -2810,6 +2810,7 @@
   // ---------- init ----------
   function init(data) {
     DATA = data;
+    if (data.me && data.me.role === 'board' && window.Kiosk26) { window.Kiosk26.start(data); return; }   // 전자칠판 계정: 교실용 전용 화면
     document.body.classList.remove('locked');
     document.body.classList.add('enter'); setTimeout(function () { document.body.classList.remove('enter'); BOOTED = true; }, 1700);
     var who = document.getElementById('who'); who.hidden = false;

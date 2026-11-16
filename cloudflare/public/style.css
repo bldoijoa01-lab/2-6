@@ -960,3 +960,58 @@ body.no-anim .panel,body.no-anim .panel *{animation:none !important}
 /* 청소배정표 */
 .cl-card .el-body{padding:4px 18px 18px} .cl-row{display:flex; gap:12px; justify-content:space-between; align-items:flex-start; padding:10px 12px; border-radius:14px; margin-top:6px; background:var(--glass); border:1px solid var(--glass-line); font-size:14px; line-height:1.45}
 .cl-p{font-weight:800; flex:1.1} .cl-w{flex:1; text-align:right; color:var(--sub)} .cl-row.me{background:linear-gradient(135deg,rgba(255,224,138,.55),rgba(255,181,200,.45)); border-color:#E0A800} .cl-row.me .cl-w{color:var(--ink); font-weight:800} .cl-row.hand{border-color:#6A5AE0}
+
+/* ===== 전자칠판 전용 화면 ===== */
+body.kiosk .wrap,body.kiosk .top,body.kiosk #splash,body.kiosk .ribbon,body.kiosk .foot,body.kiosk #previewBar{display:none !important}
+body.kiosk{overflow:hidden}
+.ks-root{position:fixed; inset:0; z-index:350; display:flex; flex-direction:column; color:#fff; overflow:hidden; font-size:calc(var(--ks,1) * clamp(13px,0.98vw,24px));
+  background:radial-gradient(900px 600px at 12% 6%,rgba(110,150,255,.40),transparent 60%),radial-gradient(800px 600px at 92% 96%,rgba(255,120,200,.26),transparent 60%),linear-gradient(160deg,#0B1437,#251A5E 58%,#43227E)}
+.ks-head{display:flex; justify-content:space-between; align-items:flex-end; padding:1em 2em .2em; flex:none}
+.ks-clock{font-size:5.4em; font-weight:800; line-height:1; letter-spacing:-.035em; text-shadow:0 4px 24px rgba(0,0,0,.35)}
+.ks-hr{text-align:right} .ks-date{font-size:2.2em; font-weight:800; letter-spacing:-.02em}
+.ks-period{display:inline-block; margin-top:.35em; padding:.28em .9em; border-radius:999px; background:rgba(255,224,138,.18); color:#FFE08A; font-size:1.5em; font-weight:800}
+.ks-main{flex:1; overflow:auto; padding:.6em 2em 1em}
+.ks-dock{flex:none; display:flex; gap:.7em; justify-content:center; padding:.7em 1em 1em; background:rgba(0,0,0,.28); backdrop-filter:blur(10px)}
+.ks-dbtn{display:flex; flex-direction:column; align-items:center; gap:.1em; min-width:7.4em; padding:.55em 1.1em .5em; border:1px solid rgba(255,255,255,.2); border-radius:1.2em; background:rgba(255,255,255,.1); color:#fff; font:inherit; cursor:pointer; transition:background .2s,transform .2s}
+.ks-dbtn:hover{background:rgba(255,255,255,.2)} .ks-dbtn.on{background:linear-gradient(135deg,#4C7DFF,#7B5CF0); border-color:transparent; transform:translateY(-3px)} .ks-dbtn.small{min-width:4.4em}
+.ks-de{font-size:2.1em; line-height:1.1} .ks-dl{font-size:1.15em; font-weight:800}
+.ks-today{display:grid; grid-template-columns:1.3fr 1fr 1fr; grid-template-areas:"a b c" "d b e"; gap:1.1em; align-items:start}
+.ks-a{grid-area:a} .ks-b{grid-area:b} .ks-c{grid-area:c} .ks-d{grid-area:d} .ks-e{grid-area:e}
+.ks-card{background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.18); border-radius:1.3em; padding:1em 1.3em 1.15em; backdrop-filter:blur(6px)}
+.ks-ch{display:flex; align-items:center; gap:.5em; margin-bottom:.6em; font-size:1.45em} .ks-ch b{font-weight:800; letter-spacing:-.02em} .ks-ce{font-size:1.15em}
+.ks-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:.55em}
+.ks-list li{display:flex; gap:.6em; align-items:flex-start; padding:.55em .8em; border-radius:.9em; background:rgba(255,255,255,.1); font-size:1.35em; line-height:1.4; font-weight:700}
+.ks-k{flex:none} .ks-t{word-break:keep-all}
+.ks-empty{padding:1em 0; font-size:1.3em; opacity:.8; text-align:center}
+.ks-tt{display:flex; align-items:baseline; gap:.7em; padding:.42em .7em; border-radius:.8em; font-size:1.3em}
+.ks-tt.now{background:linear-gradient(135deg,rgba(255,224,138,.9),rgba(255,181,200,.85)); color:#3A2A00; font-weight:800; transform:scale(1.03); box-shadow:0 8px 24px rgba(0,0,0,.3)}
+.ks-tp{font-weight:800; min-width:3.1em} .ks-tm{opacity:.65; font-size:.82em; min-width:3.4em} .ks-ts{font-weight:800; flex:1}
+.ks-meal{padding:.55em .8em; border-radius:.9em; margin-top:.5em; background:rgba(255,255,255,.07)} .ks-meal.now{background:rgba(120,230,170,.22); box-shadow:inset 0 0 0 2px rgba(150,255,190,.55)}
+.ks-mh{display:flex; align-items:baseline; gap:.6em; font-size:1.25em} .ks-mh small{opacity:.65} .ks-md{font-size:1.12em; line-height:1.5; opacity:.95; word-break:keep-all}
+.ks-ev{display:flex; justify-content:space-between; align-items:center; gap:.6em; padding:.42em .2em; border-bottom:1px solid rgba(255,255,255,.1); font-size:1.25em; font-weight:700} .ks-ev:last-child{border-bottom:0}
+.ks-dd{flex:none; padding:.15em .7em; border-radius:999px; background:rgba(255,255,255,.18); font-weight:800; font-size:.9em} .ks-dd.hot{background:linear-gradient(135deg,#FF5C8A,#FF8A3D)}
+.ks-cl{display:flex; justify-content:space-between; gap:.8em; padding:.3em .1em; font-size:1.08em; border-bottom:1px solid rgba(255,255,255,.08)} .ks-clp{font-weight:800; flex:1.1} .ks-clw{flex:1; text-align:right; opacity:.9}
+.ks-row{display:flex; align-items:center; justify-content:center; gap:.8em; flex-wrap:wrap; margin:.9em 0}
+.ks-btn{border:1px solid rgba(255,255,255,.28); background:rgba(255,255,255,.14); color:#fff; border-radius:999px; padding:.6em 1.4em; font:inherit; font-size:1.35em; font-weight:800; cursor:pointer} .ks-btn.big{background:linear-gradient(135deg,#4C7DFF,#7B5CF0); border-color:transparent; font-size:1.9em; padding:.5em 1.6em; box-shadow:0 10px 30px rgba(80,90,230,.45)} .ks-btn.danger{background:rgba(255,70,110,.3)}
+.ks-chip{border:1px solid rgba(255,255,255,.25); background:rgba(255,255,255,.1); color:#fff; border-radius:999px; padding:.4em 1.1em; font:inherit; font-size:1.2em; font-weight:800; cursor:pointer} .ks-chip.on{background:rgba(120,230,170,.3); border-color:rgba(150,255,190,.7)}
+.ks-timer{display:flex; flex-direction:column; align-items:center; gap:.4em; padding-top:.5em}
+.ks-ringwrap{position:relative; width:min(50vh,42vw); height:min(50vh,42vw)} .ks-ring{width:100%; height:100%; transform:none} .ks-ring circle{transition:stroke-dashoffset .3s linear,stroke .3s}
+.ks-time{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:min(15vh,12vw); font-weight:800; letter-spacing:-.03em; font-variant-numeric:tabular-nums}
+.ks-timer.low .ks-ring circle:last-child{stroke:#FF5C8A} .ks-timer.low .ks-time{color:#FF8FA8; animation:ksPulse .8s ease-in-out infinite alternate}
+.ks-timer.done .ks-time{color:#FF5C8A; animation:ksFlash .5s steps(2) infinite} .ks-presets,.ks-adj{display:flex; gap:.6em; flex-wrap:wrap; justify-content:center}
+@keyframes ksPulse{to{transform:scale(1.06)}} @keyframes ksFlash{50%{opacity:.2}}
+.ks-pick{display:flex; flex-direction:column; align-items:center; padding-top:.4em}
+.ks-pickstage{width:min(86vw,1100px); min-height:34vh; display:flex; flex-direction:column; align-items:center; justify-content:center; border-radius:1.6em; background:rgba(255,255,255,.1); border:1px solid rgba(255,255,255,.2); padding:1em}
+.ks-pickname{font-size:min(17vh,11vw); font-weight:800; letter-spacing:-.03em; line-height:1.1; text-align:center} .ks-picksub{font-size:2em; opacity:.8; margin-top:.2em}
+.ks-pickstage.hit{background:linear-gradient(135deg,rgba(255,224,138,.3),rgba(255,120,200,.25)); border-color:rgba(255,224,138,.7); animation:ksPop .7s cubic-bezier(.22,1.6,.36,1)} @keyframes ksPop{from{transform:scale(.8)} to{transform:scale(1)}}
+.ks-pickstage.hit .ks-pickname{color:#FFE08A}
+.ks-hist{display:flex; flex-wrap:wrap; gap:.5em; justify-content:center; max-width:1100px; margin-top:.4em} .ks-hchip{padding:.25em .9em; border-radius:999px; background:rgba(255,255,255,.14); font-weight:700; font-size:1.15em}
+.ks-group{padding-top:.3em} .ks-glab{font-size:2em; min-width:4.5em; text-align:center}
+.ks-groups{display:grid; grid-template-columns:repeat(auto-fill,minmax(14em,1fr)); gap:1em; margin-top:.4em}
+.ks-gcard{background:rgba(255,255,255,.11); border:1px solid rgba(255,255,255,.2); border-radius:1.2em; padding:.8em 1em; animation:ksRise .55s cubic-bezier(.22,1,.36,1) both} @keyframes ksRise{from{opacity:0; transform:translateY(30px) scale(.9)}}
+.ks-gh{font-weight:800; font-size:1.25em; color:#FFE08A; margin-bottom:.35em} .ks-gn{font-size:1.4em; font-weight:700; padding:.12em 0}
+.ks-modal{position:absolute; inset:0; z-index:5; display:flex; align-items:center; justify-content:center; background:rgba(5,8,25,.7); backdrop-filter:blur(6px)}
+.ks-mcard{width:min(92vw,34em); background:#1B2152; border:1px solid rgba(255,255,255,.2); border-radius:1.4em; padding:1.4em 1.6em; display:flex; flex-direction:column; gap:.5em} .ks-mcard h2{margin:0 0 .3em; font-size:1.8em}
+.ks-lbl{font-weight:800; margin-right:.4em; font-size:1.2em} .ks-note{opacity:.8; font-size:1.05em; line-height:1.5}
+@media (max-width:1100px){ .ks-today{grid-template-columns:1fr 1fr; grid-template-areas:"a a" "b c" "d e"} }
+@media (max-width:700px){ .ks-today{grid-template-columns:1fr; grid-template-areas:"a" "b" "c" "d" "e"} .ks-clock{font-size:3.6em} }

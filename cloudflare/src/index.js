@@ -8,7 +8,8 @@ import ICON from './icon.png';
 import { kstISO, addDaysISO, buildAutoDaily, pinnedItems, calOnlyItems, cleanItems, parseMeals, timetableLine, pushText, eveningText } from './daily.js';
 import { sendPush } from './webpush.js';
 const enc = new TextEncoder();
-const TTL = 60 * 60 * 24 * 30;
+const TTL = 60 * 60 * 24 * 30, BOARD_TTL = 60 * 60 * 24 * 365;   // 전자칠판 계정은 1년 유지(교실 PC가 매번 로그아웃되지 않게)
+const isStu = (x) => x.role !== 'teacher' && x.role !== 'board';   // 학생 명단에서 교사·전자칠판 계정 제외
 const CUTS_URL = 'https://bldoijoa01-lab.github.io/gradecut/cuts.json'; // 등급컷 아카이브 저장소가 원본 (여기서 직접 가져옴)
 
 const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -123,7 +124,7 @@ async function dailyPush(env, kind, force) {
   const ctx = { data: JSON.parse(await env.CLASS_KV.get('data') || '{}'), dorm: JSON.parse(await env.CLASS_KV.get('dorm') || '{}') };
   const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), out = { sent: 0, gone: 0, failed: 0, skipped: 0, subs: 0 };
   for (const k of (await env.CLASS_KV.list({ prefix: 'push:' })).keys) {
-    const n = parseInt(k.name.slice(5), 10), me = roster.find((x) => x.n === n && x.role !== 'teacher'); if (!me) continue;
+    const n = parseInt(k.name.slice(5), 10), me = roster.find((x) => x.n === n && isStu(x)); if (!me) continue;
     const rec = JSON.parse(await env.CLASS_KV.get(k.name) || '{}'); if (!rec.subs || !rec.subs.length || rec.off) continue;
     const kinds = kind ? [kind] : ['daily', 'eve'];
     let dirty = false;
@@ -162,7 +163,15 @@ async function saveDaily(env, b, who) {
 
 async function personalized(env, me) {
   const d = JSON.parse(await env.CLASS_KV.get('data') || '{}');
-  d.me = { n: me.n, name: me.name, role: me.role === 'teacher' ? 'teacher' : 'student', admin: !!me.admin };
+  d.me = { n: me.n, name: me.name, role: me.role === 'teacher' ? 'teacher' : me.role === 'board' ? 'board' : 'student', admin: !!me.admin };
+  if (me.role === 'board') {   // 전자칠판 계정: 개인 정보 없이 '교실에 띄워도 되는' 반 공통 정보만 (알림장·급식(조식 포함)·일정·시간표·청소표)
+    const iso = env.TODAY_OVERRIDE || kstISO(), anon = { n: 0, name: '', dorm: false };
+    d.events = (d.events || []).filter((e) => !Array.isArray(e.audience) && !e.dorm);
+    d.special = []; delete d.prep; delete d.pushRequired;
+    const b = await dailyBundle(env, { ...d }, anon, iso, null, true, []);
+    d.daily = { [iso]: b.daily }; d.today = { date: iso, meals: b.meals, tt: b.tt };
+    return d;
+  }
   d.special = (d.special || []).filter((x) => (x.members || []).includes(me.name)).map((x) => ({ ...x, members: [me.name] }));
   // 대상자가 정해진 일정(audience)은 대상 학생에게만 내려보냄 (다른 학생 이름은 노출하지 않음). 교사는 전체 확인
   const dormMap = me.role === 'teacher' ? {} : JSON.parse(await env.CLASS_KV.get('dorm') || '{}'), isDormMe = !!dormMap[me.n];
@@ -188,7 +197,7 @@ async function personalized(env, me) {
 }
 
 async function saveOfficial(env, roster, rows) {
-  const valid = new Set(roster.filter((x) => x.role !== 'teacher').map((x) => x.n));
+  const valid = new Set(roster.filter(isStu).map((x) => x.n));
   let saved = 0;
   for (const r of rows) {
     if (!valid.has(r.n) || !Array.isArray(r.el2) || r.el2.length > 10) continue;
@@ -207,7 +216,7 @@ export class Board {
   constructor(state) { this.state = state; this.s = null; this.last = {}; }
   async load() { if (!this.s) this.s = (await this.state.storage.get('s')) || { open: false, topic: '', seq: 0, msgs: [], counts: {} }; return this.s; }
   async fetch(request) {
-    const b = await request.json(), s = await this.load(), me = b.me || {}, power = !!(me.admin || me.role === 'teacher');
+    const b = await request.json(), s = await this.load(), me = b.me || {}, power = !!(me.admin || me.role === 'teacher' || me.role === 'board');
     const view = () => ({
       open: s.open, topic: s.topic, seq: s.seq, mine: s.counts[me.n] || 0, max: BOARD_MAX, power,
       msgs: s.msgs.map((m) => ({ id: m.id, text: m.text, name: m.anon ? '익명' : m.name, c: m.c, at: m.at, ...(power ? { by: m.name, anon: m.anon } : {}) })),
@@ -257,12 +266,12 @@ export default {
       if (await limited(env, 'rl:n:' + hit.n, 10)) return json({ error: 'too_many' }, 429);
       const rec = JSON.parse(await env.CLASS_KV.get('pw:' + hit.n) || 'null');
       if (!rec) { // 첫 로그인: 반 코드 -> 비밀번호 설정 단계
-        const code = hit.role === 'teacher' ? env.TEACHER_CODE : env.CLASS_CODE;   // 교사 계정은 별도 코드로만 만들 수 있음
+        const code = hit.role === 'teacher' ? env.TEACHER_CODE : hit.role === 'board' ? env.BOARD_CODE : env.CLASS_CODE;   // 교사·전자칠판 계정은 각자 별도 코드로만 만들 수 있음
         if (!code || !safeEq(secret, code)) return json({ error: 'invalid' }, 401);
         return json({ setup: true, token: await makeToken(env, hit.n, 'setup', 600) });
       }
       if (!await checkPw(rec, secret)) return json({ error: 'invalid' }, 401);
-      return json({ token: await makeToken(env, hit.n, 'full', TTL) });
+      return json({ token: await makeToken(env, hit.n, 'full', hit.role === 'board' ? BOARD_TTL : TTL) });
     }
     if (url.pathname === '/api/setpw' && request.method === 'POST') {
       let b; try { b = await request.json(); } catch { return json({ error: 'bad' }, 400); }
@@ -271,7 +280,8 @@ export default {
       if (pw.length < 4 || pw.length > 64) return json({ error: 'weak' }, 400);
       if (await env.CLASS_KV.get('pw:' + p.w)) return json({ error: 'exists' }, 409);
       await savePw(env, p.w, pw);
-      return json({ token: await makeToken(env, p.w, 'full', TTL) });
+      const rr = (JSON.parse(await env.CLASS_KV.get('roster') || '[]').find((x) => x.n === p.w) || {}).role;
+      return json({ token: await makeToken(env, p.w, 'full', rr === 'board' ? BOARD_TTL : TTL) });
     }
     if (url.pathname === '/api/data' && request.method === 'GET') {
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
@@ -332,7 +342,7 @@ export default {
       const tok = await verifyToken(env, auth, 'full');
       if (!tok) return json({ error: 'unauthorized' }, 401);
       const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]');
-      return json({ students: roster.filter((x) => x.role !== 'teacher').map((x) => ({ n: x.n, name: x.name })) });
+      return json({ students: roster.filter(isStu).map((x) => ({ n: x.n, name: x.name })) });
     }
     if (url.pathname === '/api/msg' && request.method === 'POST') {   // 쪽지 보내기: 학생·관리자·선생님 누구나 (학생→학생). 받는 사람에게만 보임
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
@@ -343,8 +353,9 @@ export default {
       const b = await request.json().catch(() => ({}));
       const text = typeof b.text === 'string' ? b.text.trim().slice(0, 300) : '';
       if (!text) return json({ error: 'text' }, 400);
+      if (me.role === 'board') return json({ error: 'forbidden' }, 403);
       const power = me.admin || me.role === 'teacher';
-      const students = roster.filter((x) => x.role !== 'teacher' && x.n !== me.n);
+      const students = roster.filter((x) => isStu(x) && x.n !== me.n);
       const want = b.to === 'all' && power ? students.map((x) => x.n) : (Array.isArray(b.to) ? b.to : []);
       const targets = students.filter((x) => want.includes(x.n));
       if (!targets.length || targets.length > (power ? 40 : 5)) return json({ error: 'to' }, 400);
@@ -404,7 +415,7 @@ export default {
       const act = url.pathname.slice('/api/board/'.length), body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
       if (!['state', 'post', 'ctl'].includes(act)) return json({ error: 'not_found' }, 404);
       const stub = env.BOARD.get(env.BOARD.idFromName('main'));
-      const r = await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ ...body, op: act, me: { n: me0.n, name: me0.name, role: me0.role === 'teacher' ? 'teacher' : 'student', admin: !!me0.admin } }) });
+      const r = await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ ...body, op: act, me: { n: me0.n, name: me0.name, role: me0.role === 'teacher' ? 'teacher' : me0.role === 'board' ? 'board' : 'student', admin: !!me0.admin } }) });
       return new Response(await r.text(), { status: r.status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
     }
     if (url.pathname === '/api/push/key' && request.method === 'GET') return json({ key: env.VAPID_PUBLIC || '' });
@@ -502,7 +513,7 @@ export default {
         const num = (k, pre) => parseInt(k.name.slice(pre.length), 10);
         const active = new Set(pw.map((k) => num(k, 'pw:'))), shared = new Set(sh.map((k) => num(k, 'share:'))), official = new Set(off.map((k) => num(k, 'official:')));
         const subCount = {}; subs.forEach((k) => { const n = parseInt(k.name.split(':')[1], 10); subCount[n] = (subCount[n] || 0) + 1; });
-        const students = roster.filter((x) => x.role !== 'teacher').map((x) => ({ n: x.n, name: x.name, active: active.has(x.n), shared: shared.has(x.n), official: official.has(x.n), subs: subCount[x.n] || 0 }));
+        const students = roster.filter(isStu).map((x) => ({ n: x.n, name: x.name, active: active.has(x.n), shared: shared.has(x.n), official: official.has(x.n), subs: subCount[x.n] || 0 }));
         const teachers = roster.filter((x) => x.role === 'teacher').map((x) => ({ name: x.name, loggedIn: active.has(x.n) }));
         const submissions = [];
         for (const k of subs) { const v = await env.CLASS_KV.get(k.name); if (v) submissions.push({ key: k.name, ...JSON.parse(v) }); }
@@ -543,7 +554,7 @@ export default {
         const keys = await env.CLASS_KV.list({ prefix: 'pw:' });
         const active = new Set(keys.keys.map((k) => parseInt(k.name.slice(3), 10)));
         const sh = await env.CLASS_KV.list({ prefix: 'share:' }), shared = new Set(sh.keys.map((k) => parseInt(k.name.slice(6), 10)));
-        return json({ students: roster.filter((x) => x.role !== 'teacher').map((x) => ({ n: x.n, name: x.name, active: active.has(x.n), shared: shared.has(x.n) })) });
+        return json({ students: roster.filter(isStu).map((x) => ({ n: x.n, name: x.name, active: active.has(x.n), shared: shared.has(x.n) })) });
       }
       if (sub === 'upload' && request.method === 'POST') {   // 아무 형식의 파일이나 보관 (운영자가 읽어서 반영할 수 있게)
         const buf = await request.arrayBuffer();
@@ -567,7 +578,7 @@ export default {
       if (sub === 'official' && request.method === 'POST') {
         // 학교 기준 선택과목 명단: [{n, el2:[과목], blocks:{과목:'A'}}]  (암호화하지 않고 저장: 학생 본인과 교사만 쓰는 학교 명단 정보)
         if (!Array.isArray(b.rows) || b.rows.length > 100) return json({ error: 'bad' }, 400);
-        const valid = new Set(roster.filter((x) => x.role !== 'teacher').map((x) => x.n));
+        const valid = new Set(roster.filter(isStu).map((x) => x.n));
         let saved = 0;
         for (const r of b.rows) {
           if (!valid.has(r.n) || !Array.isArray(r.el2) || r.el2.length > 10) continue;
@@ -619,12 +630,12 @@ export default {
         return json({ shares: out });
       }
       if (sub === 'preview' && request.method === 'GET') {   // 학생 화면 미리보기 (읽기 전용: 그 학생이 보는 공통 데이터만, 암호화된 점수·선택과목은 볼 수 없음)
-        const st = roster.find((x) => x.n === parseInt(url.searchParams.get('n'), 10) && x.role !== 'teacher');
+        const st = roster.find((x) => x.n === parseInt(url.searchParams.get('n'), 10) && isStu(x));
         if (!st) return json({ error: 'not_found' }, 404);
         return json(await personalized(env, st));
       }
       if (sub === 'reset' && request.method === 'POST') {
-        const st = roster.find((x) => x.n === b.n && x.role !== 'teacher');
+        const st = roster.find((x) => x.n === b.n && isStu(x));
         if (!st) return json({ error: 'not_found' }, 404);
         await env.CLASS_KV.delete('pw:' + st.n); await env.CLASS_KV.delete('sc:' + st.n); await env.CLASS_KV.delete('share:' + st.n);   // 비밀번호 초기화(암호화 점수는 키가 바뀌어 복구 불가라 같이 삭제)
         await env.CLASS_KV.delete('rl:n:' + st.n);
