@@ -18,7 +18,7 @@
 
   function show(opts) {
     if (cur) return; opts = opts || {};
-    var power = !!opts.power, root = el('div', 'bd-root'), stage = el('div', 'bd-stage'), canvas = el('div', 'bd-canvas'), empty = el('div', 'bd-empty');
+    var power = !!opts.power, root = el('div', 'bd-root'), stageWrap = el('div', 'bd-stage-wrap'), stage = el('div', 'bd-stage'), canvas = el('div', 'bd-canvas'), empty = el('div', 'bd-empty');
     var topic = el('h1', 'bd-topic'), chip = el('span', 'bd-chip'), tools = el('div', 'bd-tools'), how = el('div', 'bd-how');
     how.appendChild(document.createTextNode('📱 폰으로 알림장 접속 → 홈의 ')); how.appendChild(el('b', null, '💬 수업 의견')); how.appendChild(document.createTextNode('에서 올려요'));
     var top = el('div', 'bd-top'), tl = el('div', 'bd-tl'); tl.appendChild(chip); tl.appendChild(topic); tl.appendChild(how); top.appendChild(tl); top.appendChild(tools);
@@ -26,19 +26,24 @@
     var nav = el('div', 'bd-nav'), btnMore = el('button', 'bd-nav-btn pulse'), btnTop = el('button', 'bd-nav-btn', '⬆ 맨 위로');
     btnMore.type = 'button'; btnTop.type = 'button'; btnMore.hidden = true; btnTop.hidden = true;
     nav.appendChild(btnMore); nav.appendChild(btnTop);
+    var rail = el('div', 'bd-rail'), railUp = el('button', 'bd-rail-btn', '▲'), railTrack = el('div', 'bd-rail-track'), railThumb = el('div', 'bd-rail-thumb'), railDown = el('button', 'bd-rail-btn', '▼');
+    railUp.type = 'button'; railDown.type = 'button'; railUp.setAttribute('aria-label', '위로 스크롤'); railDown.setAttribute('aria-label', '아래로 스크롤');
+    rail.hidden = true;
+    railTrack.appendChild(railThumb); rail.appendChild(railUp); rail.appendChild(railTrack); rail.appendChild(railDown);
     stage.appendChild(canvas);
-    root.appendChild(top); root.appendChild(stage); root.appendChild(empty); root.appendChild(nav);
+    stageWrap.appendChild(stage); stageWrap.appendChild(rail);
+    root.appendChild(top); root.appendChild(stageWrap); root.appendChild(empty); root.appendChild(nav);
 
     var bubbles = {}, list = [], timer = null, state = { open: false, topic: '', msgs: [] }, alive = true, first = true, raf = 0, lastT = 0, selEl = null, selBubble = null, canvasH = 0;
 
     function size() { return { w: stage.clientWidth || window.innerWidth, h: stage.clientHeight || Math.round(window.innerHeight * 0.8) }; }
 
     function updateScrollUI() {
-      var S = size(), st = stage.scrollTop, belowCount = 0;
+      var S = size(), st = stage.scrollTop, maxScroll = Math.max(0, canvasH - S.h), belowCount = 0;
       for (var i = 0; i < list.length; i++) {
         if (list[i].ty - list[i].h / 4 > st + S.h) belowCount++;
       }
-      var remain = canvasH - (st + S.h);
+      var remain = maxScroll - st;
       if (remain > 24 && list.length > 0) {
         btnMore.textContent = belowCount > 0 ? '⬇ 아래 의견 더 보기 (' + belowCount + '개)' : '⬇ 아래로 내려 보기';
         btnMore.hidden = false;
@@ -46,11 +51,59 @@
         btnMore.hidden = true;
       }
       btnTop.hidden = !(st > 40);
+
+      var scrollable = maxScroll > 24 && list.length > 0;
+      rail.hidden = !scrollable;
+      if (scrollable) {
+        railUp.disabled = st <= 2;
+        railDown.disabled = st >= maxScroll - 2;
+        var trackH = railTrack.clientHeight;
+        if (trackH > 0) {
+          var thumbH = Math.max(36, Math.round(trackH * (S.h / canvasH)));
+          var ratio = Math.min(1, Math.max(0, st / maxScroll));
+          var thumbTop = Math.round((trackH - thumbH) * ratio);
+          railThumb.style.height = thumbH + 'px';
+          railThumb.style.transform = 'translateX(-50%) translateY(' + thumbTop + 'px)';
+        }
+      }
     }
 
     btnMore.addEventListener('click', function () { stage.scrollBy({ top: Math.round(size().h * 0.72), behavior: 'smooth' }); });
     btnTop.addEventListener('click', function () { stage.scrollTo({ top: 0, behavior: 'smooth' }); });
+    railUp.addEventListener('click', function () { stage.scrollBy({ top: -Math.round(size().h * 0.65), behavior: 'smooth' }); });
+    railDown.addEventListener('click', function () { stage.scrollBy({ top: Math.round(size().h * 0.65), behavior: 'smooth' }); });
     stage.addEventListener('scroll', updateScrollUI, { passive: true });
+
+    // 전용 스크롤 레일: 썸 드래그 + 트랙 클릭으로 바로 이동
+    var thumbDrag = null;
+    railThumb.addEventListener('pointerdown', function (ev) {
+      if (ev.button && ev.button !== 0) return;
+      ev.stopPropagation();
+      thumbDrag = { id: ev.pointerId, sy: ev.clientY, st: stage.scrollTop };
+      railThumb.classList.add('drag');
+      try { railThumb.setPointerCapture(ev.pointerId); } catch (e) {}
+    });
+    railThumb.addEventListener('pointermove', function (ev) {
+      if (!thumbDrag || ev.pointerId !== thumbDrag.id) return;
+      var dy = ev.clientY - thumbDrag.sy;
+      var trackRange = Math.max(1, railTrack.clientHeight - railThumb.offsetHeight);
+      var maxScroll = Math.max(0, canvasH - size().h);
+      var target = Math.max(0, Math.min(maxScroll, thumbDrag.st + (dy / trackRange) * maxScroll));
+      try { stage.scrollTo({ top: target, behavior: 'auto' }); } catch (e) { stage.scrollTop = target; }
+    });
+    function endThumbDrag(ev) {
+      if (!thumbDrag || ev.pointerId !== thumbDrag.id) return;
+      thumbDrag = null; railThumb.classList.remove('drag');
+    }
+    railThumb.addEventListener('pointerup', endThumbDrag);
+    railThumb.addEventListener('pointercancel', endThumbDrag);
+    railTrack.addEventListener('pointerdown', function (ev) {
+      if (ev.target === railThumb || (ev.button && ev.button !== 0)) return;
+      var r = railTrack.getBoundingClientRect(), thumbH = railThumb.offsetHeight || 36;
+      var ratio = Math.max(0, Math.min(1, (ev.clientY - r.top - thumbH / 2) / Math.max(1, r.height - thumbH)));
+      var maxScroll = Math.max(0, canvasH - size().h);
+      stage.scrollTo({ top: Math.round(ratio * maxScroll), behavior: 'smooth' });
+    });
 
     // 빈 배경을 마우스/펜으로 끌어 위아래 스크롤
     var bgPan = null;
@@ -85,7 +138,7 @@
           list[i].h = list[i].el.offsetHeight + 14;
         }
       }
-      var availW = Math.max(260, S.w - MARGIN_X * 2);
+      var rightPad = 56, availW = Math.max(240, S.w - MARGIN_X - rightPad);
       var rows = [];
       for (i = 0; i < list.length; i++) {
         var o = list[i], placedRow = null;
@@ -104,7 +157,7 @@
         var extraGap = row.items.length > 1 ? Math.min(20, slack * 0.22 / (row.items.length - 1)) : 0;
         var rowW = row.width + extraGap * (row.items.length - 1);
         var shift = (i % 2 === 1 ? 1 : -1) * Math.min(16, Math.max(0, availW - rowW) * 0.14);
-        var curX = (S.w - rowW) / 2 + shift;
+        var curX = MARGIN_X + (availW - rowW) / 2 + shift;
         for (j = 0; j < row.items.length; j++) {
           var item = row.items[j];
           item.tx = curX + item.w / 2;
