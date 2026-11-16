@@ -1058,7 +1058,7 @@
       top.lastChild.appendChild(h('div', { class: 'note-sm', text: '관리자는 암호화된 성적·내신은 볼 수 없어요. 가입 여부, 공유 여부, 학생이 보낸 선택과목·파일만 보여요.  마지막 갱신 ' + new Date(j.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) }));
       top.lastChild.appendChild(refresh);
       clear(body);
-      var bcc2 = boardControlCard(); if (bcc2) body.appendChild(bcc2);   // 전자칠판 띄우기는 맨 위
+      var bcc2 = boardControlCard(); if (bcc2) body.appendChild(bcc2); body.appendChild(cleanLogCard());   // 전자칠판 띄우기는 맨 위
       var pnow = h('button', { class: 'btn out', type: 'button', text: '📣 지금 알림장 푸시 보내기 (테스트·재발송)' });
       pnow.addEventListener('click', function () { if (!confirm('알림을 켠 모든 학생에게 지금 오늘의 알림장을 보낼까요?')) return; pnow.disabled = true; aApi('push-now', {}).then(function (j) { pnow.disabled = false; alert(j._ok ? '보냄 ' + j.sent + '건 · 실패 ' + j.failed + '건 · 만료 정리 ' + j.gone + '건 · 건너뜀(보낼 내용 없음) ' + j.skipped + '명' : '실행하지 못했어요.'); }); });
       var reqOn = DATA.pushRequired !== false, reqSw = h('button', { class: 'sw' + (reqOn ? ' on' : ''), type: 'button', role: 'switch', 'aria-checked': reqOn ? 'true' : 'false', 'aria-label': '알림 필수' }, [h('i')]);
@@ -1118,7 +1118,7 @@
   function renderTeacher() {
     var p = document.getElementById('panel-teacher'); clear(p);
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: DATA.me.name + ' 선생님, 안녕하세요 👋' }), h('div', { class: 'greet-s', text: DATA.className + ' 교사 도구' })]));
-    var bcc = boardControlCard(); if (bcc) p.appendChild(bcc);   // 수업 의견 보드(전자칠판) — 선생님 화면 맨 위
+    var bcc = boardControlCard(); if (bcc) p.appendChild(bcc); p.appendChild(cleanLogCard());   // 수업 의견 보드(전자칠판) — 선생님 화면 맨 위
     p.appendChild(dailyCard());
     p.appendChild(msgComposer());
 
@@ -2486,6 +2486,26 @@
     var open = h('button', { class: 'btn', type: 'button', text: '🖥 전자칠판에 띄우기' }); open.addEventListener('click', function () { window.Board26.show({ power: true }); });
     var link = h('div', { class: 'note-sm', text: '전자칠판 컴퓨터에서 이 앱에 로그인한 뒤 "전자칠판에 띄우기"를 누르세요. 화면 위쪽에서 질문을 정하고 "받기 열기"를 누르면 학생 폰 홈에 의견 칸이 나타나요. 올라온 의견은 말풍선으로 떠올라요. 말풍선을 누르면 작성자 확인·삭제가 돼요.' });
     return h('div', { class: 'card' }, [head('CLASS BOARD', '💬 수업 의견 보드'), h('div', { class: 'card-b' }, [link, open])]);
+  }
+
+  // 청소 기록 (전자칠판에서 체크한 내용): 교사·관리자만
+  function cleanLogCard() {
+    var body = h('div', { class: 'card-b' }), box = h('div', { class: 'card' }, [head('CLEAN LOG', '🧹 청소 기록'), body]);
+    var C = DATA.clean, total = []; if (C && C.zones) C.zones.forEach(function (z) { (z.rows || []).forEach(function (r) { (r.who || []).forEach(function (n) { if (total.indexOf(n) < 0) total.push(n); }); }); });
+    body.appendChild(h('div', { class: 'note-sm', text: '전자칠판 "청소" 화면에서 이름을 눌러 체크하면 여기에 날짜별로 쌓여요. (최근 14일)' }));
+    var list = h('div', { class: 'cl-log' }); body.appendChild(list);
+    var tk = ''; try { tk = localStorage.getItem('tok26') || ''; } catch (e) {}
+    fetch('/api/clean?days=14', { headers: { authorization: 'Bearer ' + tk }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) {
+      var days = Object.keys(j.logs || {}).sort().reverse();
+      if (!days.length) { list.appendChild(h('div', { class: 'empty', text: '아직 체크한 기록이 없어요' })); return; }
+      days.forEach(function (d) {
+        var l = j.logs[d], names = Object.keys(l).sort(function (a, b) { return l[a] - l[b]; }), miss = total.filter(function (n) { return !l[n]; });
+        var row = h('div', { class: 'cl-logrow' }, [h('b', { text: d.slice(5).replace('-', '/') + ' · 완료 ' + names.length + (total.length ? '/' + total.length : '') + '명' }), h('div', { class: 'cl-ok', text: '✓ ' + names.join(', ') })]);
+        if (total.length && miss.length) row.appendChild(h('div', { class: 'cl-miss', text: '미체크 ' + miss.join(', ') }));
+        list.appendChild(row);
+      });
+    }).catch(function () { list.appendChild(h('div', { class: 'empty', text: '기록을 불러오지 못했어요' })); });
+    return box;
   }
 
   // ---------- 오늘의 알림장 (날짜별 전달사항·준비물·숙제) ----------

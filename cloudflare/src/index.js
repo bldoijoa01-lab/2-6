@@ -170,6 +170,7 @@ async function personalized(env, me) {
     d.special = []; delete d.prep; delete d.pushRequired;
     const b = await dailyBundle(env, { ...d }, anon, iso, null, true, []);
     d.daily = { [iso]: b.daily }; d.today = { date: iso, meals: b.meals, tt: b.tt };
+    d.cleanlog = JSON.parse(await env.CLASS_KV.get('cleanlog:' + iso) || '{}');
     return d;
   }
   d.special = (d.special || []).filter((x) => (x.members || []).includes(me.name)).map((x) => ({ ...x, members: [me.name] }));
@@ -392,6 +393,25 @@ export default {
       const ms = JSON.parse(await env.CLASS_KV.get('msg:' + b.n) || '[]');
       await env.CLASS_KV.put('msg:' + b.n, JSON.stringify(ms.filter((m) => !(m.id === b.id && m.fromN === tok.w))));
       return json({ ok: true });
+    }
+    if (url.pathname === '/api/clean' && (request.method === 'GET' || request.method === 'POST')) {   // 청소 체크: 전자칠판·교사·관리자가 체크, 교사·관리자가 기록 조회
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), me0 = roster.find((x) => x.n === tok.w);
+      if (!me0 || !(me0.role === 'board' || me0.role === 'teacher' || me0.admin)) return json({ error: 'forbidden' }, 403);
+      const today = env.TODAY_OVERRIDE || kstISO();
+      if (request.method === 'POST') {
+        const b = await request.json().catch(() => ({})), st = roster.find((x) => isStu(x) && x.name === b.name);
+        if (!st) return json({ error: 'bad' }, 400);
+        const key = 'cleanlog:' + today, log = JSON.parse(await env.CLASS_KV.get(key) || '{}');
+        if (b.done) log[st.name] = Date.now(); else delete log[st.name];
+        await env.CLASS_KV.put(key, JSON.stringify(log), { expirationTtl: 90 * 86400 });
+        return json({ ok: true, date: today, log });
+      }
+      const days = me0.role === 'board' ? 1 : Math.min(31, Math.max(1, parseInt(url.searchParams.get('days'), 10) || 14)), logs = {};
+      for (let i = 0; i < days; i++) { const iso = addDaysISO(today, -i), l = JSON.parse(await env.CLASS_KV.get('cleanlog:' + iso) || 'null'); if (l && Object.keys(l).length) logs[iso] = l; }
+      return json({ today, logs });
     }
     if (url.pathname === '/api/pins' && request.method === 'POST') {   // 일정을 내 알림장에 담기/빼기
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');

@@ -125,17 +125,35 @@
       var b = el('div', 'ks-ban ' + cls), l = el('div', 'ks-banl'); l.appendChild(el('span', 'ks-bane', emoji)); var t = el('div'); t.appendChild(el('div', 'ks-bant', title)); if (sub) t.appendChild(el('div', 'ks-bans', sub)); l.appendChild(t); b.appendChild(l);
       cdEl = el('b', 'ks-cd'); cdEnd = mins(endHM) * 60; var r = el('div', 'ks-banr'); r.appendChild(el('small', null, endLabel)); r.appendChild(cdEl); b.appendChild(r); return b;
     }
+    // 청소 체크: 이름을 누르면 ✓ (오늘 날짜로 서버에 저장 → 선생님·관리자가 앱에서 기록 확인)
+    var CL = D.cleanlog || {}, chips = [], sumEl = null;
+    function api(method, body) { return fetch('/api/clean' + (method === 'GET' ? '' : ''), { method: method, headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' }).then(function (r) { return r.json(); }); }
+    function chk(name) {
+      var b = el('button', 'ks-who'); b.type = 'button'; b.dataset.name = name; chips.push(b); paintChip(b);
+      b.addEventListener('click', function () {
+        var done = !CL[name]; if (done) CL[name] = Date.now(); else delete CL[name]; paintChips();
+        api('POST', { name: name, done: done }).then(function (j) { if (j && j.log) { CL = j.log; paintChips(); } }).catch(function () { if (done) delete CL[name]; else CL[name] = 1; paintChips(); });
+      }); return b;
+    }
+    function paintChip(b) { var n = b.dataset.name, t = CL[n]; b.classList.toggle('done', !!t); clear(b); b.appendChild(el('span', 'ks-ck', t ? '✓' : '')); b.appendChild(document.createTextNode(n)); }
+    function paintChips() {
+      chips.forEach(paintChip); var all = {}; chips.forEach(function (b) { all[b.dataset.name] = 1; });
+      var tot = Object.keys(all).length, dn = Object.keys(all).filter(function (n) { return CL[n]; }).length;
+      if (sumEl) { sumEl.textContent = '✅ 청소 완료 ' + dn + ' / ' + tot + '명'; sumEl.classList.toggle('all', tot > 0 && dn === tot); }
+    }
+    function pullLog() { api('GET').then(function (j) { if (j && j.logs) { CL = j.logs[j.today] || {}; paintChips(); } }).catch(function () {}); }
     function paintClean() {
-      var box = el('div', 'ks-cleanbox'), zs = cleanZones();
+      chips = []; var box = el('div', 'ks-cleanbox'), zs = cleanZones();
       box.appendChild(banner('clean', '🧹', '청소 시간', SC.cs + ' ~ ' + SC.js + ' · 맡은 구역을 깨끗하게!', SC.js, '종례까지'));
       var grid = el('div', 'ks-zones');
       if (!zs) grid.appendChild(el('div', 'ks-empty big', '이번 달 청소배정표가 없어요. 학급 구역을 함께 정리해요 🧹'));
       else zs.forEach(function (z) {
         var c = el('div', 'ks-zone'); c.appendChild(el('div', 'ks-zn', z.zone.replace(/\(\d+\)/g, '').trim())); if (z.note) c.appendChild(el('div', 'ks-zt', z.note));
-        (z.rows || []).forEach(function (r) { var row = el('div', 'ks-zr'); if (r.task) row.appendChild(el('span', 'ks-ztask', r.task.replace(/\(\d+\)/g, ''))); row.appendChild(el('span', 'ks-zw', r.who.join(' · '))); c.appendChild(row); if (r.handover) c.appendChild(el('div', 'ks-zh', '인수인계 ' + r.handover)); });
+        (z.rows || []).forEach(function (r) { var row = el('div', 'ks-zr'); if (r.task) row.appendChild(el('span', 'ks-ztask', r.task.replace(/\(\d+\)/g, ''))); var zw = el('span', 'ks-zw'); r.who.forEach(function (nm) { zw.appendChild(chk(nm)); }); row.appendChild(zw); c.appendChild(row); if (r.handover) c.appendChild(el('div', 'ks-zh', '인수인계 ' + r.handover)); });
         grid.appendChild(c);
       });
-      box.appendChild(grid); main.appendChild(box);
+      sumEl = el('div', 'ks-sum'); box.appendChild(sumEl); box.appendChild(grid); main.appendChild(box); paintChips(); pullLog();
+      var iv = setInterval(pullLog, 15000); cleanups.push(function () { clearInterval(iv); sumEl = null; chips = []; });
     }
     function tomorrowItems() {   // 종례 때 알려 줄 내일 일정
       var tm = new Date(kst().getTime() + 86400000), iso = isoOf(tm), out = [];

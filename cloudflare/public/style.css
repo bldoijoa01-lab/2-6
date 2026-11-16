@@ -1051,3 +1051,12 @@ body.kiosk{overflow:hidden}
 @keyframes ksShuf{from{opacity:0; transform:translateY(-12px) scale(.9)}to{opacity:1; transform:none}}
 .ks-podium{padding:.6em 3em; border-radius:.6em; border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.08); font-weight:900}
 @media (max-width:900px){.ks-study{grid-template-columns:1fr}.ks-sgrid{gap:1em}.ks-sdesk{min-width:4em;font-size:1em}}
+
+/* 청소 체크 */
+.ks-zw{display:flex; flex-wrap:wrap; gap:.35em; justify-content:flex-end}
+.ks-who{display:inline-flex; align-items:center; gap:.3em; padding:.28em .75em; border-radius:99px; border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:inherit; font:inherit; font-weight:800; cursor:pointer}
+.ks-who .ks-ck{display:inline-block; width:1.15em; height:1.15em; border-radius:50%; border:2px solid rgba(255,255,255,.5); font-size:.8em; line-height:1.05em; text-align:center}
+.ks-who.done{background:#2fbf71; border-color:#2fbf71; color:#05301a} .ks-who.done .ks-ck{background:#fff; border-color:#fff; color:#0b8a4a}
+.ks-sum{align-self:flex-start; margin:.2em 0 .6em; padding:.45em 1.1em; border-radius:99px; background:rgba(255,255,255,.14); font-weight:900} .ks-sum.all{background:#2fbf71; color:#05301a}
+
+.cl-logrow{padding:.55em 0; border-bottom:1px dashed var(--line,rgba(128,128,128,.3))} .cl-ok{font-size:.92em; margin-top:.15em} .cl-miss{font-size:.88em; opacity:.7; margin-top:.1em}
