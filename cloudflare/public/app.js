@@ -1635,6 +1635,16 @@
     if (JSON.stringify(bl) !== JSON.stringify(pr.blocks || {})) { pr.blocks = bl; changed = true; }
     if (changed) prefSave(pr);
   }
+  function pruneElectives() {   // 개설되지 않아 목록에서 빠진 2학기 과목을 이미 골라 둔 경우 정리
+    if (PREVIEW || !window.ELECTIVES || !window.ELECTIVES.sem2) return;
+    var ok = {}; window.ELECTIVES.sem2.options.forEach(function (o) { ok[o.n] = 1; });
+    var pr = prefLoad(); if (!Array.isArray(pr.el2)) return;
+    var keep = pr.el2.filter(function (n) { return ok[n]; });
+    if (keep.length === pr.el2.length) return;
+    var gone = pr.el2.filter(function (n) { return !ok[n]; });
+    pr.el2 = keep; if (pr.blocks) gone.forEach(function (n) { delete pr.blocks[n]; });
+    prefSave(pr);
+  }
   function myElectives() { var v = prefLoad().el2; return Array.isArray(v) ? v : []; }
   var SEM_CARDS = [
     { eyebrow: '2학년 · 지금', title: '2학기', open: true, groups: [['el2', 'sem2']] },
@@ -2759,6 +2769,7 @@
       selectTab(['teacher', 'today', 'more'].indexOf(ts) >= 0 ? ts : 'teacher');
       return;
     }
+    pruneElectives();
     applyOfficial();
     clear(document.getElementById('panel-exam'));
     renderMe(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution();
@@ -2768,6 +2779,7 @@
     syncScores().then(function (ok) {   // 다른 기기에서 저장한 선택과목·성적을 불러와 화면 갱신
       if (!ok || PREVIEW) return;
       if (JSON.stringify([prefLoad(), gcLoad()]) === before) return;   // 같은 기기라 바뀐 게 없으면 다시 그리지 않음 (모션이 두 번 나오던 원인)
+      pruneElectives();
       document.body.classList.add('no-anim');
       setTimeout(function () { document.body.classList.remove('no-anim'); }, 120);
       clear(document.getElementById('panel-exam'));
