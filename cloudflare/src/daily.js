@@ -35,6 +35,20 @@ export function calOnlyItems({ data, me, iso }) {
   return out;
 }
 
+// 이달 청소배정표(data.clean)에서 내 당번: 평일에만, 수능일 같은 무등교일 제외
+export function cleanItems({ data, me, iso }) {
+  const c = data.clean; if (!c || !Array.isArray(c.zones)) return [];
+  const dow = new Date(iso + 'T00:00:00Z').getUTCDay();
+  if (dow < 1 || dow > 5 || (c.from && iso < c.from) || (c.until && iso > c.until) || noSchoolEvent(data, iso)) return [];
+  const strip = (s) => String(s || '').replace(/\(\d+\)/g, '').trim(), out = [];
+  for (const z of c.zones) for (const r of z.rows || []) {
+    const place = (strip(z.zone) + ' ' + strip(r.task)).trim();
+    if ((r.who || []).includes(me.name)) { const mates = r.who.filter((x) => x !== me.name); out.push({ k: 'time', t: `🧹 오늘 청소: ${place}${mates.length ? ` (함께: ${mates.join('·')})` : ''}` }); }
+    else if (r.handover === me.name) out.push({ k: 'time', t: `🧹 청소 인수인계 담당: ${place} (${r.who.join('·')})` });
+  }
+  return out;
+}
+
 // 오늘 날짜(iso) 기준으로 일정·기말고사·원반 이동·특별실을 문장으로 만든다. me: {n, name}, official: 학교 명단 {el2, blocks} 또는 null
 export function buildAutoDaily({ data, me, iso, official, pins }) {
   const items = pinnedItems({ data, me, iso, pins });
@@ -78,6 +92,7 @@ export function buildAutoDaily({ data, me, iso, official, pins }) {
       if (sp.date === iso || sp.date === addDaysISO(iso, 1)) items.push({ k: 'time', t: `${sp.date === iso ? '오늘' : '내일'} 특별실 응시: ${sp.subject} · ${sp.room}` });
     }
   }
+  items.push(...cleanItems({ data, me, iso }));
   items.sort((a, b) => RANK[a.k] - RANK[b.k]);
   if (!items.length) return { items: [{ k: 'notice', t: '오늘은 특별한 일정이 없어요 ✌️' }], empty: true };
   items.sort((a, b) => RANK[a.k] - RANK[b.k]);

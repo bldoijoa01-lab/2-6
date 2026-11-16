@@ -956,3 +956,7 @@ body.no-anim .panel,body.no-anim .panel *{animation:none !important}
 .bd-sel button{border:0; border-radius:999px; padding:6px 12px; background:#FF3D6E; color:#fff; font:inherit; font-weight:800; cursor:pointer}
 @media (prefers-reduced-motion:reduce){ .bd-b,.bd-empty-e{animation:none} }
 @media (max-width:640px){ .bd-top{flex-direction:column; padding:16px 16px 4px} .bd-tools{justify-content:flex-start} .bd-btn{padding:8px 12px; font-size:14px} }
+
+/* 청소배정표 */
+.cl-card .el-body{padding:4px 18px 18px} .cl-row{display:flex; gap:12px; justify-content:space-between; align-items:flex-start; padding:10px 12px; border-radius:14px; margin-top:6px; background:var(--glass); border:1px solid var(--glass-line); font-size:14px; line-height:1.45}
+.cl-p{font-weight:800; flex:1.1} .cl-w{flex:1; text-align:right; color:var(--sub)} .cl-row.me{background:linear-gradient(135deg,rgba(255,224,138,.55),rgba(255,181,200,.45)); border-color:#E0A800} .cl-row.me .cl-w{color:var(--ink); font-weight:800} .cl-row.hand{border-color:#6A5AE0}

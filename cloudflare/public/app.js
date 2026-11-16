@@ -1295,9 +1295,24 @@
 
   // ---------- 더보기 (업데이트 내역 · 만든 사람) ----------
   var KIND = { feature: ['새 기능', 'new'], design: ['디자인', 'design'], fix: ['수정', 'fix'] };
+  function cleanCard() {   // 이달 청소배정표 (내 당번은 강조)
+    var c = DATA.clean; if (!c || !Array.isArray(c.zones)) return null;
+    var me = DATA.me && DATA.me.name, mine = 0, rows = [];
+    c.zones.forEach(function (z) {
+      (z.rows || []).forEach(function (r, i) {
+        var isMe = (r.who || []).indexOf(me) >= 0, isHand = r.handover === me; if (isMe || isHand) mine++;
+        var place = z.zone + (r.task ? ' · ' + r.task : '') + (z.note && i === 0 ? ' [' + z.note + ']' : '');
+        rows.push(h('div', { class: 'cl-row' + (isMe ? ' me' : isHand ? ' hand' : '') }, [h('div', { class: 'cl-p', text: place }), h('div', { class: 'cl-w', text: r.who.join(', ') + (r.handover ? ' (인수인계: ' + r.handover + ')' : '') })]));
+      });
+    });
+    var det = h('details', { class: 'card el-card cl-card' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: 'CLEANING' }), h('h2', { text: '🧹 ' + (c.title || '청소배정표') })]), h('span', { class: 'el-count', text: mine ? '내 당번 있음' : '' })]), h('div', { class: 'el-body' }, rows)]);
+    if (mine) det.setAttribute('open', '');
+    return det;
+  }
   function renderMore() {
     var p = document.getElementById('panel-more'); if (!p || !DATA) return; clear(p);
     if (!PREVIEW && DATA.me.role !== 'teacher') p.appendChild(pushCard());
+    var clc = cleanCard(); if (clc) p.appendChild(clc);
     var about = DATA.about || {}, ups = (DATA.updates || []).slice().sort(function (x, y) { return x.date < y.date ? 1 : x.date > y.date ? -1 : 0; });
     p.appendChild(h('div', { class: 'card' }, [head('UPDATES', '업데이트 내역'), h('div', { class: 'card-b' },
       ups.length ? ups.map(function (u) {
