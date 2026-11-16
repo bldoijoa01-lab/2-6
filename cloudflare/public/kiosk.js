@@ -15,6 +15,13 @@
     try { var C = window.AudioContext || window.webkitAudioContext, a = new C(); for (var i = 0; i < (times || 3); i++) { (function (i) { var o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.value = 880; o.connect(g); g.connect(a.destination); var t = a.currentTime + i * 0.55; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.4, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45); o.start(t); o.stop(t + 0.5); })(i); } } catch (e) {}
   }
 
+  function chime() {   // 딩동 (전환 알림)
+    try { var C = window.AudioContext || window.webkitAudioContext, a = new C(); [[660, 0], [523, 0.5]].forEach(function (n) { var o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.value = n[0]; o.connect(g); g.connect(a.destination); var t = a.currentTime + n[1]; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9); o.start(t); o.stop(t + 1); }); } catch (e) {}
+  }
+  var SCHED_DEF = { cs: '16:10', js: '16:25', ee: '16:30', msg: '자리에 앉아 주세요', auto: true, chime: true };   // 청소 시작 · 종례 시작 · 끝
+  function loadSched() { var s = {}; try { s = JSON.parse(load('ks_sched') || '{}'); } catch (e) {} var o = {}; Object.keys(SCHED_DEF).forEach(function (k) { o[k] = s[k] != null ? s[k] : SCHED_DEF[k]; }); return o; }
+  function mins(t) { var p = String(t).split(':'); return (+p[0]) * 60 + (+p[1] || 0); }
+
   function start(data) {
     var D = data, mode = 'today', timers = [], root = el('div', 'ks-root'), head = el('div', 'ks-head'), main = el('div', 'ks-main'), dock = el('div', 'ks-dock');
     var clockEl = el('div', 'ks-clock'), dateEl = el('div', 'ks-date'), periodEl = el('div', 'ks-period');
@@ -24,6 +31,7 @@
     document.body.classList.add('kiosk'); document.body.classList.remove('locked');
     var scale = parseFloat(load('ks_scale') || '1'); root.style.setProperty('--ks', scale);
     var names = null;   // 학생 이름(뽑기·모둠)
+    var SC = loadSched(), cdEl = null, cdEnd = 0, lastPhase = null;
     function later(fn, ms) { var t = setTimeout(fn, ms); timers.push(t); return t; }
     function resetTimers() { timers.forEach(clearTimeout); timers = []; }
 
@@ -38,11 +46,29 @@
       for (var j = 0; j < st.length; j++) if (m < st[j]) return { idx: -1, text: j === 0 ? '등교 전' : '쉬는 시간 · 다음 ' + W.rows[j].n + '교시 ' + W.rows[j].time };
       return { idx: -1, text: '수업 끝' };
     }
+    function phase() {   // 평일(등교일)의 청소/종례 시간대인지
+      var k = kst(), iso = isoOf(k), dow = k.getUTCDay(), m = k.getUTCHours() * 60 + k.getUTCMinutes();
+      if (dow < 1 || dow > 5) return null;
+      if ((D.events || []).some(function (e) { return e.noSchool && e.date <= iso && iso <= (e.end || e.date); })) return null;
+      if (m >= mins(SC.cs) && m < mins(SC.js)) return 'clean';
+      if (m >= mins(SC.js) && m < mins(SC.ee)) return 'jongrye';
+      return null;
+    }
     function tick() {
       var k = kst(); clockEl.textContent = pad(k.getUTCHours()) + ':' + pad(k.getUTCMinutes());
       dateEl.textContent = (k.getUTCMonth() + 1) + '월 ' + k.getUTCDate() + '일 ' + DOW[k.getUTCDay()] + '요일';
       var p = curPeriod(); periodEl.textContent = p.text; periodEl.style.display = p.text ? '' : 'none';
       if (mode === 'today' && p.idx !== lastIdx) { lastIdx = p.idx; paintToday(true); }
+      var ph = phase();
+      if (ph === 'clean' || ph === 'jongrye') { periodEl.textContent = ph === 'clean' ? '🧹 청소 시간' : '📣 종례 시간'; periodEl.style.display = ''; }
+      if (ph !== lastPhase) {   // 시간대가 바뀔 때 자동 전환 (설정에서 끌 수 있음)
+        var prev = lastPhase; lastPhase = ph;
+        if (SC.auto) {
+          if (ph === 'clean' || ph === 'jongrye') { setMode(ph); if (SC.chime) chime(); }
+          else if (prev && (mode === 'clean' || mode === 'jongrye')) setMode('today');
+        }
+      }
+      if (cdEl) { var left = Math.max(0, cdEnd - (k.getUTCHours() * 3600 + k.getUTCMinutes() * 60 + k.getUTCSeconds())); cdEl.textContent = pad(Math.floor(left / 60)) + ':' + pad(left % 60); }
     }
     var lastIdx = -2;
 
@@ -86,6 +112,42 @@
         todayEl.appendChild(c5);
       }
       if (!keep) { main.scrollTop = 0; }
+    }
+
+    // ---------- 청소 시간 ----------
+    function cleanZones() {
+      var C = D.clean, iso = isoOf(kst()); if (!C || !C.zones || (C.until && iso > C.until) || (C.from && iso < C.from)) return null;
+      return C.zones;
+    }
+    function banner(cls, emoji, title, sub, endHM, endLabel) {
+      var b = el('div', 'ks-ban ' + cls), l = el('div', 'ks-banl'); l.appendChild(el('span', 'ks-bane', emoji)); var t = el('div'); t.appendChild(el('div', 'ks-bant', title)); if (sub) t.appendChild(el('div', 'ks-bans', sub)); l.appendChild(t); b.appendChild(l);
+      cdEl = el('b', 'ks-cd'); cdEnd = mins(endHM) * 60; var r = el('div', 'ks-banr'); r.appendChild(el('small', null, endLabel)); r.appendChild(cdEl); b.appendChild(r); return b;
+    }
+    function paintClean() {
+      var box = el('div', 'ks-cleanbox'), zs = cleanZones();
+      box.appendChild(banner('clean', '🧹', '청소 시간', SC.cs + ' ~ ' + SC.js + ' · 맡은 구역을 깨끗하게!', SC.js, '종례까지'));
+      var grid = el('div', 'ks-zones');
+      if (!zs) grid.appendChild(el('div', 'ks-empty big', '이번 달 청소배정표가 없어요. 학급 구역을 함께 정리해요 🧹'));
+      else zs.forEach(function (z) {
+        var c = el('div', 'ks-zone'); c.appendChild(el('div', 'ks-zn', z.zone.replace(/\(\d+\)/g, '').trim())); if (z.note) c.appendChild(el('div', 'ks-zt', z.note));
+        (z.rows || []).forEach(function (r) { var row = el('div', 'ks-zr'); if (r.task) row.appendChild(el('span', 'ks-ztask', r.task.replace(/\(\d+\)/g, ''))); row.appendChild(el('span', 'ks-zw', r.who.join(' · '))); c.appendChild(row); if (r.handover) c.appendChild(el('div', 'ks-zh', '인수인계 ' + r.handover)); });
+        grid.appendChild(c);
+      });
+      box.appendChild(grid); main.appendChild(box);
+    }
+    function tomorrowItems() {   // 종례 때 알려 줄 내일 일정
+      var tm = new Date(kst().getTime() + 86400000), iso = isoOf(tm), out = [];
+      (D.events || []).forEach(function (e) { if (e.calOnly) return; var s = e.date, en = e.end || e.date; if (s === iso) out.push('내일 ' + e.title + (e.note ? ' · ' + e.note.split(' · ')[0] : '')); else if (en === iso && en > s) out.push('내일 마감 · ' + e.title); });
+      return out.slice(0, 6);
+    }
+    function paintJongrye() {
+      var box = el('div', 'ks-jbox');
+      box.appendChild(banner('jong', '📣', '종례 시간', SC.js + ' ~ ' + SC.ee, SC.ee, '종례 끝까지'));
+      var hero = el('div', 'ks-hero'); hero.appendChild(el('div', 'ks-hero-e', '🪑')); hero.appendChild(el('div', 'ks-hero-t', SC.msg)); box.appendChild(hero);
+      var cols = el('div', 'ks-jcols'), iso = isoOf(kst()), daily = (D.daily || {})[iso];
+      var c1 = card('오늘의 알림장', '📒'), ul = el('ul', 'ks-list'); ((daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 없어요' }]).slice(0, 5).forEach(function (i) { var li = el('li'); li.appendChild(el('span', 'ks-k', KIND[i.k] || '📢')); li.appendChild(el('span', 'ks-t', i.t)); ul.appendChild(li); }); c1.appendChild(ul);
+      var c2 = card('내일 챙길 것', '🎒'), tm = tomorrowItems(), ul2 = el('ul', 'ks-list'); (tm.length ? tm : ['내일 특별한 일정은 없어요']).forEach(function (t) { var li = el('li'); li.appendChild(el('span', 'ks-t', t)); ul2.appendChild(li); }); c2.appendChild(ul2);
+      cols.appendChild(c1); cols.appendChild(c2); box.appendChild(cols); main.appendChild(box);
     }
 
     // ---------- 타이머 ----------
@@ -166,6 +228,12 @@
       var sz = el('div', 'ks-row'); sz.appendChild(el('span', 'ks-lbl', '글자 크기'));
       [['보통', 1], ['크게', 1.15], ['아주 크게', 1.3]].forEach(function (s) { var b = el('button', 'ks-chip' + (Math.abs(scale - s[1]) < 0.01 ? ' on' : ''), s[0]); b.addEventListener('click', function () { scale = s[1]; store('ks_scale', String(scale)); root.style.setProperty('--ks', scale); Array.prototype.forEach.call(sz.querySelectorAll('.ks-chip'), function (x) { x.classList.remove('on'); }); b.classList.add('on'); }); sz.appendChild(b); });
       card.appendChild(sz);
+      function field(label, type, val, onChange, w) { var r = el('div', 'ks-row left'); r.appendChild(el('span', 'ks-lbl', label)); var i = el('input', 'ks-in'); i.type = type; i.value = val; if (w) i.style.width = w; i.addEventListener('change', function () { onChange(i.value); store('ks_sched', JSON.stringify(SC)); lastPhase = undefined; }); r.appendChild(i); return r; }
+      function toggle(label, key) { var b = el('button', 'ks-chip' + (SC[key] ? ' on' : ''), label + (SC[key] ? ' 켜짐' : ' 꺼짐')); b.addEventListener('click', function () { SC[key] = !SC[key]; store('ks_sched', JSON.stringify(SC)); b.classList.toggle('on', SC[key]); b.textContent = label + (SC[key] ? ' 켜짐' : ' 꺼짐'); }); return b; }
+      card.appendChild(el('div', 'ks-sec', '청소 · 종례 시간'));
+      card.appendChild(field('청소 시작', 'time', SC.cs, function (v) { SC.cs = v; })); card.appendChild(field('종례 시작', 'time', SC.js, function (v) { SC.js = v; })); card.appendChild(field('종례 끝', 'time', SC.ee, function (v) { SC.ee = v; }));
+      card.appendChild(field('종례 문구', 'text', SC.msg, function (v) { SC.msg = v || SCHED_DEF.msg; }, '16em'));
+      var tg = el('div', 'ks-row left'); tg.appendChild(toggle('시간 되면 자동 전환', 'auto')); tg.appendChild(toggle('딩동 소리', 'chime')); card.appendChild(tg);
       var fs = el('button', 'ks-btn', '⛶ 전체화면'); fs.addEventListener('click', function () { if (document.fullscreenElement) document.exitFullscreen(); else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {}); });
       var wl = el('div', 'ks-note', wakeLock ? '✅ 화면이 꺼지지 않게 유지 중이에요' : '이 브라우저는 화면 꺼짐 방지를 지원하지 않거나 아직 켜지지 않았어요');
       var out = el('button', 'ks-btn danger', '로그아웃'); out.addEventListener('click', function () { if (window.confirm('전자칠판 계정을 로그아웃할까요? 다시 로그인하려면 비밀번호가 필요해요.')) { store('tok26', null); store('gk26', null); location.hash = ''; location.reload(); } });
@@ -175,7 +243,7 @@
     }
 
     // ---------- 모드 전환 ----------
-    var MODES = [['today', '🏠', '오늘'], ['board', '💬', '의견 보드'], ['timer', '⏱', '타이머'], ['pick', '🎲', '발표자 뽑기'], ['group', '👥', '모둠 나누기']];
+    var MODES = [['today', '🏠', '오늘'], ['clean', '🧹', '청소'], ['jongrye', '📣', '종례'], ['board', '💬', '의견 보드'], ['timer', '⏱', '타이머'], ['pick', '🎲', '발표자 뽑기'], ['group', '👥', '모둠 나누기']];
     function paintDock() {
       clear(dock);
       MODES.forEach(function (m) { var b = el('button', 'ks-dbtn' + (mode === m[0] ? ' on' : '')); b.appendChild(el('span', 'ks-de', m[1])); b.appendChild(el('span', 'ks-dl', m[2])); b.addEventListener('click', function () { setMode(m[0]); }); dock.appendChild(b); });
@@ -183,8 +251,9 @@
     }
     function setMode(m) {
       if (m === 'board') { if (window.Board26) window.Board26.show({ power: true, onExit: function () { paintDock(); } }); return; }
-      cleanups.forEach(function (f) { f(); }); cleanups = []; resetTimers(); mode = m; clear(main); main.scrollTop = 0; paintDock();
+      cleanups.forEach(function (f) { f(); }); cleanups = []; resetTimers(); cdEl = null; mode = m; clear(main); main.scrollTop = 0; paintDock(); root.classList.toggle('ks-solid', m === 'clean' || m === 'jongrye');
       if (m === 'today') { todayEl = null; paintToday(); main.appendChild(todayEl); lastIdx = -2; tick(); }
+      else if (m === 'clean') { paintClean(); tick(); } else if (m === 'jongrye') { paintJongrye(); tick(); }
       else if (m === 'timer') paintTimer(); else if (m === 'pick') paintPick(); else if (m === 'group') paintGroup();
     }
 

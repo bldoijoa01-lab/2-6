@@ -1015,3 +1015,20 @@ body.kiosk{overflow:hidden}
 .ks-lbl{font-weight:800; margin-right:.4em; font-size:1.2em} .ks-note{opacity:.8; font-size:1.05em; line-height:1.5}
 @media (max-width:1100px){ .ks-today{grid-template-columns:1fr 1fr; grid-template-areas:"a a" "b c" "d e"} }
 @media (max-width:700px){ .ks-today{grid-template-columns:1fr; grid-template-areas:"a" "b" "c" "d" "e"} .ks-clock{font-size:3.6em} }
+
+/* 청소·종례 화면 */
+.ks-root.ks-solid .ks-main{padding-top:.2em}
+.ks-ban{display:flex; justify-content:space-between; align-items:center; gap:1em; padding:.8em 1.4em; border-radius:1.3em; margin-bottom:1em}
+.ks-ban.clean{background:linear-gradient(135deg,rgba(60,200,170,.55),rgba(60,140,230,.5))} .ks-ban.jong{background:linear-gradient(135deg,rgba(255,150,90,.6),rgba(255,90,140,.5))}
+.ks-banl{display:flex; align-items:center; gap:.7em} .ks-bane{font-size:3.4em} .ks-bant{font-size:2.7em; font-weight:800; letter-spacing:-.03em; line-height:1.1} .ks-bans{font-size:1.25em; opacity:.9}
+.ks-banr{text-align:right} .ks-banr small{display:block; font-size:1.2em; opacity:.85} .ks-cd{font-size:3.6em; font-variant-numeric:tabular-nums; letter-spacing:-.02em}
+.ks-zones{display:grid; grid-template-columns:repeat(auto-fill,minmax(16.2em,1fr)); gap:.9em}
+.ks-zone{background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.2); border-radius:1.2em; padding:.8em 1.1em}
+.ks-zn{font-size:1.7em; font-weight:800; color:#7FF0D2; letter-spacing:-.02em} .ks-zt{font-size:.95em; opacity:.7; margin-bottom:.2em}
+.ks-zr{display:flex; justify-content:space-between; align-items:baseline; gap:.8em; padding:.18em 0; font-size:1.55em; font-weight:800} .ks-ztask{opacity:.7; font-size:.78em; font-weight:700} .ks-zw{text-align:right; flex:1}
+.ks-zh{font-size:.95em; opacity:.75; text-align:right}
+.ks-hero{text-align:center; padding:.6em 0 .9em} .ks-hero-e{font-size:6em; line-height:1; animation:bdBob 3.2s ease-in-out infinite alternate} .ks-hero-t{font-size:min(9.5vh,6.4vw); font-weight:800; letter-spacing:-.035em; line-height:1.15; text-shadow:0 6px 30px rgba(0,0,0,.4)}
+.ks-jcols{display:grid; grid-template-columns:1fr 1fr; gap:1em; align-items:start}
+.ks-in{font:inherit; font-size:1.15em; padding:.35em .7em; border-radius:.7em; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.1); color:#fff} .ks-in::-webkit-calendar-picker-indicator{filter:invert(1)}
+.ks-row.left{justify-content:flex-start} .ks-sec{margin-top:.5em; font-weight:800; font-size:1.2em; color:#FFE08A}
+@media (max-width:900px){ .ks-jcols{grid-template-columns:1fr} }
