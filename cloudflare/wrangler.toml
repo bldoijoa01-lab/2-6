@@ -18,3 +18,11 @@ VAPID_PUBLIC = "BCeNtwIQwW1Bfsd1Z_ZuAnt25Scm0R_TfwrNFSs4PPLno1Fd1TLQaKIEw0R0tZt9
 
 [triggers]
 crons = ["*/30 * * * *"]   # 30분마다: 각자 정한 시각(기본 아침 07:30, 저녁 20:00)에 알림 발송
+
+[[durable_objects.bindings]]
+name = "BOARD"
+class_name = "Board"
+
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["Board"]

@@ -459,6 +459,7 @@
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: me.name + '님, 안녕 👋' }),
       h('div', { class: 'greet-s', text: PREVIEW && PREVIEW.guest ? '둘러보기 모드 · 모든 내용은 샘플이에요' : me.n + '번 · ' + DATA.className })]));
     var mc0 = msgCard(); if (mc0) p.appendChild(mc0);   // 받은 쪽지
+    var bd0 = boardSlot(); if (bd0) p.appendChild(bd0);   // 수업 의견 (의견 받는 중일 때만)
     var pn0 = pushNudge(); if (pn0) p.appendChild(pn0);   // 알림 켜기 안내
     p.appendChild(dailyCard());   // 오늘의 알림장
     if (!PREVIEW) {   // 쪽지 보내기 (눌러서 펼침 — 펼칠 때 받는 사람 목록을 불러옴)
@@ -1063,6 +1064,7 @@
       reqSw.addEventListener('click', function () { var nv = !(DATA.pushRequired !== false); reqSw.disabled = true; aApi('setting', { pushRequired: nv }).then(function (j) { reqSw.disabled = false; if (!j._ok) { alert('바꾸지 못했어요.'); return; } DATA.pushRequired = nv; reqSw.classList.toggle('on', nv); reqSw.setAttribute('aria-checked', nv ? 'true' : 'false'); }); });
       body.appendChild(h('div', { class: 'card' }, [head('NOTIFICATION', '알림장 푸시'), h('div', { class: 'card-b' }, [h('div', { class: 'note-sm', text: '알림을 켠 학생에게만 가요. 시각은 학생마다 정해요(기본 아침 7:30, 저녁 20:00).' }),
         h('div', { class: 'push-row' }, [h('div', null, [h('b', { text: '알림 필수' }), h('small', { text: '켜면 학생이 알림을 켜기 전에는 앱을 못 써요 (교사·관리자 제외)' })]), reqSw]), pnow])]));
+      var bcc2 = boardControlCard(); if (bcc2) body.appendChild(bcc2);
       body.appendChild(msgComposer());
 
       // 학생 표
@@ -1117,6 +1119,7 @@
     var p = document.getElementById('panel-teacher'); clear(p);
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: DATA.me.name + ' 선생님, 안녕하세요 👋' }), h('div', { class: 'greet-s', text: DATA.className + ' 교사 도구' })]));
     p.appendChild(dailyCard());
+    var bcc = boardControlCard(); if (bcc) p.appendChild(bcc);
     p.appendChild(msgComposer());
 
 
@@ -1363,7 +1366,7 @@
     '1-2': [['공통국어2', 4], ['공통수학2', 4], ['공통영어2', 4], ['한국사2', 3], ['통합사회2', 4], ['통합과학2', 4], ['과학탐구실험2', 1, 1], ['체육Ⅱ', 2, 1], ['음악/미술', 2, 1], ['정보/기술·가정', 3]],
     '2-1': [['문학', 4], ['대수', 4], ['영어Ⅰ', 4], ['스포츠문화', 1, 1], ['음악 연주와 창작/미술 창작', 2, 1]],
     '2-2': [['화법과 언어', 4], ['미적분Ⅰ', 4], ['영어Ⅱ', 4], ['스포츠과학', 1, 1], ['음악 연주와 창작/미술 창작', 2, 1]],
-    '3-1': [['독서와 작문', 4], ['확률과 통계', 4], ['심화 영어', 4]]   // 단위수는 기본 4 — 다르면 카드에서 고치면 돼요
+    '3-1': [['독서와 작문', 3], ['확률과 통계', 3], ['심화 영어', 3], ['스포츠생활1', 2, 1]]   // 2025학년도 입학생 교육과정 편성표(변경안) 기준
   };
   // 2022 개정: 융합선택 과목은 성취도(A~E)만 나오고 석차등급이 없어요
   function elTag(name) {
@@ -1380,6 +1383,10 @@
       if (gone.indexOf(b[0]) >= 0) return;
       if (!sems['3-1'].some(function (r) { return normName(r.n) === normName(b[0]); })) { sems['3-1'].unshift({ n: b[0], cr: b[1], g: 0, x: b[2] ? 1 : 0 }); ch = true; }
     });
+    if (!sems._c31) {   // 예전 기본값(4단위)으로 들어가 있던 공통 과목을 편성표대로 3단위로 한 번만 고침
+      sems['3-1'].forEach(function (r) { var b = NS_BASE['3-1'].filter(function (x) { return normName(x[0]) === normName(r.n); })[0]; if (b && r.cr === 4 && b[1] === 3) { r.cr = 3; ch = true; } });
+      sems._c31 = 1; ch = true;
+    }
     if (ch) nsSave(sems);
     return ch;
   }
@@ -2431,6 +2438,41 @@
     });
   }
 
+
+  // ---------- 수업 의견 보드 (학생: 의견 올리기 / 교사·관리자: 전자칠판 화면 열기) ----------
+  function boardCompose(j) {
+    var box = h('div', { class: 'card bd-compose' }), body = h('div', { class: 'card-b' });
+    var ta = h('textarea', { class: 'field', rows: '2', maxlength: '80', placeholder: '내 의견을 짧게 써 보세요 (80자까지)' });
+    var anon = h('input', { type: 'checkbox', id: 'bd-anon' }), cnt = h('small', { class: 'bd-cnt' }), msg = h('div', { class: 'bd-msg' }), send = h('button', { class: 'btn', type: 'button', text: '💬 전자칠판에 올리기' });
+    var mine = j.mine || 0, max = j.max || 8;
+    function paint() { cnt.textContent = '내가 올린 의견 ' + mine + ' / ' + max; send.disabled = mine >= max && !j.power; }
+    paint();
+    send.addEventListener('click', function () {
+      var t = ta.value.trim(); if (!t) { msg.textContent = '내용을 써 주세요'; return; }
+      send.disabled = true; msg.textContent = '';
+      window.Board26.api('post', { text: t, anon: anon.checked }).then(function (r) {
+        if (r._ok) { ta.value = ''; mine = r.mine; msg.textContent = '✅ 전자칠판에 올렸어요!'; msg.className = 'bd-msg ok'; }
+        else { msg.className = 'bd-msg'; msg.textContent = r.error === 'closed' ? '지금은 의견을 받지 않아요' : r.error === 'slow' ? '조금만 천천히! 잠깐 뒤에 다시 올려 주세요' : r.error === 'max' ? '이번 수업에는 더 올릴 수 없어요' : '올리지 못했어요'; if (r.mine != null) mine = r.mine; }
+        paint(); setTimeout(function () { msg.textContent = ''; }, 3500);
+      }).catch(function () { msg.textContent = '올리지 못했어요. 다시 해 주세요'; send.disabled = false; });
+    });
+    body.appendChild(h('div', { class: 'bd-q', text: j.topic || '수업 의견을 올려 주세요' }));
+    [ta, h('label', { class: 'bd-anon', for: 'bd-anon' }, [anon, h('span', { text: '익명으로 올리기' })]), h('div', { class: 'note-sm', text: '익명이어도 선생님은 작성자를 확인할 수 있어요. 존중하는 말만 써요 🙏' }), send, cnt, msg].forEach(function (x) { body.appendChild(x); });
+    box.appendChild(head('CLASS BOARD', '💬 수업 의견')); box.appendChild(body); return box;
+  }
+  function boardSlot() {   // 홈: 선생님이 의견 받기를 열어 둔 동안만 나타남
+    if (PREVIEW || !DATA.me || DATA.me.role === 'teacher' || !window.Board26) return null;
+    var slot = h('div', { class: 'bd-slot' });
+    window.Board26.api('state').then(function (j) { if (j._ok && j.open) slot.appendChild(boardCompose(j)); }).catch(function () {});
+    return slot;
+  }
+  function boardControlCard() {   // 교사 도구·관리자 탭: 전자칠판 화면 열기
+    if (!window.Board26) return null;
+    var open = h('button', { class: 'btn', type: 'button', text: '🖥 전자칠판에 띄우기' }); open.addEventListener('click', function () { window.Board26.show({ power: true }); });
+    var link = h('div', { class: 'note-sm', text: '전자칠판 컴퓨터에서 이 앱에 로그인한 뒤 "전자칠판에 띄우기"를 누르세요. 화면 위쪽에서 질문을 정하고 "받기 열기"를 누르면 학생 폰 홈에 의견 칸이 나타나요. 올라온 의견은 말풍선으로 떠올라요. 말풍선을 누르면 작성자 확인·삭제가 돼요.' });
+    return h('div', { class: 'card' }, [head('CLASS BOARD', '💬 수업 의견 보드'), h('div', { class: 'card-b' }, [link, open])]);
+  }
+
   // ---------- 오늘의 알림장 (날짜별 전달사항·준비물·숙제) ----------
   var DAILY_KINDS = { pin: ['⭐', '내 일정'], notice: ['📢', '전달'], prep: ['🎒', '준비물'], hw: ['📝', '숙제·수행'], time: ['⏰', '시간·장소'] };
   function addIso(iso, n) { return new Date(toUTC(iso) + n * 86400000).toISOString().slice(0, 10); }
@@ -2767,6 +2809,7 @@
       renderMore(); renderToday(); renderTeacher(); renderExamSeg(true);
       var ts = (location.hash || '').replace('#', '');
       selectTab(['teacher', 'today', 'more'].indexOf(ts) >= 0 ? ts : 'teacher');
+      if (ts === 'board' && window.Board26) setTimeout(function () { window.Board26.show({ power: true, onExit: function () { try { history.replaceState(null, '', '#teacher'); } catch (e) {} } }); }, 400);
       return;
     }
     pruneElectives();
@@ -2790,6 +2833,7 @@
     setTimeout(maybePushPrompt, 2600);   // 꺼져 있으면 알림 켜라고 안내 (카드뉴스 중이면 건너뜀)
     var start = (location.hash || '').replace('#', '');
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
+    if (start === 'board' && DATA.me.admin && window.Board26) setTimeout(function () { window.Board26.show({ power: true, onExit: function () { try { history.replaceState(null, '', '#home'); } catch (e) {} } }); }, 400);
     selectTab(['home', 'today', 'exam', 'prep', 'grade', 'naesin', 'me', 'more', 'admin'].indexOf(start) >= 0 && (start !== 'admin' || DATA.me.admin) ? start : 'home');
   }
 

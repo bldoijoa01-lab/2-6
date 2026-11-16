@@ -199,6 +199,49 @@ async function saveOfficial(env, roster, rows) {
   return saved;
 }
 
+
+
+// ---------- 수업 의견 보드 (Durable Object: 여러 학생이 동시에 올려도 순서·개수가 꼬이지 않게 한 곳에서 처리) ----------
+const BOARD_MAX = 8, BOARD_COLORS = 8;
+export class Board {
+  constructor(state) { this.state = state; this.s = null; this.last = {}; }
+  async load() { if (!this.s) this.s = (await this.state.storage.get('s')) || { open: false, topic: '', seq: 0, msgs: [], counts: {} }; return this.s; }
+  async fetch(request) {
+    const b = await request.json(), s = await this.load(), me = b.me || {}, power = !!(me.admin || me.role === 'teacher');
+    const view = () => ({
+      open: s.open, topic: s.topic, seq: s.seq, mine: s.counts[me.n] || 0, max: BOARD_MAX, power,
+      msgs: s.msgs.map((m) => ({ id: m.id, text: m.text, name: m.anon ? '익명' : m.name, c: m.c, at: m.at, ...(power ? { by: m.name, anon: m.anon } : {}) })),
+    });
+    const out = (o, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { 'content-type': 'application/json' } });
+    if (b.op === 'state') return out(view());
+    if (b.op === 'post') {
+      if (!s.open) return out({ error: 'closed' }, 403);
+      const text = typeof b.text === 'string' ? b.text.replace(/\s+/g, ' ').trim().slice(0, 80) : '';
+      if (!text) return out({ error: 'text' }, 400);
+      const now = Date.now();
+      if (now - (this.last[me.n] || 0) < 4000) return out({ error: 'slow' }, 429);
+      if (!power && (s.counts[me.n] || 0) >= BOARD_MAX) return out({ error: 'max', ...view() }, 429);
+      this.last[me.n] = now; s.seq++; s.counts[me.n] = (s.counts[me.n] || 0) + 1;
+      s.msgs.push({ id: s.seq, n: me.n, name: me.name, text, anon: !!b.anon, c: s.seq % BOARD_COLORS, at: now });
+      if (s.msgs.length > 150) s.msgs.shift();
+      await this.state.storage.put('s', s);
+      return out(view());
+    }
+    if (b.op === 'ctl') {
+      if (!power) return out({ error: 'forbidden' }, 403);
+      if (b.action === 'open') s.open = true;
+      else if (b.action === 'close') s.open = false;
+      else if (b.action === 'topic') s.topic = String(b.topic || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+      else if (b.action === 'clear') { s.msgs = []; s.counts = {}; s.seq = s.seq + 1; }
+      else if (b.action === 'delete') s.msgs = s.msgs.filter((m) => m.id !== b.id);
+      else return out({ error: 'bad' }, 400);
+      await this.state.storage.put('s', s);
+      return out(view());
+    }
+    return out({ error: 'bad' }, 400);
+  }
+}
+
 export default {
   async scheduled(event, env, ctx) { ctx.waitUntil(dailyPush(env, null, false)); },   // 30분마다: 각자 정한 시각이 된 사람에게 아침 알림장/저녁 일정 알림
   async fetch(request, env) {
@@ -351,6 +394,18 @@ export default {
       pins = pins.slice(-40);
       await env.CLASS_KV.put('pins:' + tok.w, JSON.stringify(pins));
       return json({ ok: true, pins });
+    }
+    if (url.pathname.startsWith('/api/board/') && env.BOARD) {   // 수업 의견 보드: 로그인한 누구나 보고 올리고, 교사·관리자만 조작
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), me0 = roster.find((x) => x.n === tok.w);
+      if (!me0) return json({ error: 'unauthorized' }, 401);
+      const act = url.pathname.slice('/api/board/'.length), body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
+      if (!['state', 'post', 'ctl'].includes(act)) return json({ error: 'not_found' }, 404);
+      const stub = env.BOARD.get(env.BOARD.idFromName('main'));
+      const r = await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ ...body, op: act, me: { n: me0.n, name: me0.name, role: me0.role === 'teacher' ? 'teacher' : 'student', admin: !!me0.admin } }) });
+      return new Response(await r.text(), { status: r.status, headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' } });
     }
     if (url.pathname === '/api/push/key' && request.method === 'GET') return json({ key: env.VAPID_PUBLIC || '' });
     if (url.pathname.startsWith('/api/push/') && request.method === 'POST') {   // 푸시 알림 구독 관리 (로그인한 학생만)
