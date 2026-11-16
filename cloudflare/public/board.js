@@ -1,6 +1,6 @@
 // 수업 의견 보드 — 전자칠판에 띄우는 전체화면.
-// 학생이 올린 의견이 말풍선이 되어 아래에서 "부력"으로 떠올라 천장에서부터 차곡차곡 쌓입니다.
-// 위에 다른 말풍선이 있으면 그 아래에서 멈추고, 화면이 가득 차면 가장 오래된 것이 터져서 나머지가 다시 떠오릅니다.
+// 학생이 올린 의견이 말풍선이 되어 아래에서 부드럽게 떠올라 빈틈없이 차곡차곡 쌓입니다.
+// 화면이 다 차도 아래로 스크롤해 모든 의견을 볼 수 있습니다.
 // 사용: Board26.show({ power: true|false }) / 교사·관리자·전자칠판 계정만 power (질문 설정·열기/닫기·비우기·삭제)
 (function () {
   var COLORS = [['#FFE08A', '#5A4300'], ['#FFB4C8', '#6B1230'], ['#B8E4FF', '#0B3B5C'], ['#C9F2C0', '#164A1A'], ['#E3CCFF', '#3F1A70'], ['#FFD0A8', '#6A3000'], ['#B5F0E6', '#0A4D44'], ['#FFC2F0', '#5E1550']];
@@ -13,20 +13,141 @@
   }
   var reduce = function () { return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); };
 
-  // ---- 물리 상수 (px, 초 단위) ----
-  var BUOY = 620, DRAG = 2.6, GAP = -16, MARGIN = 14, MAXLIST = 70, FLING = 2600;
+  // ---- 배치·물리 상수 (px, 초 단위) ----
+  var GAP_X = 16, GAP_Y = 18, MARGIN_X = 28, MARGIN_Y = 18, MAXLIST = 150, FLING = 2400;
 
   function show(opts) {
     if (cur) return; opts = opts || {};
-    var power = !!opts.power, root = el('div', 'bd-root'), stage = el('div', 'bd-stage'), empty = el('div', 'bd-empty');
+    var power = !!opts.power, root = el('div', 'bd-root'), stage = el('div', 'bd-stage'), canvas = el('div', 'bd-canvas'), empty = el('div', 'bd-empty');
     var topic = el('h1', 'bd-topic'), chip = el('span', 'bd-chip'), tools = el('div', 'bd-tools'), how = el('div', 'bd-how');
     how.appendChild(document.createTextNode('📱 폰으로 알림장 접속 → 홈의 ')); how.appendChild(el('b', null, '💬 수업 의견')); how.appendChild(document.createTextNode('에서 올려요'));
     var top = el('div', 'bd-top'), tl = el('div', 'bd-tl'); tl.appendChild(chip); tl.appendChild(topic); tl.appendChild(how); top.appendChild(tl); top.appendChild(tools);
     empty.appendChild(el('div', 'bd-empty-e', '💬')); empty.appendChild(el('div', 'bd-empty-t', '아직 의견이 없어요')); empty.appendChild(el('div', 'bd-empty-s', '폰에서 의견을 올리면 여기로 떠올라요!'));
-    root.appendChild(top); root.appendChild(stage); root.appendChild(empty);
-    var bubbles = {}, list = [], timer = null, state = { open: false, topic: '', msgs: [] }, alive = true, first = true, raf = 0, lastT = 0, lastRetire = 0, selEl = null;
+    var nav = el('div', 'bd-nav'), btnMore = el('button', 'bd-nav-btn pulse'), btnTop = el('button', 'bd-nav-btn', '⬆ 맨 위로');
+    btnMore.type = 'button'; btnTop.type = 'button'; btnMore.hidden = true; btnTop.hidden = true;
+    nav.appendChild(btnMore); nav.appendChild(btnTop);
+    stage.appendChild(canvas);
+    root.appendChild(top); root.appendChild(stage); root.appendChild(empty); root.appendChild(nav);
+
+    var bubbles = {}, list = [], timer = null, state = { open: false, topic: '', msgs: [] }, alive = true, first = true, raf = 0, lastT = 0, selEl = null, selBubble = null, canvasH = 0;
 
     function size() { return { w: stage.clientWidth || window.innerWidth, h: stage.clientHeight || Math.round(window.innerHeight * 0.8) }; }
+
+    function updateScrollUI() {
+      var S = size(), st = stage.scrollTop, belowCount = 0;
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].ty - list[i].h / 4 > st + S.h) belowCount++;
+      }
+      var remain = canvasH - (st + S.h);
+      if (remain > 24 && list.length > 0) {
+        btnMore.textContent = belowCount > 0 ? '⬇ 아래 의견 더 보기 (' + belowCount + '개)' : '⬇ 아래로 내려 보기';
+        btnMore.hidden = false;
+      } else {
+        btnMore.hidden = true;
+      }
+      btnTop.hidden = !(st > 40);
+    }
+
+    btnMore.addEventListener('click', function () { stage.scrollBy({ top: Math.round(size().h * 0.72), behavior: 'smooth' }); });
+    btnTop.addEventListener('click', function () { stage.scrollTo({ top: 0, behavior: 'smooth' }); });
+    stage.addEventListener('scroll', updateScrollUI, { passive: true });
+
+    // 빈 배경을 마우스/펜으로 끌어 위아래 스크롤
+    var bgPan = null;
+    stage.addEventListener('pointerdown', function (ev) {
+      if ((ev.button && ev.button !== 0) || ev.target.closest('.bd-b') || ev.target.closest('.bd-sel')) return;
+      if (canvasH <= size().h + 8) return;
+      bgPan = { id: ev.pointerId, sy: ev.clientY, st: stage.scrollTop, moved: false };
+      try { stage.setPointerCapture(ev.pointerId); } catch (e) {}
+    });
+    stage.addEventListener('pointermove', function (ev) {
+      if (!bgPan || ev.pointerId !== bgPan.id) return;
+      var dy = ev.clientY - bgPan.sy;
+      if (Math.abs(dy) > 4) bgPan.moved = true;
+      try { stage.scrollTo({ top: bgPan.st - dy, behavior: 'auto' }); } catch (e) { stage.scrollTop = bgPan.st - dy; }
+    });
+    function endBgPan(ev) {
+      if (!bgPan || ev.pointerId !== bgPan.id) return;
+      if (bgPan.moved) stage._panMoved = true;
+      bgPan = null;
+    }
+    stage.addEventListener('pointerup', endBgPan);
+    stage.addEventListener('pointercancel', endBgPan);
+
+    // ---------- 빈틈없는 행 배정 + 스카이라인 배치 ----------
+    function relayout(measure) {
+      var S = size(), i, j, k;
+      if (measure) {
+        var maxW = Math.max(200, Math.min(S.w * 0.3, 560));
+        for (i = 0; i < list.length; i++) {
+          list[i].el.style.maxWidth = maxW + 'px';
+          list[i].w = list[i].el.offsetWidth;
+          list[i].h = list[i].el.offsetHeight + 14;
+        }
+      }
+      var availW = Math.max(260, S.w - MARGIN_X * 2);
+      var rows = [];
+      for (i = 0; i < list.length; i++) {
+        var o = list[i], placedRow = null;
+        for (j = 0; j < rows.length; j++) {
+          var r = rows[j];
+          if (r.items.length === 0 || r.width + GAP_X + o.w <= availW) { placedRow = r; break; }
+        }
+        if (!placedRow) { placedRow = { items: [], width: 0 }; rows.push(placedRow); }
+        placedRow.width += (placedRow.items.length ? GAP_X : 0) + o.w;
+        placedRow.items.push(o);
+      }
+
+      for (i = 0; i < rows.length; i++) {
+        var row = rows[i];
+        var slack = Math.max(0, availW - row.width);
+        var extraGap = row.items.length > 1 ? Math.min(20, slack * 0.22 / (row.items.length - 1)) : 0;
+        var rowW = row.width + extraGap * (row.items.length - 1);
+        var shift = (i % 2 === 1 ? 1 : -1) * Math.min(16, Math.max(0, availW - rowW) * 0.14);
+        var curX = (S.w - rowW) / 2 + shift;
+        for (j = 0; j < row.items.length; j++) {
+          var item = row.items[j];
+          item.tx = curX + item.w / 2;
+          curX += item.w + GAP_X + extraGap;
+        }
+      }
+
+      var placed = [], prevRowMinTop = MARGIN_Y;
+      for (i = 0; i < rows.length; i++) {
+        var rw = rows[i], rowMinTop = Infinity;
+        for (j = 0; j < rw.items.length; j++) {
+          var b = rw.items[j], topY = i === 0 ? MARGIN_Y : prevRowMinTop + 28;
+          for (k = 0; k < placed.length; k++) {
+            var u = placed[k];
+            if (Math.min(b.tx + b.w / 2 - 4, u.tx + u.w / 2 + 4) > Math.max(b.tx - b.w / 2 + 4, u.tx - u.w / 2 - 4)) {
+              topY = Math.max(topY, u.ty + u.h / 2 + GAP_Y);
+            }
+          }
+          var wave = Math.sin(b.id * 1.9) * 2.5;
+          b.ty = Math.max(MARGIN_Y + b.h / 2, topY + wave + b.h / 2);
+          rowMinTop = Math.min(rowMinTop, b.ty - b.h / 2);
+        }
+        for (j = 0; j < rw.items.length; j++) placed.push(rw.items[j]);
+        prevRowMinTop = isFinite(rowMinTop) ? rowMinTop : prevRowMinTop;
+      }
+
+      var maxBottom = 0;
+      for (i = 0; i < list.length; i++) maxBottom = Math.max(maxBottom, list[i].ty + list[i].h / 2);
+      canvasH = list.length ? Math.max(S.h, Math.ceil(maxBottom + 84)) : S.h;
+      canvas.style.height = canvasH + 'px';
+      var scrollable = canvasH > S.h + 8;
+      for (i = 0; i < list.length; i++) list[i].el.style.touchAction = scrollable ? 'pan-y' : 'none';
+      updateScrollUI();
+    }
+
+    function reorderAndRelayout() {
+      list.sort(function (a, b) {
+        var ra = Math.round(a.y / 70), rb = Math.round(b.y / 70);
+        if (ra !== rb) return ra - rb;
+        return a.x - b.x;
+      });
+      relayout(false);
+    }
 
     // ---------- 말풍선 만들기 ----------
     function spawn(m, instant) {
@@ -35,56 +156,85 @@
       b.style.maxWidth = Math.max(200, Math.min(S.w * 0.3, 560)) + 'px';
       b.style.fontSize = (len <= 12 ? 'clamp(22px,2.6vw,42px)' : len <= 30 ? 'clamp(19px,2.05vw,32px)' : 'clamp(16px,1.75vw,27px)');
       b.appendChild(el('div', 'bd-n', m.name)); b.appendChild(el('div', 'bd-t', m.text));
-      stage.appendChild(b);
+      canvas.appendChild(b);
       var w = b.offsetWidth, h = b.offsetHeight + 14;   // 꼬리 높이만큼 여유
-      var o = { id: m.id, msg: m, el: b, w: w, h: h, x: w / 2 + MARGIN + Math.random() * Math.max(1, S.w - w - MARGIN * 2), y: S.h + h / 2 + 30, vx: (Math.random() - 0.5) * 60, vy: -140 - Math.random() * 80, ph: Math.random() * 6.28, born: performance.now(), dead: false };
-      if (instant || reduce()) { o.y = h / 2 + MARGIN; o.vy = 0; }
+      var prevCanvasH = canvasH || S.h, wasNearBottom = stage.scrollTop > 20 && (prevCanvasH - (stage.scrollTop + S.h) < 220);
+      var o = { id: m.id, msg: m, el: b, w: w, h: h, x: 0, y: 0, tx: 0, ty: 0, vx: 0, vy: 0, rot: 0, sq: 0, sqv: 0, sa: 'y', ph: Math.random() * 6.28, rising: true, freeTime: 0, drag: false, moved: false, dead: false };
       bubbles[m.id] = o; list.push(o);
+      relayout(false);
+      o.x = Math.max(MARGIN_X + o.w / 2, Math.min(S.w - MARGIN_X - o.w / 2, o.tx + (Math.random() - 0.5) * 80));
+      o.y = Math.max(o.ty + 260, stage.scrollTop + S.h + o.h / 2 + 30);
+      o.vx = (o.tx - o.x) * 0.6; o.vy = -260; o.rising = true;
+      if (instant || reduce()) { o.x = o.tx; o.y = o.ty; o.vx = 0; o.vy = 0; o.rising = false; }
+      if (!instant && !reduce() && wasNearBottom && canvasH > stage.scrollTop + S.h) {
+        stage.scrollTo({ top: Math.max(0, canvasH - S.h), behavior: 'smooth' });
+      }
       b.style.zIndex = String(1 + (m.id % 1000)); b.classList.add('new'); setTimeout(function () { b.classList.remove('new'); }, 2600);
       b.addEventListener('click', function (ev) { ev.stopPropagation(); if (o.moved) { o.moved = false; return; } if (power) selectBubble(m.id); });
       grab(o); place(o); kick();
     }
-    // 끌어서 날리기: 잡으면 손가락을 따라오고, 놓으면 손의 속도로 날아가 벽에 튕기다가 다시 부력으로 떠오름
+
+    // 끌어서 날리기 / 자리 옮기기
     function grab(o) {
       var b = o.el, id = null, ox = 0, oy = 0, sx = 0, sy = 0, hist = [];
-      b.style.touchAction = 'none';
       b.addEventListener('pointerdown', function (ev) {
         if (id !== null || (ev.button && ev.button !== 0) || ev.target.closest('.bd-sel')) return;
         id = ev.pointerId; try { b.setPointerCapture(id); } catch (e) {}
-        var r = stage.getBoundingClientRect(); ox = ev.clientX - r.left - o.x; oy = ev.clientY - r.top - o.y; sx = ev.clientX; sy = ev.clientY;
-        o.drag = true; o.moved = false; o.sa = 'y'; o.sqv = 6; o.vx = 0; o.vy = 0; hist = [[performance.now(), ev.clientX, ev.clientY]]; b.classList.add('held'); kick();
+        var r = canvas.getBoundingClientRect(); ox = ev.clientX - r.left - o.x; oy = ev.clientY - r.top - o.y; sx = ev.clientX; sy = ev.clientY;
+        o.drag = true; o.freeTime = 0; o.rising = false; o.moved = false; o.sa = 'y'; o.sqv = 4.5; o.vx = 0; o.vy = 0; hist = [[performance.now(), ev.clientX, ev.clientY]]; b.classList.add('held'); kick();
       });
       b.addEventListener('pointermove', function (ev) {
         if (ev.pointerId !== id) return;
-        var r = stage.getBoundingClientRect(), S = size(), now = performance.now();
+        var r = canvas.getBoundingClientRect(), S = size(), ch = Math.max(S.h, canvasH), now = performance.now();
         if (Math.abs(ev.clientX - sx) + Math.abs(ev.clientY - sy) > 8) o.moved = true;
-        o.x = Math.max(MARGIN + o.w / 2, Math.min(S.w - MARGIN - o.w / 2, ev.clientX - r.left - ox));
-        o.y = Math.max(MARGIN + o.h / 2, Math.min(S.h - MARGIN - o.h / 2, ev.clientY - r.top - oy));
+        o.x = Math.max(MARGIN_X + o.w / 2, Math.min(S.w - MARGIN_X - o.w / 2, ev.clientX - r.left - ox));
+        o.y = Math.max(MARGIN_Y + o.h / 2, Math.min(ch - MARGIN_Y - o.h / 2, ev.clientY - r.top - oy));
         hist.push([now, ev.clientX, ev.clientY]); while (hist.length > 2 && now - hist[0][0] > 90) hist.shift();
-        place(o);
+        place(o, now);
       });
       function release(ev) {
         if (ev.pointerId !== id) return; id = null; o.drag = false; b.classList.remove('held');
         var f = hist[0], l = hist[hist.length - 1], dt = Math.max(16, l[0] - f[0]) / 1000;
         if (o.moved && hist.length > 1 && performance.now() - l[0] < 120) {
-          o.vx = Math.max(-FLING, Math.min(FLING, (l[1] - f[1]) / dt)); o.vy = Math.max(-FLING, Math.min(FLING, (l[2] - f[2]) / dt)); o.entered = true; o.sa = Math.abs(o.vx) > Math.abs(o.vy) ? 'x' : 'y'; o.sqv = -9;   // 놓는 순간 쭉 늘어났다가 출발
-        } else { o.vx = 0; o.vy = 0; o.sqv = -5; }
+          var vx = Math.max(-FLING, Math.min(FLING, (l[1] - f[1]) / dt)), vy = Math.max(-FLING, Math.min(FLING, (l[2] - f[2]) / dt));
+          if (Math.hypot(vx, vy) > 260) {
+            o.vx = vx; o.vy = vy; o.freeTime = 0.36; o.sa = Math.abs(vx) > Math.abs(vy) ? 'x' : 'y'; o.sqv = -6;
+          } else {
+            o.vx = vx * 0.3; o.vy = vy * 0.3; o.sqv = -3.5; reorderAndRelayout();
+          }
+        } else {
+          o.vx = 0; o.vy = 0; o.sqv = -3.5;
+          if (o.moved) reorderAndRelayout();
+        }
         kick();
       }
       b.addEventListener('pointerup', release); b.addEventListener('pointercancel', release);
     }
-    function place(o) {
-      var sx = 1, sy = 1, q = Math.max(-0.5, Math.min(0.5, o.sq || 0));   // 찌부: q>0이면 부딪힌 축으로 납작해지고 반대로 퉁퉁해짐 (부피 유지)
-      if (o.sa === 'x') { sx = 1 - q * 0.55; sy = 1 + q * 0.55; } else { sy = 1 - q * 0.55; sx = 1 + q * 0.55; }
-      o.el.style.transform = 'translate3d(' + (o.x - o.w / 2).toFixed(1) + 'px,' + (o.y - o.h / 2).toFixed(1) + 'px,0) rotate(' + Math.max(-9, Math.min(9, o.vx * 0.04)).toFixed(2) + 'deg) scale(' + sx.toFixed(3) + ',' + sy.toFixed(3) + ')';
+
+    function place(o, t) {
+      var now = t || performance.now();
+      var dist = Math.hypot((o.tx || 0) - o.x, (o.ty || 0) - o.y);
+      var calm = (o.drag || o.freeTime > 0 || reduce()) ? 0 : Math.max(0, 1 - dist / 40);
+      var bobX = calm * Math.sin(now / 1500 + o.ph) * 2.2;
+      var bobY = calm * Math.cos(now / 1200 + o.ph * 1.3) * 2.8;
+      var bobRot = calm * Math.sin(now / 1800 + o.ph * 0.7) * 0.85;
+      var sx = 1, sy = 1, q = Math.max(-0.2, Math.min(0.2, o.sq || 0));
+      if (o.sa === 'x') { sx = 1 - q * 0.45; sy = 1 + q * 0.45; } else { sy = 1 - q * 0.45; sx = 1 + q * 0.45; }
+      o.el.style.transform = 'translate3d(' + (o.x + bobX - o.w / 2).toFixed(1) + 'px,' + (o.y + bobY - o.h / 2).toFixed(1) + 'px,0) rotate(' + ((o.rot || 0) + bobRot).toFixed(2) + 'deg) scale(' + sx.toFixed(3) + ',' + sy.toFixed(3) + ')';
     }
-    function hit(o, axis, v) {   // 부딪힘 → 찌부러졌다가 통통 튀며 돌아옴
-      v = Math.abs(v); if (v < 60) return; o.sa = axis; o.sqv = Math.max(o.sqv || 0, 0) + Math.min(8, v * 0.016);
+    function hit(o, axis, v) {   // 부딪힘 → 부드럽게 찌부러졌다가 복귀
+      v = Math.abs(v); if (v < 80) return; o.sa = axis; o.sqv = Math.max(o.sqv || 0, 0) + Math.min(4.5, v * 0.008);
+    }
+    function clearSel() {
+      if (selEl) { selEl.remove(); selEl = null; }
+      if (selBubble) { selBubble.el.classList.remove('selected'); selBubble = null; }
     }
     function pop(id) {   // 터지며 사라짐
       var o = bubbles[id]; if (!o || o.dead) return; o.dead = true; delete bubbles[id];
+      if (selBubble === o) clearSel();
       list = list.filter(function (x) { return x !== o; }); o.el.classList.add('pop');
       setTimeout(function () { o.el.remove(); }, 520);
+      relayout(false); kick();
     }
 
     // ---------- 물리 루프 ----------
@@ -93,71 +243,96 @@
       raf = 0; if (!alive) return;
       var dt = Math.min(0.05, Math.max(0.001, (t - lastT) / 1000)); lastT = t;
       step(dt, t);
-      // 움직임이 남아 있거나 새 말풍선이 있으면 계속
-      var busy = list.some(function (o) { return Math.abs(o.vy) > 2 || Math.abs(o.vx) > 2; });
-      if (busy || list.length) raf = requestAnimationFrame(frame);
+      var busy = list.some(function (o) {
+        return o.drag || o.freeTime > 0 || Math.abs(o.vy) > 1.5 || Math.abs(o.vx) > 1.5 || Math.abs(o.tx - o.x) > 1.5 || Math.abs(o.ty - o.y) > 1.5 || Math.abs(o.sq) > 0.005 || Math.abs(o.sqv) > 0.02;
+      });
+      if (busy || (list.length && !reduce())) raf = requestAnimationFrame(frame);
     }
     function step(dt, t) {
-      var mv = 0, n, i; for (i = 0; i < list.length; i++) mv = Math.max(mv, Math.abs(list[i].vx), Math.abs(list[i].vy));
-      n = Math.max(1, Math.min(6, Math.ceil(mv * dt / 30)));   // 빨리 날아가는 말풍선이 다른 걸 뚫고 지나가지 않게 잘게 나눠 계산
-      for (i = 0; i < n; i++) sub(dt / n, t);
-      var S = size(); list.forEach(place);
-      list.forEach(function (o) { if (!o.drag && Math.abs(o.vy) < 45 && o.y + o.h / 2 > S.h - 18) o.low = (o.low || 0) + dt; else o.low = 0; });
-      // 더미가 화면 아래까지 막혀서 1.6초 넘게 내려와 있으면 가장 오래된 말풍선이 터지고 나머지가 떠오름 (바닥에 잠깐 튕긴 건 제외)
-      var blocked = list.some(function (o) { return o.low > 1.6; });
-      if ((list.length > MAXLIST || blocked) && t - lastRetire > 700) {
-        var oldest = list.filter(function (o) { return !o.drag; }).sort(function (p, q) { return p.id - q.id; })[0]; if (oldest) { lastRetire = t; pop(oldest.id); paintHead(); list.forEach(function (o) { o.low = Math.min(o.low, 1.0); }); }
+      sub(dt, t);
+      for (var i = 0; i < list.length; i++) place(list[i], t);
+      if (list.length > MAXLIST) {
+        var oldest = list.filter(function (o) { return !o.drag; }).sort(function (p, q) { return p.id - q.id; })[0];
+        if (oldest) { pop(oldest.id); paintHead(); }
       }
     }
     function sub(dt, t) {
-      var S = size(), top = MARGIN, i, j, a, b;
+      var S = size(), ch = Math.max(S.h, canvasH), draggedBubble = null, needRelayout = false, i, j, a, b;
+      for (i = 0; i < list.length; i++) { if (list[i].drag) { draggedBubble = list[i]; break; } }
       for (i = 0; i < list.length; i++) {
-        a = list[i]; if (a.drag) continue;
-        a.vy -= BUOY * dt; a.vy -= a.vy * DRAG * dt;                                        // 부력 + 항력
-        a.vx += Math.sin(t / 700 + a.ph) * 18 * dt - a.vx * (Math.abs(a.vx) > 120 ? 0.7 : 1.8) * dt;   // 좌우로 살랑살랑 (세게 날린 건 오래 날아감)
-        a.x += a.vx * dt; a.y += a.vy * dt;
-        if (!a.entered && a.y + a.h / 2 < S.h) a.entered = true;
-        a.sqv = (a.sqv || 0) + (-170 * (a.sq || 0) - 9 * (a.sqv || 0)) * dt; a.sq = (a.sq || 0) + a.sqv * dt;   // 찌부 스프링(출렁출렁)
-      }
-      for (var pass = 0; pass < 3; pass++) {
-        for (i = 0; i < list.length; i++) {
-          a = list[i]; if (a.drag) continue;
-          if (a.y < top + a.h / 2) { a.y = top + a.h / 2; if (a.vy < 0) { hit(a, 'y', a.vy); a.vy = a.vy < -120 ? -a.vy * 0.55 : 0; } }       // 천장: 쿵 하고 튕김
-          if (a.entered && a.y > S.h - MARGIN - a.h / 2) { a.y = S.h - MARGIN - a.h / 2; if (a.vy > 0) { hit(a, 'y', a.vy); a.vy = -a.vy * 0.6; } }   // 바닥
-          if (a.x < MARGIN + a.w / 2) { a.x = MARGIN + a.w / 2; hit(a, 'x', a.vx); a.vx = Math.abs(a.vx) * 0.72; }
-          if (a.x > S.w - MARGIN - a.w / 2) { a.x = S.w - MARGIN - a.w / 2; hit(a, 'x', a.vx); a.vx = -Math.abs(a.vx) * 0.72; }
+        a = list[i];
+        if (a.drag) {
+          a.sqv = (a.sqv || 0) + (-180 * (a.sq || 0) - 14 * (a.sqv || 0)) * dt;
+          a.sq = Math.max(-0.2, Math.min(0.2, (a.sq || 0) + a.sqv * dt));
+          a.rot = (a.rot || 0) + (0 - (a.rot || 0)) * Math.min(1, dt * 14);
+          continue;
         }
-        for (i = 0; i < list.length; i++) for (j = i + 1; j < list.length; j++) {
-          a = list[i]; b = list[j];
-          var dx = b.x - a.x, dy = b.y - a.y, ox = (a.w + b.w) / 2 + GAP - Math.abs(dx), oy = (a.h + b.h) / 2 + GAP - Math.abs(dy);
-          if (ox <= 0 || oy <= 0) continue;
-          if (oy <= ox * 1.15) {                                // 위아래로 겹침
-            var lo = dy > 0 ? b : a, up = dy > 0 ? a : b, vn = lo.vy - up.vy;   // vn<0: 서로 다가오는 중
-            if (lo.drag) { up.y -= oy; if (up.vy < 0) up.vy = 0; continue; }
-            if (up.drag) { lo.y += oy; if (lo.vy < 0) lo.vy *= 0.15; continue; }
-            if (vn < -90) { var jv = -(1 + 0.55) * vn / 2; lo.vy += jv; up.vy -= jv; hit(lo, 'y', vn); hit(up, 'y', vn); lo.y += oy / 2; up.y -= oy / 2; }   // 세게 부딪히면 통! 하고 서로 튕김
-            else { lo.y += oy * 0.5; up.y -= oy * 0.08; if (lo.vy < 0) lo.vy *= 0.35; }   // 살짝 겹친 채로 포개져 쌓임
-            var side = lo.x - up.x; if (Math.abs(side) < (lo.w + up.w) * 0.25) lo.vx += (side >= 0 ? 1 : -1) * 40 * (1 + Math.random());
-          } else {                                              // 좌우로 겹침
-            var sg = dx >= 0 ? 1 : -1, vr = (b.vx - a.vx) * sg;   // vr<0: 다가오는 중
-            if (a.drag) { b.x += sg * ox; continue; } if (b.drag) { a.x -= sg * ox; continue; }
-            a.x -= sg * ox * 0.28; b.x += sg * ox * 0.28;
-            if (vr < -60) { var jh = -(1 + 0.7) * vr / 2 * sg; b.vx += jh; a.vx -= jh; hit(a, 'x', vr); hit(b, 'x', vr); } else { a.vx = a.vx * 0.4 - sg * 12; b.vx = b.vx * 0.4 + sg * 12; }
+        if (a.freeTime > 0) {
+          a.freeTime -= dt;
+          a.vx *= Math.max(0, 1 - 3.2 * dt); a.vy *= Math.max(0, 1 - 3.2 * dt);
+          a.x += a.vx * dt; a.y += a.vy * dt;
+          if (a.x < MARGIN_X + a.w / 2) { a.x = MARGIN_X + a.w / 2; hit(a, 'x', a.vx); a.vx = Math.abs(a.vx) * 0.65; }
+          if (a.x > S.w - MARGIN_X - a.w / 2) { a.x = S.w - MARGIN_X - a.w / 2; hit(a, 'x', a.vx); a.vx = -Math.abs(a.vx) * 0.65; }
+          if (a.y < MARGIN_Y + a.h / 2) { a.y = MARGIN_Y + a.h / 2; hit(a, 'y', a.vy); a.vy = Math.abs(a.vy) * 0.65; }
+          if (a.y > ch - 40 - a.h / 2) { a.y = ch - 40 - a.h / 2; hit(a, 'y', a.vy); a.vy = -Math.abs(a.vy) * 0.65; }
+          for (j = 0; j < list.length; j++) {
+            b = list[j]; if (b === a || b.drag) continue;
+            var dx0 = b.x - a.x, dy0 = b.y - a.y;
+            var ox = (a.w + b.w) / 2 + 8 - Math.abs(dx0), oy = (a.h + b.h) / 2 + 8 - Math.abs(dy0);
+            if (ox > 0 && oy > 0) {
+              if (ox < oy) {
+                var sg = dx0 >= 0 ? 1 : -1, vr = (b.vx - a.vx) * sg;
+                a.x -= sg * ox * 0.35; b.x += sg * ox * 0.35;
+                if (vr < -40) { var jh = -0.65 * vr * sg; a.vx -= jh; b.vx += jh * 0.55; hit(a, 'x', vr); hit(b, 'x', vr * 0.6); }
+              } else {
+                var sy0 = dy0 >= 0 ? 1 : -1, vn = (b.vy - a.vy) * sy0;
+                a.y -= sy0 * oy * 0.35; b.y += sy0 * oy * 0.35;
+                if (vn < -40) { var jv = -0.65 * vn * sy0; a.vy -= jv; b.vy += jv * 0.55; hit(a, 'y', vn); hit(b, 'y', vn * 0.6); }
+              }
+            }
+          }
+          if (a.freeTime <= 0) { a.freeTime = 0; needRelayout = true; }
+        } else {
+          var dx = a.tx - a.x, dy = a.ty - a.y;
+          a.vx += (dx * 22 - a.vx * 8.2) * dt;
+          a.vy += (dy * 22 - a.vy * 8.2) * dt;
+          if (draggedBubble) {
+            var rx = a.x - draggedBubble.x, ry = a.y - draggedBubble.y;
+            var needX = (a.w + draggedBubble.w) / 2 + 14, needY = (a.h + draggedBubble.h) / 2 + 14;
+            if (Math.abs(rx) < needX && Math.abs(ry) < needY) {
+              var px = needX - Math.abs(rx), py = needY - Math.abs(ry);
+              if (px < py) a.vx += (rx >= 0 ? 1 : -1) * px * 16 * dt;
+              else a.vy += (ry >= 0 ? 1 : -1) * py * 16 * dt;
+            }
+          }
+          var spd = Math.hypot(a.vx, a.vy);
+          if (spd > 560) { var sc = 560 / spd; a.vx *= sc; a.vy *= sc; }
+          a.x += a.vx * dt; a.y += a.vy * dt;
+          if (a.rising && Math.hypot(dx, dy) < 24) {
+            a.rising = false; a.sa = 'y'; a.sqv = Math.min(3.0, Math.abs(a.vy) * 0.01);
           }
         }
+        a.sqv = (a.sqv || 0) + (-180 * (a.sq || 0) - 14 * (a.sqv || 0)) * dt;
+        a.sq = Math.max(-0.2, Math.min(0.2, (a.sq || 0) + a.sqv * dt));
+        var targetRot = Math.max(-7, Math.min(7, a.vx * 0.018));
+        a.rot = (a.rot || 0) + (targetRot - (a.rot || 0)) * Math.min(1, dt * 14);
       }
+      if (needRelayout) reorderAndRelayout();
     }
-    function settleNow() { for (var k = 0; k < 160; k++) step(0.03, k * 30); }   // 애니메이션 줄이기 설정: 바로 쌓인 상태로
+    function settleNow() { relayout(false); for (var k = 0; k < 120; k++) step(0.03, k * 30); }   // 애니메이션 줄이기 설정: 바로 쌓인 상태로
 
     // ---------- 선택(삭제) ----------
     function selectBubble(id) {
-      if (selEl) { selEl.remove(); selEl = null; }
+      clearSel();
       var o = bubbles[id]; if (!o) return;
       var box = el('div', 'bd-sel'), who = el('span', null, '작성: ' + (o.msg.by || o.msg.name) + (o.msg.anon ? ' (익명)' : '')), del = el('button', null, '🗑 삭제');
-      del.type = 'button'; del.addEventListener('click', function (ev) { ev.stopPropagation(); box.remove(); selEl = null; api('ctl', { action: 'delete', id: id }).then(poll); });
-      box.appendChild(who); box.appendChild(del); o.el.appendChild(box); selEl = box;
+      del.type = 'button'; del.addEventListener('click', function (ev) { ev.stopPropagation(); clearSel(); api('ctl', { action: 'delete', id: id }).then(poll); });
+      box.appendChild(who); box.appendChild(del); o.el.appendChild(box); o.el.classList.add('selected'); selEl = box; selBubble = o;
     }
-    stage.addEventListener('click', function () { if (selEl) { selEl.remove(); selEl = null; } });
+    stage.addEventListener('click', function () {
+      if (stage._panMoved) { stage._panMoved = false; return; }
+      clearSel();
+    });
 
     // ---------- 상태 반영 ----------
     function paintHead() {
@@ -172,12 +347,22 @@
       Object.keys(bubbles).forEach(function (id) { if (!ids[id]) pop(id); });   // 삭제·비우기
       var fresh = j.msgs.filter(function (m) { return !bubbles[m.id] && !gone[m.id]; });
       if (first) {
-        first = false; fresh = fresh.slice(-18);
-        fresh.forEach(function (m, i) { setTimeout(function () { if (alive && !bubbles[m.id]) { spawn(m, false); paintHead(); } }, i * 230); });
-      } else fresh.forEach(function (m, i) { setTimeout(function () { if (alive && !bubbles[m.id]) { spawn(m, false); paintHead(); } }, i * 600); });
+        first = false;
+        fresh.forEach(function (m, i) {
+          setTimeout(function () {
+            if (alive && !bubbles[m.id] && state.msgs.some(function (x) { return x.id === m.id; })) { spawn(m, false); paintHead(); }
+          }, Math.min(i * 110, 2200));
+        });
+      } else {
+        fresh.forEach(function (m, i) {
+          setTimeout(function () {
+            if (alive && !bubbles[m.id] && state.msgs.some(function (x) { return x.id === m.id; })) { spawn(m, false); paintHead(); }
+          }, i * 350);
+        });
+      }
       paintHead();
     }
-    var gone = {};   // 가득 차서 터진 말풍선이 다음 폴링에서 되살아나지 않게
+    var gone = {};   // MAXLIST 초과로 사라진 말풍선이 다음 폴링에서 되살아나지 않게
     var origPop = pop; pop = function (id) { gone[id] = 1; origPop(id); };
     function poll() { return api('state').then(function (j) { if (!alive) return; if (j._ok) { root.classList.remove('off'); apply(j); } else root.classList.add('off'); }).catch(function () { root.classList.add('off'); }); }
 
@@ -190,8 +375,10 @@
     }
     tbtn('⛶', function () { if (document.fullscreenElement) document.exitFullscreen(); else if (root.requestFullscreen) root.requestFullscreen().catch(function () {}); }).setAttribute('aria-label', '전체화면');
     tbtn('✕ 나가기', close);
+    function onResize() { relayout(true); kick(); }
+    window.addEventListener('resize', onResize);
     function close() {
-      alive = false; clearInterval(timer); cancelAnimationFrame(raf); document.removeEventListener('keydown', onKey);
+      alive = false; clearInterval(timer); cancelAnimationFrame(raf); document.removeEventListener('keydown', onKey); window.removeEventListener('resize', onResize);
       if (document.fullscreenElement) document.exitFullscreen().catch(function () {});
       root.remove(); cur = null; if (opts.onExit) opts.onExit();
     }
@@ -200,7 +387,7 @@
     document.body.appendChild(root); paintHead();
     poll(); timer = setInterval(poll, 1800);
     cur = { close: close };
-    window.Board26._debug = { list: function () { return list; }, settle: settleNow };
+    window.Board26._debug = { list: function () { return list; }, settle: settleNow, relayout: relayout };
   }
   window.Board26 = { show: show, api: api };
 })();
