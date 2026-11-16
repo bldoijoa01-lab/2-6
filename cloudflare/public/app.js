@@ -262,10 +262,48 @@
     return out;
   }
 
+  function isCheckable(e) {
+    return !!(e && !e.calOnly && (e.link || e.check || /제출|신청|수요조사|설문|구글\s*폼/.test(e.title || '')));
+  }
+  function doneKey(e) { return (e.date ? 'ev:' + e.date + '|' : 'nt:') + (e.title || ''); }
+  function isDone(e) { var d = prefLoad().done; return !!(d && d[doneKey(e)]); }
+  function syncDoneUI() {
+    var d = prefLoad().done || {};
+    Array.prototype.forEach.call(document.querySelectorAll('.ev[data-done-key]'), function (row) {
+      var on = !!d[row.getAttribute('data-done-key')];
+      row.classList.toggle('is-done', on);
+      var lbl = row.querySelector('.ev-check');
+      if (lbl) {
+        lbl.classList.toggle('on', on);
+        var cb = lbl.querySelector('input'); if (cb) cb.checked = on;
+        var sp = lbl.querySelector('span'); if (sp) sp.textContent = on ? '제출·완료함' : '완료 체크';
+      }
+    });
+  }
+  function doneCheck(e, row) {
+    if (!isCheckable(e) || (DATA && DATA.me && DATA.me.role === 'teacher')) return null;
+    var k = doneKey(e), on = isDone(e);
+    if (row) { row.setAttribute('data-done-key', k); row.classList.toggle('is-done', on); }
+    var cb = h('input', { type: 'checkbox' }); cb.checked = on;
+    var txt = h('span', { text: on ? '제출·완료함' : '완료 체크' });
+    var lbl = h('label', { class: 'ev-check' + (on ? ' on' : '') }, [cb, txt]);
+    if (PREVIEW) cb.disabled = true;
+    cb.addEventListener('change', function () {
+      var p = prefLoad(); p.done = Object.assign({}, p.done || {});
+      if (cb.checked) p.done[k] = 1; else delete p.done[k];
+      prefSave(p);
+      syncDoneUI();
+    });
+    return lbl;
+  }
+
   function noticesCard() {
     var ns = DATA.notices || []; if (!ns.length) return null;
     return h('div', { class: 'card notice-card' }, [head('NOTICE', '공지'), h('div', { class: 'card-b' }, ns.map(function (n) {
-      return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: n.title }), n.text ? h('div', { class: 'ev-sub', text: n.text }) : null].concat(evExtras(n)))]);
+      var main = h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: n.title }), n.text ? h('div', { class: 'ev-sub', text: n.text }) : null].concat(evExtras(n)));
+      var row = h('div', { class: 'ev' }, [main]);
+      var ck = doneCheck(n, row); if (ck) main.appendChild(ck);
+      return row;
     }))]);
   }
 
@@ -510,7 +548,10 @@
     // 다음 일정 미리보기
     var rows = others.slice(0, 3).map(function (e) {
       var d = diffDays(e.date, TODAY), when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
-      return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: e.title }), h('div', { class: 'ev-sub' }, [h('b', { text: when })])]), ddayBadge(e)]);
+      var main = h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: e.title }), h('div', { class: 'ev-sub' }, [h('b', { text: when })])]);
+      var row = h('div', { class: 'ev' }, [main, ddayBadge(e)]);
+      var ck = doneCheck(e, row); if (ck) main.appendChild(ck);
+      return row;
     });
     var more = h('button', { class: 'linkbtn', type: 'button', text: '일정 전체 보기 →' });
     more.addEventListener('click', function () { goTab('today'); });
@@ -546,7 +587,10 @@
       listTitle.textContent = sel ? fmt(sel) : (month + 1) + '월 일정';
       var rows = shown.length ? shown.map(function (e) {
         var when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
-        return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title' }, [e.title, myBadge(e)]), h('div', { class: 'ev-sub' }, [h('b', { text: when }), e.note ? ' · ' + e.note : ''])].concat(evExtras(e)).concat([myDelBtn(e), pinBtn(e)])), ddayBadge(e)]);
+        var main = h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title' }, [e.title, myBadge(e)]), h('div', { class: 'ev-sub' }, [h('b', { text: when }), e.note ? ' · ' + e.note : ''])].concat(evExtras(e)).concat([myDelBtn(e), pinBtn(e)]));
+        var row = h('div', { class: 'ev' }, [main, ddayBadge(e)]);
+        var ck = doneCheck(e, row); if (ck) main.appendChild(ck);
+        return row;
       }) : [h('div', { class: 'empty', text: '이 날은 일정이 없어요.' })];
       rows.forEach(function (r) { listEvents.appendChild(r); });
       if (animate) animateSwap(listEvents, '');
@@ -2088,7 +2132,9 @@
       evExtras(e).forEach(function (x) { main.appendChild(x); });
       var dl = myDelBtn(e); if (dl) main.appendChild(dl);
       var pb = pinBtn(e); if (pb) main.appendChild(pb);
-      return h('div', { class: 'ev' }, [main, ddayBadge(e)]);
+      var row = h('div', { class: 'ev' }, [main, ddayBadge(e)]);
+      var ck = doneCheck(e, row); if (ck) main.appendChild(ck);
+      return row;
     }
 
     var body = [];
