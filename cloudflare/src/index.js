@@ -432,6 +432,29 @@ export default {
       for (let i = 0; i < days; i++) { const iso = addDaysISO(today, -i), l = JSON.parse(await env.CLASS_KV.get('cleanlog:' + iso) || 'null'); if (l && Object.keys(l).length) logs[iso] = l; }
       return json({ today, logs });
     }
+    if (url.pathname === '/api/out' && (request.method === 'GET' || request.method === 'POST')) {   // 자습 중 교실 이탈 기록: 전자칠판·교사·관리자
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), me0 = roster.find((x) => x.n === tok.w);
+      if (!me0 || !(me0.role === 'board' || me0.role === 'teacher' || me0.admin)) return json({ error: 'forbidden' }, 403);
+      const today = env.TODAY_OVERRIDE || kstISO(), key = 'outlog:' + today;
+      if (request.method === 'POST') {
+        const b = await request.json().catch(() => ({})), list = JSON.parse(await env.CLASS_KV.get(key) || '[]');
+        if (b.op === 'out') {
+          const st = roster.find((x) => isStu(x) && x.name === b.name); if (!st) return json({ error: 'bad' }, 400);
+          if (list.some((e) => e.n === st.n && !e.back)) return json({ error: 'already' }, 409);
+          list.push({ id: Date.now() % 1e9 * 10 + list.length % 10, n: st.n, name: st.name, reason: String(b.reason || '').replace(/\s+/g, ' ').trim().slice(0, 40) || '사유 없음', out: Date.now(), back: null, by: me0.name });
+        } else if (b.op === 'back') { const e = list.find((x) => x.id === b.id); if (!e) return json({ error: 'bad' }, 400); if (!e.back) e.back = Date.now(); }
+        else if (b.op === 'del') { const i = list.findIndex((x) => x.id === b.id); if (i < 0) return json({ error: 'bad' }, 400); list.splice(i, 1); }
+        else return json({ error: 'bad' }, 400);
+        await env.CLASS_KV.put(key, JSON.stringify(list.slice(-80)), { expirationTtl: 120 * 86400 });
+        return json({ ok: true, today, list });
+      }
+      const days = me0.role === 'board' ? 1 : Math.min(31, Math.max(1, parseInt(url.searchParams.get('days'), 10) || 14)), logs = {};
+      for (let i = 0; i < days; i++) { const iso = addDaysISO(today, -i), l = JSON.parse(await env.CLASS_KV.get('outlog:' + iso) || 'null'); if (l && l.length) logs[iso] = l; }
+      return json({ today, logs, now: Date.now() });
+    }
     if (url.pathname === '/api/pins' && request.method === 'POST') {   // 일정을 내 알림장에 담기/빼기
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
       const tok = await verifyToken(env, auth, 'full');

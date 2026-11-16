@@ -1073,3 +1073,12 @@ body.kiosk{overflow:hidden}
 .rc-in{width:4.2em; padding:.5em; border-radius:.6em; border:1px solid rgba(128,128,128,.4); background:transparent; color:inherit; font:inherit} .rc-in.wide{width:100%; flex:1 1 14em}
 .rc-live{font-size:.92em; line-height:1.6; padding:.6em .8em; border-radius:.7em; background:rgba(128,128,128,.12)} .rc-seat div{white-space:pre-wrap}
 .rc-card .rc-b{display:inline-flex; width:auto !important; min-width:0; flex:0 0 auto; justify-content:center; margin:0; padding:.55em .9em; font-size:.95em}
+
+/* 교실 이탈 */
+.ks-outbox{max-height:34vh; overflow:auto} .ks-oh{display:flex; justify-content:space-between; align-items:center}
+.ks-orow{display:flex; justify-content:space-between; align-items:center; gap:.6em; padding:.45em 0; border-top:1px solid rgba(255,255,255,.14)}
+.ks-otx{display:flex; flex-direction:column; gap:.1em} .ks-otx b{font-size:1.15em} .ks-otx small{opacity:.7} .ks-onone,.ks-oback{opacity:.8; font-size:.95em}
+.ks-mcard.wide{max-width:min(62em,92vw)} .ks-ngrid{display:grid; grid-template-columns:repeat(auto-fill,minmax(5.6em,1fr)); gap:.4em; margin:.6em 0}
+.ks-nbtn{padding:.6em .3em; border-radius:.7em; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.1); color:inherit; font:inherit; font-weight:800; cursor:pointer} .ks-nbtn.sel{background:#FFE08A; color:#3a2a00} .ks-nbtn.away{opacity:.35}
+
+.ks-side{max-height:calc(100vh - 14em); overflow:auto} .ks-sbox.ks-stm{margin-top:1.2em; min-width:20em; max-width:34em; text-align:left}
