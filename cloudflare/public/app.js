@@ -2565,7 +2565,7 @@
   }
   function openJongryeHistory() {
     var ov = h('div', { class: 'jr-modal' }), card = h('div', { class: 'jr-mcard' });
-    var top = h('div', { class: 'jr-mtop' }, [h('h3', { text: '📣 종례 안내사항 기록' }), h('button', { class: 'linkbtn', type: 'button', text: '✕ 닫기' })]);
+    var top = h('div', { class: 'jr-mtop' }, [h('h3', { text: '📣 조회/종례 안내사항 기록' }), h('button', { class: 'linkbtn', type: 'button', text: '✕ 닫기' })]);
     var list = h('div', { class: 'jr-mlist' }, [h('div', { class: 'adm-skel-card' })]);
     top.lastChild.addEventListener('click', function () { ov.remove(); });
     ov.addEventListener('click', function (ev) { if (ev.target === ov) ov.remove(); });
@@ -2573,7 +2573,7 @@
     jongryeApi(null, '?days=30').then(function (j) {
       clear(list);
       var logs = (j && j.logs) || {}, dates = Object.keys(logs).sort().reverse();
-      if (!dates.length) { list.appendChild(h('div', { class: 'empty', text: '아직 저장된 종례 기록이 없어요.' })); return; }
+      if (!dates.length) { list.appendChild(h('div', { class: 'empty', text: '아직 저장된 안내사항 기록이 없어요.' })); return; }
       dates.forEach(function (iso) {
         var r = logs[iso], isToday = iso === j.today;
         var meta = (r.by ? r.by + ' · ' : '') + new Date(r.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' });
@@ -2588,9 +2588,9 @@
     var jr = DATA && DATA.jongrye;
     if (!jr || !jr.text) return null;
     var meta = (jr.by ? jr.by + ' · ' : '') + (jr.at ? new Date(jr.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) : '');
-    var hist = h('button', { class: 'linkbtn', type: 'button', text: '지난 종례 보기 →' });
+    var hist = h('button', { class: 'linkbtn', type: 'button', text: '지난 안내사항 보기 →' });
     hist.addEventListener('click', openJongryeHistory);
-    return h('div', { class: 'card jr-card' }, [head('JONGRYE', '📣 오늘의 종례 안내'), h('div', { class: 'card-b' }, [
+    return h('div', { class: 'card jr-card' }, [head('JONGRYE', '📣 오늘의 조회/종례 안내'), h('div', { class: 'card-b' }, [
       h('div', { class: 'jr-text', text: jr.text }),
       meta ? h('div', { class: 'jr-meta', text: '작성: ' + meta }) : null,
       hist
@@ -2598,18 +2598,18 @@
   }
   function jongryeMoreCard() {
     var jr = DATA && DATA.jongrye;
-    var btn = h('button', { class: 'btn out', type: 'button', text: '📜 지난 종례 보기 (최근 30일)' });
+    var btn = h('button', { class: 'btn out', type: 'button', text: '📜 지난 조회/종례 안내 보기 (최근 30일)' });
     btn.addEventListener('click', openJongryeHistory);
-    var preview = jr && jr.text ? h('div', { class: 'jr-text', text: jr.text }) : h('div', { class: 'note-sm', text: '오늘 등록된 종례 안내사항이 아직 없어요. 지난 기록을 확인할 수 있어요.' });
-    return h('div', { class: 'card' }, [head('JONGRYE', '📣 종례 안내사항'), h('div', { class: 'card-b' }, [preview, btn])]);
+    var preview = jr && jr.text ? h('div', { class: 'jr-text', text: jr.text }) : h('div', { class: 'note-sm', text: '오늘 등록된 조회/종례 안내사항이 아직 없어요. 지난 기록을 확인할 수 있어요.' });
+    return h('div', { class: 'card' }, [head('JONGRYE', '📣 조회/종례 안내사항'), h('div', { class: 'card-b' }, [preview, btn])]);
   }
   function jongryeAdminCard() {
-    var ta = h('textarea', { class: 'field jr-ta', rows: '4', maxlength: '800', placeholder: '오늘의 종례 안내사항을 입력하세요.\n입력하는 대로 교실 전자칠판 종례 화면에 실시간 반영돼요!' });
+    var ta = h('textarea', { class: 'field jr-ta', rows: '4', maxlength: '800', placeholder: '오늘의 조회/종례 안내사항을 입력하세요.\n입력하는 대로 교실 전자칠판 조회/종례 화면에 실시간 반영돼요!' });
     ta.value = (DATA && DATA.jongrye && DATA.jongrye.text) || '';
     var status = h('div', { class: 'note-sm jr-st', text: ta.value ? '✅ 현재 칠판에 반영됨' : '입력하면 0.35초 후 자동으로 전자칠판에 반영돼요' });
-    var showBtn = h('button', { class: 'btn out', type: 'button', text: '📣 칠판 종례 화면 띄우기' });
+    var showBtn = h('button', { class: 'btn out', type: 'button', text: '📣 칠판 조회/종례 화면 띄우기' });
     var clrBtn = h('button', { class: 'linkbtn', type: 'button', text: '내용 비우기' });
-    var histBtn = h('button', { class: 'linkbtn', type: 'button', text: '지난 종례 보기 →' });
+    var histBtn = h('button', { class: 'linkbtn', type: 'button', text: '지난 안내사항 보기 →' });
     var tmr = null, lastSent = ta.value, busy = false;
     function sendNow(text) {
       if (busy) return;
@@ -2622,7 +2622,7 @@
           lastSent = text;
           if (ta.value !== lastSent) { sendNow(ta.value); return; }
           var hm = new Date().toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' });
-          status.textContent = text.trim() ? '✅ 칠판에 실시간 반영됨 (' + hm + ')' : '🧹 종례 안내를 비웠어요';
+          status.textContent = text.trim() ? '✅ 칠판에 실시간 반영됨 (' + hm + ')' : '🧹 안내사항을 비웠어요';
         } else status.textContent = '⚠ 반영하지 못했어요. 다시 시도해 주세요';
       }).catch(function () { busy = false; status.textContent = '⚠ 연결 확인 중…'; });
     }
@@ -2635,9 +2635,9 @@
     showBtn.addEventListener('click', function () {
       var tk = function () { try { return localStorage.getItem('tok26') || ''; } catch (e) { return ''; } };
       fetch('/api/kiosk/cmd', { method: 'POST', headers: { authorization: 'Bearer ' + tk(), 'content-type': 'application/json' }, body: JSON.stringify({ cmd: 'mode', args: { m: 'jongrye' } }) })
-        .then(function (r) { return r.json(); }).then(function (j) { status.textContent = j.ok ? '📣 전자칠판을 종례 화면으로 전환했어요' : '⚠ 전환하지 못했어요'; }).catch(function () {});
+        .then(function (r) { return r.json(); }).then(function (j) { status.textContent = j.ok ? '📣 전자칠판을 조회/종례 화면으로 전환했어요' : '⚠ 전환하지 못했어요'; }).catch(function () {});
     });
-    clrBtn.addEventListener('click', function () { if (ta.value && confirm('오늘의 종례 안내사항을 지울까요?')) { clearTimeout(tmr); ta.value = ''; sendNow(''); } });
+    clrBtn.addEventListener('click', function () { if (ta.value && confirm('오늘의 조회/종례 안내사항을 지울까요?')) { clearTimeout(tmr); ta.value = ''; sendNow(''); } });
     histBtn.addEventListener('click', openJongryeHistory);
     jongryeApi(null, '?days=1').then(function (j) {
       if (j && j.logs) {
@@ -2645,7 +2645,7 @@
         if (document.activeElement !== ta) { ta.value = (r && r.text) || ''; lastSent = ta.value; if (r && r.text) status.textContent = '✅ 현재 칠판에 반영됨'; }
       }
     }).catch(function () {});
-    return h('div', { class: 'card' }, [head('JONGRYE LIVE', '📣 오늘의 종례 안내 (실시간 칠판 연동)'), h('div', { class: 'card-b' }, [ta, status, h('div', { class: 'jr-btns' }, [showBtn, clrBtn, histBtn])])]);
+    return h('div', { class: 'card' }, [head('JONGRYE LIVE', '📣 오늘의 조회/종례 안내사항 (실시간 칠판 연동)'), h('div', { class: 'card-b' }, [ta, status, h('div', { class: 'jr-btns' }, [showBtn, clrBtn, histBtn])])]);
   }
 
   // 전자칠판 리모컨: 관리자·교사 폰에서 교실 전자칠판을 원격으로 조작
