@@ -1078,18 +1078,26 @@
       var u = URL.createObjectURL(bl), l = document.createElement('a'); l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
     });
   }
+  var adminCache = null;
   function renderAdmin() {
     var p = document.getElementById('panel-admin'); if (!p || !DATA || !DATA.me.admin) return; clear(p);
-    var onlyNo = false, last = null;
-    var top = h('div', { class: 'card' }, [head('ADMIN', '관리자 대시보드'), h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '불러오는 중…' })])]);
-    var body = h('div'); p.appendChild(top); p.appendChild(body);
-    function load2() {
-      return aApi('overview').then(function (j) { if (!j._ok) throw new Error('x'); last = j; draw(); }).catch(function () { clear(top.lastChild); top.lastChild.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요. 다시 눌러 주세요.' })); });
+    var onlyNo = false, last = adminCache;
+    var skelGrid = h('div', { class: 'adm-skel-grid' }, [h('div', { class: 'adm-skel-box' }), h('div', { class: 'adm-skel-box' }), h('div', { class: 'adm-skel-box' }), h('div', { class: 'adm-skel-box' }), h('div', { class: 'adm-skel-box' })]);
+    var top = h('div', { class: 'card' }, [head('ADMIN', '관리자 대시보드'), h('div', { class: 'card-b' }, [skelGrid])]);
+    var body = h('div', { class: 'adm-fade' }, [h('div', { class: 'adm-skel-card' }), h('div', { class: 'adm-skel-card' })]);
+    p.appendChild(top); p.appendChild(body);
+    function load2(force) {
+      return aApi('overview').then(function (j) {
+        if (!j._ok) throw new Error('x');
+        var same = last && !force && last.students.length === j.students.length && last.submissions.length === j.submissions.length && last.uploads.length === j.uploads.length;
+        adminCache = last = j;
+        if (!same) draw(!force);
+      }).catch(function () { if (!last) { clear(top.lastChild); top.lastChild.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요. 다시 눌러 주세요.' })); clear(body); } });
     }
-    function draw() {
+    function draw(anim) {
       var j = last, S = j.students, cnt = function (f) { return S.filter(f).length; };
       var refresh = h('button', { class: 'linkbtn', type: 'button', text: '↻ 새로고침' });
-      refresh.addEventListener('click', function () { refresh.textContent = '불러오는 중…'; load2(); });
+      refresh.addEventListener('click', function () { refresh.textContent = '불러오는 중…'; load2(true); });
       var stat = function (l, v, s) { return h('div', { class: 'adm-stat' }, [h('small', { text: l }), h('b', { text: v }), s ? h('em', { text: s }) : null]); };
       var t = j.teachers[0];
       clear(top.lastChild);
@@ -1101,6 +1109,7 @@
         stat('선생님 로그인', t ? (t.loggedIn ? '완료' : '아직') : '-', t ? t.name : '')]));
       top.lastChild.appendChild(h('div', { class: 'note-sm', text: '관리자는 암호화된 성적·내신은 볼 수 없어요. 가입 여부, 공유 여부, 학생이 보낸 선택과목·파일만 보여요.  마지막 갱신 ' + new Date(j.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) }));
       top.lastChild.appendChild(refresh);
+      if (anim) animateSwap(top.lastChild, '');
       clear(body);
       var bcc2 = boardControlCard(); if (bcc2) body.appendChild(bcc2); body.appendChild(remoteCard()); body.appendChild(cleanLogCard()); body.appendChild(outLogCard());   // 전자칠판 띄우기는 맨 위
       var pnow = h('button', { class: 'btn out', type: 'button', text: '📣 지금 알림장 푸시 보내기 (테스트·재발송)' });
@@ -1151,7 +1160,8 @@
       }) : [h('div', { class: 'empty', text: '올라온 파일이 없어요.' })];
       body.appendChild(h('div', { class: 'card' }, [head('FILES', '올라온 명단 파일'), h('div', { class: 'card-b' }, ups)]));
     }
-    load2();
+    if (last) draw(false);
+    load2(!last);
   }
 
   // ---------- 교사 도구 ----------
