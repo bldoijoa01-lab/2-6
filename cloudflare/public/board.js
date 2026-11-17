@@ -348,24 +348,24 @@
           var rightWall = rail.hidden ? MARGIN_X : 56;
           var minX = MARGIN_X + a.w / 2, maxX = S.w - rightWall - a.w / 2;
           var minY = MARGIN_Y + a.h / 2, maxY = ch - 40 - a.h / 2;
-          var pen;
+          var pen, limL = MARGIN_X + a.w / 3, limR = rightWall + a.w / 3, limT = MARGIN_Y + a.h / 3, limB = 40 + a.h / 3;
           if (a.x < minX) {
-            pen = minX - a.x; if (pen > 46) { a.x = minX - 46; pen = 46; }
+            pen = minX - a.x; if (pen > limL) { a.x = minX - limL; pen = limL; }
             a.vx += (pen * 34 - a.vx * 2.2) * dt;
-            a.sa = 'x'; a.sq = Math.max(a.sq || 0, Math.min(0.24, pen * 0.006));
+            a.sa = 'x'; a.sq = Math.max(a.sq || 0, Math.min(0.24, pen * 0.0045));
           } else if (a.x > maxX) {
-            pen = a.x - maxX; if (pen > 46) { a.x = maxX + 46; pen = 46; }
+            pen = a.x - maxX; if (pen > limR) { a.x = maxX + limR; pen = limR; }
             a.vx -= (pen * 34 + a.vx * 2.2) * dt;
-            a.sa = 'x'; a.sq = Math.max(a.sq || 0, Math.min(0.24, pen * 0.006));
+            a.sa = 'x'; a.sq = Math.max(a.sq || 0, Math.min(0.24, pen * 0.0045));
           }
           if (a.y < minY) {
-            pen = minY - a.y; if (pen > 42) { a.y = minY - 42; pen = 42; }
+            pen = minY - a.y; if (pen > limT) { a.y = minY - limT; pen = limT; }
             a.vy += (pen * 32 - a.vy * 2.4) * dt;
-            a.sa = 'y'; a.sq = Math.max(a.sq || 0, Math.min(0.22, pen * 0.006));
+            a.sa = 'y'; a.sq = Math.max(a.sq || 0, Math.min(0.22, pen * 0.005));
           } else if (a.y > maxY) {
-            pen = a.y - maxY; if (pen > 42) { a.y = maxY + 42; pen = 42; }
+            pen = a.y - maxY; if (pen > limB) { a.y = maxY + limB; pen = limB; }
             a.vy -= (pen * 32 + a.vy * 2.4) * dt;
-            a.sa = 'y'; a.sq = Math.max(a.sq || 0, Math.min(0.22, pen * 0.006));
+            a.sa = 'y'; a.sq = Math.max(a.sq || 0, Math.min(0.22, pen * 0.005));
           }
           for (j = 0; j < list.length; j++) {
             b = list[j]; if (b === a || b.drag) continue;
