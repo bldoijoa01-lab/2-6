@@ -129,19 +129,35 @@
       cdEl = el('b', 'ks-cd'); cdEnd = mins(endHM) * 60; var r = el('div', 'ks-banr'); r.appendChild(el('small', null, endLabel)); r.appendChild(cdEl); b.appendChild(r); return b;
     }
     // 청소 체크: 이름을 누르면 ✓ (오늘 날짜로 서버에 저장 → 선생님·관리자가 앱에서 기록 확인)
-    var CL = D.cleanlog || {}, chips = [], sumEl = null;
-    function api(method, body) { return fetch('/api/clean' + (method === 'GET' ? '' : ''), { method: method, headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' }).then(function (r) { return r.json(); }); }
+    var CL = D.cleanlog || {}, chips = [], sumEl = null, cleanSeq = 0, cleanBusy = 0;
+    function api(method, body) { return fetch('/api/clean', { method: method, headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' }).then(function (r) { return r.json(); }); }
     function chk(name) {
       var b = el('button', 'ks-who'); b.type = 'button'; b.dataset.name = name; chips.push(b); paintChip(b);
       b.addEventListener('click', function () {
-        var done = !CL[name]; if (done) CL[name] = Date.now(); else delete CL[name]; paintChips();
-        api('POST', { name: name, done: done }).then(function (j) { if (j && j.log) { CL = j.log; paintChips(); } }).catch(function () { if (done) delete CL[name]; else CL[name] = 1; paintChips(); });
+        var done = !CL[name], seq = ++cleanSeq;
+        if (done) CL[name] = Date.now(); else delete CL[name];
+        paintChip(b); paintSummary();
+        cleanBusy++;
+        api('POST', { name: name, done: done }).then(function (j) {
+          cleanBusy--;
+          if (seq === cleanSeq && j && j.log) { CL = j.log; paintChips(); }
+        }).catch(function () {
+          cleanBusy--;
+          if (seq === cleanSeq) { if (done) delete CL[name]; else CL[name] = 1; paintChip(b); paintSummary(); }
+        });
       }); return b;
     }
-    function paintChip(b) { var n = b.dataset.name, t = CL[n]; b.classList.toggle('done', !!t); clear(b); b.appendChild(el('span', 'ks-ck', t ? '✓' : '')); b.appendChild(document.createTextNode(n)); }
+    function paintChip(b) {
+      var n = b.dataset.name, on = !!CL[n];
+      if (b._on === on && b.firstChild) return;
+      b._on = on;
+      b.classList.toggle('done', on);
+      if (!b.firstChild) { b.appendChild(el('span', 'ks-ck', on ? '✓' : '')); b.appendChild(document.createTextNode(n)); }
+      else { b.firstChild.textContent = on ? '✓' : ''; }
+    }
     var zoneCards = [];
-    function paintChips() {
-      chips.forEach(paintChip); var all = {}; chips.forEach(function (b) { all[b.dataset.name] = 1; });
+    function paintSummary() {
+      var all = {}; chips.forEach(function (b) { all[b.dataset.name] = 1; });
       var tot = Object.keys(all).length, dn = Object.keys(all).filter(function (n) { return CL[n]; }).length;
       if (sumEl) {
         var pct = tot ? Math.round((dn / tot) * 100) : 0;
@@ -154,7 +170,17 @@
         z.el.classList.toggle('zdone', done);
       });
     }
-    function pullLog() { api('GET').then(function (j) { if (j && j.logs) { CL = j.logs[j.today] || {}; paintChips(); } }).catch(function () {}); }
+    function paintChips() {
+      chips.forEach(paintChip);
+      paintSummary();
+    }
+    function pullLog() {
+      if (cleanBusy > 0) return;
+      var seq = cleanSeq;
+      api('GET').then(function (j) {
+        if (cleanBusy === 0 && seq === cleanSeq && j && j.logs) { CL = j.logs[j.today] || {}; paintChips(); }
+      }).catch(function () {});
+    }
     function paintClean() {
       chips = []; zoneCards = []; var box = el('div', 'ks-cleanbox'), zs = cleanZones();
       box.appendChild(banner('clean', '🧹', '차분하게 청소 시간', SC.cs + ' ~ ' + SC.js + ' · 맡은 구역을 조용히 정리해요', SC.js, '종례까지'));

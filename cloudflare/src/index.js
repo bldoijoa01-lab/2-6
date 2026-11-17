@@ -269,6 +269,17 @@ export class Board {
       if (!ctl) return out({ error: 'forbidden' }, 403);
       return out({ online: Date.now() - k.ts < 20000, state: k.st, age: k.ts ? Date.now() - k.ts : null });
     }
+    if (b.op === 'clean_post') {
+      const key = 'clean:' + b.date;
+      const log = (await this.state.storage.get(key)) || b.fallback || {};
+      if (b.done) log[b.name] = Date.now(); else delete log[b.name];
+      await this.state.storage.put(key, log);
+      return out({ ok: true, date: b.date, log });
+    }
+    if (b.op === 'clean_get') {
+      const log = await this.state.storage.get('clean:' + b.date);
+      return out({ ok: true, log: log || null });
+    }
     return out({ error: 'bad' }, 400);
   }
 }
@@ -425,13 +436,29 @@ export default {
       if (request.method === 'POST') {
         const b = await request.json().catch(() => ({})), st = roster.find((x) => isStu(x) && x.name === b.name);
         if (!st) return json({ error: 'bad' }, 400);
-        const key = 'cleanlog:' + today, log = JSON.parse(await env.CLASS_KV.get(key) || '{}');
-        if (b.done) log[st.name] = Date.now(); else delete log[st.name];
-        await env.CLASS_KV.put(key, JSON.stringify(log), { expirationTtl: 90 * 86400 });
+        const key = 'cleanlog:' + today;
+        let log;
+        if (env.BOARD) {
+          const stub = env.BOARD.get(env.BOARD.idFromName('main'));
+          const fallback = JSON.parse(await env.CLASS_KV.get(key) || '{}');
+          const dr = await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ op: 'clean_post', date: today, name: st.name, done: !!b.done, fallback }) });
+          const dj = await dr.json(); log = dj.log || {};
+          await env.CLASS_KV.put(key, JSON.stringify(log), { expirationTtl: 90 * 86400 });
+        } else {
+          log = JSON.parse(await env.CLASS_KV.get(key) || '{}');
+          if (b.done) log[st.name] = Date.now(); else delete log[st.name];
+          await env.CLASS_KV.put(key, JSON.stringify(log), { expirationTtl: 90 * 86400 });
+        }
         return json({ ok: true, date: today, log });
       }
       const days = me0.role === 'board' ? 1 : Math.min(31, Math.max(1, parseInt(url.searchParams.get('days'), 10) || 14)), logs = {};
       for (let i = 0; i < days; i++) { const iso = addDaysISO(today, -i), l = JSON.parse(await env.CLASS_KV.get('cleanlog:' + iso) || 'null'); if (l && Object.keys(l).length) logs[iso] = l; }
+      if (env.BOARD) {
+        const stub = env.BOARD.get(env.BOARD.idFromName('main'));
+        const dr = await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ op: 'clean_get', date: today }) });
+        const dj = await dr.json();
+        if (dj && dj.log) { if (Object.keys(dj.log).length) logs[today] = dj.log; else delete logs[today]; }
+      }
       return json({ today, logs });
     }
     if (url.pathname === '/api/out' && (request.method === 'GET' || request.method === 'POST')) {   // 자습 중 교실 이탈 기록: 전자칠판·교사·관리자
