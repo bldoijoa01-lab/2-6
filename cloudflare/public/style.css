@@ -956,7 +956,7 @@ body.no-anim .panel,body.no-anim .panel *{animation:none !important}
 .bd-tools{display:flex; gap:10px; flex-wrap:wrap; justify-content:flex-end}
 .bd-btn{border:1px solid rgba(255,255,255,.28); background:rgba(255,255,255,.12); color:#fff; border-radius:999px; padding:10px 18px; font:inherit; font-size:16px; font-weight:800; cursor:pointer; backdrop-filter:blur(8px)} .bd-btn:hover{background:rgba(255,255,255,.22)}
 .bd-stage-wrap{position:relative; flex:1; display:flex; min-height:0; overflow:hidden}
-.bd-stage{position:relative; flex:1; height:100%; overflow-y:auto; overflow-x:hidden; scroll-behavior:smooth; -webkit-overflow-scrolling:touch; scrollbar-width:none; -ms-overflow-style:none}
+.bd-stage{position:relative; flex:1; width:100%; min-height:0; overflow-y:auto; overflow-x:hidden; scroll-behavior:smooth; -webkit-overflow-scrolling:touch; scrollbar-width:none; -ms-overflow-style:none}
 .bd-stage::-webkit-scrollbar{display:none}
 .bd-rail{position:absolute; right:12px; top:12px; bottom:18px; width:38px; z-index:2200; display:flex; flex-direction:column; align-items:center; gap:8px; padding:6px 4px; border-radius:999px; background:rgba(12,15,40,.55); border:1px solid rgba(255,255,255,.24); backdrop-filter:blur(10px); box-shadow:0 10px 26px rgba(0,0,0,.35)}
 .bd-rail[hidden]{display:none}

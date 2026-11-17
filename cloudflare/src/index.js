@@ -214,14 +214,14 @@ async function saveOfficial(env, roster, rows) {
 
 
 // ---------- 수업 의견 보드 (Durable Object: 여러 학생이 동시에 올려도 순서·개수가 꼬이지 않게 한 곳에서 처리) ----------
-const BOARD_MAX = 8, BOARD_COLORS = 8;
+const BOARD_COLORS = 8;
 export class Board {
   constructor(state) { this.state = state; this.s = null; this.last = {}; }
   async load() { if (!this.s) this.s = (await this.state.storage.get('s')) || { open: false, topic: '', seq: 0, msgs: [], counts: {} }; return this.s; }
   async fetch(request) {
     const b = await request.json(), s = await this.load(), me = b.me || {}, power = !!(me.admin || me.role === 'teacher' || me.role === 'board');
     const view = () => ({
-      open: s.open, topic: s.topic, seq: s.seq, mine: s.counts[me.n] || 0, max: BOARD_MAX, power,
+      open: s.open, topic: s.topic, seq: s.seq, mine: s.counts[me.n] || 0, max: 0, power,
       msgs: s.msgs.map((m) => ({ id: m.id, text: m.text, name: m.anon ? '익명' : m.name, c: m.c, at: m.at, ...(power ? { by: m.name, anon: m.anon } : {}) })),
     });
     const out = (o, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { 'content-type': 'application/json' } });
@@ -231,11 +231,10 @@ export class Board {
       const text = typeof b.text === 'string' ? b.text.replace(/\s+/g, ' ').trim().slice(0, 80) : '';
       if (!text) return out({ error: 'text' }, 400);
       const now = Date.now();
-      if (now - (this.last[me.n] || 0) < 4000) return out({ error: 'slow' }, 429);
-      if (!power && (s.counts[me.n] || 0) >= BOARD_MAX) return out({ error: 'max', ...view() }, 429);
+      if (now - (this.last[me.n] || 0) < 800) return out({ error: 'slow' }, 429);
       this.last[me.n] = now; s.seq++; s.counts[me.n] = (s.counts[me.n] || 0) + 1;
       s.msgs.push({ id: s.seq, n: me.n, name: me.name, text, anon: !!b.anon, c: s.seq % BOARD_COLORS, at: now });
-      if (s.msgs.length > 150) s.msgs.shift();
+      if (s.msgs.length > 500) s.msgs.shift();
       await this.state.storage.put('s', s);
       return out(view());
     }

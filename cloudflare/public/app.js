@@ -2529,8 +2529,8 @@
     var box = h('div', { class: 'card bd-compose' }), body = h('div', { class: 'card-b' });
     var ta = h('textarea', { class: 'field', rows: '2', maxlength: '80', placeholder: '내 의견을 짧게 써 보세요 (80자까지)' });
     var anon = h('input', { type: 'checkbox', id: 'bd-anon' }), cnt = h('small', { class: 'bd-cnt' }), msg = h('div', { class: 'bd-msg' }), send = h('button', { class: 'btn', type: 'button', text: '💬 전자칠판에 올리기' });
-    var mine = j.mine || 0, max = j.max || 8;
-    function paint() { cnt.textContent = '내가 올린 의견 ' + mine + ' / ' + max; send.disabled = mine >= max && !j.power; }
+    var mine = j.mine || 0, max = j.max || 0;
+    function paint() { cnt.textContent = max > 0 ? ('내가 올린 의견 ' + mine + ' / ' + max) : ('내가 올린 의견 ' + mine + '개 · 제한 없이 올릴 수 있어요'); send.disabled = max > 0 && mine >= max && !j.power; }
     paint();
     send.addEventListener('click', function () {
       var t = ta.value.trim(); if (!t) { msg.textContent = '내용을 써 주세요'; return; }

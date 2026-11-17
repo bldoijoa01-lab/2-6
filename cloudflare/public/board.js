@@ -14,7 +14,7 @@
   var reduce = function () { return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); };
 
     // ---------- 배치·물리 상수 (px, 초 단위) ----
-  var GAP_X = 16, GAP_Y = 18, MARGIN_X = 28, MARGIN_Y = 18, MAXLIST = 150, FLING = 2400;
+  var GAP_X = 16, GAP_Y = 20, MARGIN_X = 28, MARGIN_Y = 24, FLING = 2400;
 
   function show(opts) {
     if (cur) return; opts = opts || {};
@@ -325,10 +325,6 @@
     function step(dt, t) {
       sub(dt, t);
       for (var i = 0; i < list.length; i++) place(list[i], t);
-      if (list.length > MAXLIST) {
-        var oldest = list.filter(function (o) { return !o.drag; }).sort(function (p, q) { return p.id - q.id; })[0];
-        if (oldest) { pop(oldest.id); paintHead(); }
-      }
     }
     function sub(dt, t) {
       var S = size(), ch = Math.max(S.h, canvasH), draggedBubble = null, needRelayout = false, i, j, a, b;
@@ -343,7 +339,7 @@
           continue;
         }
         if (a.free) {
-          a.vy -= 90 * dt;
+          a.vy -= 45 * dt;
           a.vx -= a.vx * 2.5 * dt; a.vy -= a.vy * 2.6 * dt;
           a.x += a.vx * dt; a.y += a.vy * dt;
           var rightWall = rail.hidden ? MARGIN_X : 56;
@@ -385,8 +381,12 @@
                 if (a.vx * sg > 0) a.vx *= 0.4;
               } else {
                 var sy0 = dy0 >= 0 ? 1 : -1;
-                a.y -= sy0 * oy * share; if (b.free) b.y += sy0 * oy * 0.35;
-                if (a.vy * sy0 > 0) a.vy = 0;
+                if (sy0 < 0 && b.y <= MARGIN_Y + b.h / 2 + 8) {
+                  a.y += oy * 0.7; if (a.vy < 0) a.vy = 0;
+                } else {
+                  a.y -= sy0 * oy * share; if (b.free) b.y += sy0 * oy * 0.35;
+                  if (a.vy * sy0 > 0) a.vy = 0;
+                }
               }
             }
           }
