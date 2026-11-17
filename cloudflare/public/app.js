@@ -166,18 +166,18 @@
       var tName = t.getAttribute('data-tab');
       var on = tName === name;
       t.setAttribute('aria-selected', on ? 'true' : 'false');
-      var panel = document.getElementById('panel-' + tName);
-      if (panel) {
-        if (on) {
-          var wasHidden = panel.hidden;
-          panel.hidden = false;
-          if (wasHidden && BOOTED) animateSwap(panel, dir);   // 입장 모션이 끝난 뒤의 탭 전환만 (처음 진입은 입장 모션 하나)
-        } else {
-          panel.hidden = true;
-          panel.removeAttribute('data-dir');
-        }
-      }
       if (on) activeBtn = t;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.panel'), function (panel) {
+      var on = panel.id === 'panel-' + name;
+      if (on) {
+        var wasHidden = panel.hidden;
+        panel.hidden = false;
+        if (wasHidden && BOOTED) animateSwap(panel, dir);
+      } else {
+        panel.hidden = true;
+        panel.removeAttribute('data-dir');
+      }
     });
     if (activeBtn) {
       syncPill(tabBox, activeBtn);
