@@ -189,7 +189,7 @@
       canvasH = list.length ? Math.max(S.h, Math.ceil(maxBottom + 84)) : S.h;
       canvas.style.height = canvasH + 'px';
       var scrollable = canvasH > S.h + 8;
-      for (i = 0; i < list.length; i++) list[i].el.style.touchAction = scrollable ? 'pan-y' : 'none';
+      for (i = 0; i < list.length; i++) list[i].el.style.touchAction = 'none';
       updateScrollUI();
     }
 
@@ -279,10 +279,10 @@
       v = Math.abs(v); if (v < 80) return; o.sa = axis; o.sqv = Math.max(o.sqv || 0, 0) + Math.min(4.5, v * 0.008);
     }
     function spongeHit(o, axis, v) {   // 스펀지 벽: 튕기지 않고 푹 눌렸다가 스르르 복귀
-      v = Math.abs(v); if (v < 30) return;
+      v = Math.abs(v); if (v < 25) return;
       o.sa = axis;
-      o.sq = Math.max(o.sq || 0, Math.min(0.22, 0.06 + v * 0.00018));
-      o.sqv = Math.min(2.4, v * 0.0025);
+      o.sq = Math.max(o.sq || 0, Math.min(0.26, 0.09 + v * 0.00022));
+      o.sqv = Math.min(2.6, v * 0.003);
     }
     function clearSel() {
       if (selEl) { selEl.remove(); selEl = null; }
@@ -335,7 +335,7 @@
           if (a.x > S.w - rightWall - a.w / 2) { a.x = S.w - rightWall - a.w / 2; spongeHit(a, 'x', a.vx); a.vx = 0; a.vy *= 0.72; hitWall = true; }
           if (a.y < MARGIN_Y + a.h / 2) { a.y = MARGIN_Y + a.h / 2; spongeHit(a, 'y', a.vy); a.vy = 0; a.vx *= 0.72; hitWall = true; }
           if (a.y > ch - 40 - a.h / 2) { a.y = ch - 40 - a.h / 2; spongeHit(a, 'y', a.vy); a.vy = 0; a.vx *= 0.72; hitWall = true; }
-          if (hitWall) a.freeTime = Math.min(a.freeTime, 0.14);
+          if (hitWall) a.freeTime = Math.min(a.freeTime, 0.28);
           for (j = 0; j < list.length; j++) {
             b = list[j]; if (b === a || b.drag) continue;
             var dx0 = b.x - a.x, dy0 = b.y - a.y;
