@@ -163,14 +163,40 @@
       (D.events || []).forEach(function (e) { if (e.calOnly) return; var s = e.date, en = e.end || e.date; if (s === iso) out.push('내일 ' + e.title + (e.note ? ' · ' + e.note.split(' · ')[0] : '')); else if (en === iso && en > s) out.push('내일 마감 · ' + e.title); });
       return out.slice(0, 6);
     }
+    // ---------- 종례 ----------
+    var JR = D.jongrye || null, jrBox = null;
+    function paintJrNote(flash) {
+      if (!jrBox) return; clear(jrBox);
+      var hdr = el('div', 'ks-jnote-h');
+      hdr.appendChild(el('span', null, '📣 오늘의 종례 안내사항'));
+      if (JR && JR.text) {
+        var meta = (JR.by ? JR.by + ' · ' : '') + (JR.at ? hm(JR.at) : '');
+        if (meta) hdr.appendChild(el('small', 'ks-jnote-m', meta));
+        jrBox.appendChild(hdr);
+        jrBox.appendChild(el('div', 'ks-jnote-t', JR.text));
+        jrBox.classList.remove('empty');
+      } else {
+        jrBox.appendChild(hdr);
+        jrBox.appendChild(el('div', 'ks-jnote-e', '관리자 화면에서 입력하면 실시간으로 여기에 떠요'));
+        jrBox.classList.add('empty');
+      }
+      if (flash) { jrBox.classList.remove('flash'); void jrBox.offsetWidth; jrBox.classList.add('flash'); }
+    }
+    function pullJongrye() {
+      fetch('/api/jongrye?days=1', { headers: { authorization: 'Bearer ' + tok() }, cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) { if (j && j.logs) { JR = j.logs[j.today] || null; D.jongrye = JR; paintJrNote(); } })
+        .catch(function () {});
+    }
     function paintJongrye() {
       var box = el('div', 'ks-jbox');
       box.appendChild(banner('jong', '📣', '종례 시간', SC.js + ' ~ ' + SC.ee, SC.ee, '종례 끝까지'));
-      var hero = el('div', 'ks-hero'); hero.appendChild(el('div', 'ks-hero-e', '🪑')); hero.appendChild(el('div', 'ks-hero-t', SC.msg)); box.appendChild(hero);
+      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote();
       var cols = el('div', 'ks-jcols'), iso = isoOf(kst()), daily = (D.daily || {})[iso];
       var c1 = card('오늘의 알림장', '📒'), ul = el('ul', 'ks-list'); ((daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 없어요' }]).slice(0, 5).forEach(function (i) { var li = el('li'); li.appendChild(el('span', 'ks-k', KIND[i.k] || '📢')); li.appendChild(el('span', 'ks-t', i.t)); ul.appendChild(li); }); c1.appendChild(ul);
       var c2 = card('내일 챙길 것', '🎒'), tm = tomorrowItems(), ul2 = el('ul', 'ks-list'); (tm.length ? tm : ['내일 특별한 일정은 없어요']).forEach(function (t) { var li = el('li'); li.appendChild(el('span', 'ks-t', t)); ul2.appendChild(li); }); c2.appendChild(ul2);
       cols.appendChild(c1); cols.appendChild(c2); box.appendChild(cols); main.appendChild(box);
+      pullJongrye();
     }
 
     // ---------- 자습 중 교실 이탈 ----------
@@ -370,6 +396,7 @@
       else if (c.cmd === 'group') { if (mode !== 'group') setMode('group'); if (KAPI.group) KAPI.group.set(a.n); }
       else if (c.cmd === 'banner') showAlert(a.text ? String(a.text).slice(0, 120) : '');
       else if (c.cmd === 'cleansync') { if (mode === 'clean') pullLog(); else api('GET').then(function (j) { if (j && j.logs) CL = j.logs[j.today] || {}; }).catch(function () {}); }
+      else if (c.cmd === 'jongryesync') { JR = a.rec || null; D.jongrye = JR; if (mode === 'jongrye') paintJrNote(true); }
       else if (c.cmd === 'outsync') { if (outBox) pullOut(); }
       else if (c.cmd === 'chime') chime();
       else if (c.cmd === 'reload') location.reload();
