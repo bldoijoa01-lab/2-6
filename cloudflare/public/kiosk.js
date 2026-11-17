@@ -243,16 +243,18 @@
         .then(function (j) { jrPending--; if (j && j.ok && jrPending === 0 && !dictOn) { JR = j.rec || null; D.jongrye = JR; paintJrNote(); } }).catch(function () { jrPending--; });
     }
     function jrSet(text) { JR = text ? { text: text, by: '받아쓰기', at: Date.now() } : null; D.jongrye = JR; paintJrNote(); jrSave(text); }
-    var dictLast = '';
+    // 받아쓰기는 문장을 한 문단으로 쭉 이어 붙임(줄바꿈 없음). 기존 안내사항(dictBase) 뒤에 새 문단으로 시작
+    var dictBase = '', dictSent = [];
+    function dictText() { return dictBase + (dictSent.length ? (dictBase ? '\n' : '') + dictSent.join(' ') : ''); }
     function dictAppend(line) {
-      // 일부 기기(안드로이드 크롬)는 확정 결과를 '앞 문장+새 단어'로 계속 다시 보내 같은 줄이 늘어난 채 반복됨 → 직전 줄의 연장이면 그 줄을 교체, 같거나 더 짧으면 무시
-      var L = ((JR && JR.text) || '').split('\n').filter(function (x) { return x; }), last = L[L.length - 1] || '', n = function (x) { return x.replace(/\s+/g, ''); };
-      if (dictLast && last === dictLast) {
-        if (n(line) === n(dictLast) || n(dictLast).indexOf(n(line)) === 0) return;
-        if (n(line).indexOf(n(dictLast)) === 0) L[L.length - 1] = line; else L.push(line);
-      } else L.push(line);
-      dictLast = line; var t = L.join('\n');
-      while (t.length > 800 && t.indexOf('\n') > -1) t = t.slice(t.indexOf('\n') + 1);
+      // 일부 기기(안드로이드 크롬)는 확정 결과를 '앞 문장+새 단어'로 계속 다시 보내므로: 직전 문장의 연장이면 교체, 같거나 더 짧으면 무시
+      var n = function (x) { return x.replace(/\s+/g, ''); }, last = dictSent[dictSent.length - 1];
+      if (last) {
+        if (n(line) === n(last) || n(last).indexOf(n(line)) === 0) return;
+        if (n(line).indexOf(n(last)) === 0) dictSent[dictSent.length - 1] = line; else dictSent.push(line);
+      } else dictSent.push(line);
+      var t = dictText();
+      while (t.length > 800) { if (dictBase) { var i = dictBase.indexOf('\n'); dictBase = i > -1 ? dictBase.slice(i + 1) : ''; } else if (dictSent.length > 1) dictSent.shift(); else break; t = dictText(); }
       jrSet(t.slice(-800));
     }
     function fitNote(t) {   // 한 화면에: 줄이 많으면 옆 칸으로 이어 붙이고, 그래도 넘치면 글자를 줄임
@@ -283,7 +285,7 @@
     function dictToggle() {
       if (dictOn) { dictStop(); return; }
       if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) { dictMsg = '이 브라우저는 받아쓰기를 지원하지 않아요 (크롬을 써 주세요)'; paintJrNote(); return; }
-      dictOn = true; dictFail = 0; dictMsg = ''; dictLast = ''; dictRun(); paintJrNote(); paintBadge();
+      dictOn = true; dictFail = 0; dictMsg = ''; dictBase = (JR && JR.text) || ''; dictSent = []; dictRun(); paintJrNote(); paintBadge();
     }
     function paintJrNote(flash) {
       if (!jrBox) return; clear(jrBox); jrLive = null; jrBox.classList.toggle('rec', dictOn);
@@ -292,9 +294,9 @@
       if (JR && JR.text) { var meta = (JR.by ? JR.by + ' · ' : '') + (JR.at ? hm(JR.at) : ''); if (meta) hdr.appendChild(el('small', 'ks-jnote-m', meta)); }
       var tools = el('span', 'ks-jtools');
       var mic = el('button', 'ks-chip' + (dictOn ? ' on rec' : ''), dictOn ? '🔴 듣는 중 · 끝내기' : '🎙 받아쓰기'); mic.type = 'button'; mic.addEventListener('click', dictToggle); tools.appendChild(mic);
-      if (JR && JR.text) { var un = el('button', 'ks-chip', '↩ 마지막 줄 지우기'); un.type = 'button'; un.addEventListener('click', function () { var L = JR.text.split('\n'); L.pop(); jrSet(L.join('\n')); }); tools.appendChild(un);
+      if (JR && JR.text) { var un = el('button', 'ks-chip', '↩ 마지막 문장 지우기'); un.type = 'button'; un.addEventListener('click', function () { if (dictSent.length) { dictSent.pop(); jrSet(dictText()); return; } var L = JR.text.split('\n'); L.pop(); dictBase = L.join('\n'); jrSet(dictBase); }); tools.appendChild(un);
         var all = el('button', 'ks-chip', '🗑 전체 지우기'), armed = null; all.type = 'button';
-        all.addEventListener('click', function () { if (!armed) { all.textContent = '정말 지울까요? 한 번 더'; all.classList.add('rec'); armed = setTimeout(function () { armed = null; all.textContent = '🗑 전체 지우기'; all.classList.remove('rec'); }, 3000); return; } clearTimeout(armed); armed = null; dictLast = ''; jrSet(''); });   // 실수 방지: 3초 안에 한 번 더 누르면 삭제
+        all.addEventListener('click', function () { if (!armed) { all.textContent = '정말 지울까요? 한 번 더'; all.classList.add('rec'); armed = setTimeout(function () { armed = null; all.textContent = '🗑 전체 지우기'; all.classList.remove('rec'); }, 3000); return; } clearTimeout(armed); armed = null; dictBase = ''; dictSent = []; jrSet(''); });   // 실수 방지: 3초 안에 한 번 더 누르면 삭제
         tools.appendChild(all); }
       hdr.appendChild(tools); jrBox.appendChild(hdr);
       if (dictMsg) jrBox.appendChild(el('div', 'ks-jnote-e', dictMsg));
