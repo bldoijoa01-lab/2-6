@@ -1197,3 +1197,5 @@ body.kiosk{overflow:hidden}
 /* 안내사항 받아쓰기 통합 */
 .ks-jtools{margin-left:auto; display:inline-flex; gap:.4em} .ks-jnote.rec{box-shadow:0 0 0 3px rgba(255,90,90,.55)} .ks-chip.rec{background:#e0334a; color:#fff}
 .ks-jlive{opacity:.55; margin-top:.3em; font-size:1.05em}
+
+.ks-recbadge{position:fixed; right:1.2em; top:5.2em; z-index:55; border:0; border-radius:99px; padding:.55em 1.1em; font:inherit; font-weight:800; background:#e0334a; color:#fff; box-shadow:0 8px 24px rgba(0,0,0,.4); cursor:pointer}
