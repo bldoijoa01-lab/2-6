@@ -335,6 +335,7 @@
       for (i = 0; i < list.length; i++) { if (list[i].drag) { draggedBubble = list[i]; break; } }
       for (i = 0; i < list.length; i++) {
         a = list[i];
+        var inWall = false;
         if (a.drag) {
           a.sqv = (a.sqv || 0) + (-180 * (a.sq || 0) - 14 * (a.sqv || 0)) * dt;
           a.sq = Math.max(-0.2, Math.min(0.2, (a.sq || 0) + a.sqv * dt));
@@ -349,23 +350,28 @@
           var minX = MARGIN_X + a.w / 2, maxX = S.w - rightWall - a.w / 2;
           var minY = MARGIN_Y + a.h / 2, maxY = ch - 40 - a.h / 2;
           var pen, limL = MARGIN_X + a.w / 3, limR = rightWall + a.w / 3, limT = MARGIN_Y + a.h / 3, limB = 40 + a.h / 3;
+          var wallSq = 0;
           if (a.x < minX) {
             pen = minX - a.x; if (pen > limL) { a.x = minX - limL; pen = limL; }
             a.vx += (pen * 34 - a.vx * 2.2) * dt;
-            a.sa = 'x'; a.sq = Math.max(a.sq || 0, Math.min(0.24, pen * 0.0045));
+            a.sa = 'x'; wallSq = Math.max(wallSq, Math.min(0.22, pen * 0.004)); inWall = true;
           } else if (a.x > maxX) {
             pen = a.x - maxX; if (pen > limR) { a.x = maxX + limR; pen = limR; }
             a.vx -= (pen * 34 + a.vx * 2.2) * dt;
-            a.sa = 'x'; a.sq = Math.max(a.sq || 0, Math.min(0.24, pen * 0.0045));
+            a.sa = 'x'; wallSq = Math.max(wallSq, Math.min(0.22, pen * 0.004)); inWall = true;
           }
           if (a.y < minY) {
             pen = minY - a.y; if (pen > limT) { a.y = minY - limT; pen = limT; }
             a.vy += (pen * 32 - a.vy * 2.4) * dt;
-            a.sa = 'y'; a.sq = Math.max(a.sq || 0, Math.min(0.22, pen * 0.005));
+            a.sa = 'y'; wallSq = Math.max(wallSq, Math.min(0.2, pen * 0.0045)); inWall = true;
           } else if (a.y > maxY) {
             pen = a.y - maxY; if (pen > limB) { a.y = maxY + limB; pen = limB; }
             a.vy -= (pen * 32 + a.vy * 2.4) * dt;
-            a.sa = 'y'; a.sq = Math.max(a.sq || 0, Math.min(0.22, pen * 0.005));
+            a.sa = 'y'; wallSq = Math.max(wallSq, Math.min(0.2, pen * 0.0045)); inWall = true;
+          }
+          if (inWall) {
+            a.sq = (a.sq || 0) + (wallSq - (a.sq || 0)) * Math.min(1, dt * 16);
+            a.sqv = 0;
           }
           for (j = 0; j < list.length; j++) {
             b = list[j]; if (b === a || b.drag) continue;
@@ -404,8 +410,10 @@
             a.rising = false; a.sa = 'y'; a.sqv = Math.min(3.0, Math.abs(a.vy) * 0.01);
           }
         }
-        a.sqv = (a.sqv || 0) + (-95 * (a.sq || 0) - 15 * (a.sqv || 0)) * dt;
-        a.sq = Math.max(-0.36, Math.min(0.36, (a.sq || 0) + a.sqv * dt));
+        if (!inWall) {
+          a.sqv = (a.sqv || 0) + (-95 * (a.sq || 0) - 15 * (a.sqv || 0)) * dt;
+          a.sq = Math.max(-0.36, Math.min(0.36, (a.sq || 0) + a.sqv * dt));
+        }
         var targetRot = Math.max(-7, Math.min(7, a.vx * 0.018));
         a.rot = (a.rot || 0) + (targetRot - (a.rot || 0)) * Math.min(1, dt * 14);
       }
