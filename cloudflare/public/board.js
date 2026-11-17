@@ -346,10 +346,27 @@
           a.vx -= a.vx * 2.5 * dt; a.vy -= a.vy * 2.6 * dt;
           a.x += a.vx * dt; a.y += a.vy * dt;
           var rightWall = rail.hidden ? MARGIN_X : 56;
-          if (a.x < MARGIN_X + a.w / 2) { if (a.vx < -35) spongeHit(a, 'x', a.vx); a.x = MARGIN_X + a.w / 2; if (a.vx < 0) a.vx = 0; }
-          if (a.x > S.w - rightWall - a.w / 2) { if (a.vx > 35) spongeHit(a, 'x', a.vx); a.x = S.w - rightWall - a.w / 2; if (a.vx > 0) a.vx = 0; }
-          if (a.y < MARGIN_Y + a.h / 2) { if (a.vy < -35) spongeHit(a, 'y', a.vy); a.y = MARGIN_Y + a.h / 2; if (a.vy < 0) a.vy = 0; }
-          if (a.y > ch - 40 - a.h / 2) { if (a.vy > 35) spongeHit(a, 'y', a.vy); a.y = ch - 40 - a.h / 2; if (a.vy > 0) a.vy = 0; }
+          var minX = MARGIN_X + a.w / 2, maxX = S.w - rightWall - a.w / 2;
+          var minY = MARGIN_Y + a.h / 2, maxY = ch - 40 - a.h / 2;
+          var pen;
+          if (a.x < minX) {
+            pen = minX - a.x; if (pen > 28) { a.x = minX - 28; pen = 28; }
+            a.vx += (pen * 28 - a.vx * 5.4) * dt;
+            a.sa = 'x'; a.sq = Math.max(a.sq || 0, Math.min(0.28, pen * 0.011));
+          } else if (a.x > maxX) {
+            pen = a.x - maxX; if (pen > 28) { a.x = maxX + 28; pen = 28; }
+            a.vx -= (pen * 28 + a.vx * 5.4) * dt;
+            a.sa = 'x'; a.sq = Math.max(a.sq || 0, Math.min(0.28, pen * 0.011));
+          }
+          if (a.y < minY) {
+            pen = minY - a.y; if (pen > 26) { a.y = minY - 26; pen = 26; }
+            a.vy += (pen * 26 - a.vy * 5.6) * dt;
+            a.sa = 'y'; a.sq = Math.max(a.sq || 0, Math.min(0.26, pen * 0.011));
+          } else if (a.y > maxY) {
+            pen = a.y - maxY; if (pen > 26) { a.y = maxY + 26; pen = 26; }
+            a.vy -= (pen * 26 + a.vy * 5.6) * dt;
+            a.sa = 'y'; a.sq = Math.max(a.sq || 0, Math.min(0.26, pen * 0.011));
+          }
           for (j = 0; j < list.length; j++) {
             b = list[j]; if (b === a || b.drag) continue;
             var dx0 = b.x - a.x, dy0 = b.y - a.y;
