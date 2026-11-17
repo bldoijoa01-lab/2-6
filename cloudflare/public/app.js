@@ -2598,22 +2598,27 @@
     var showBtn = h('button', { class: 'btn out', type: 'button', text: '📣 칠판 종례 화면 띄우기' });
     var clrBtn = h('button', { class: 'linkbtn', type: 'button', text: '내용 비우기' });
     var histBtn = h('button', { class: 'linkbtn', type: 'button', text: '지난 종례 보기 →' });
-    var tmr = null, lastSent = ta.value;
+    var tmr = null, lastSent = ta.value, busy = false;
     function sendNow(text) {
+      if (busy) return;
+      busy = true;
       status.textContent = '📡 칠판에 반영 중…';
       jongryeApi({ text: text }).then(function (j) {
+        busy = false;
         if (j && j.ok) {
           DATA.jongrye = j.rec || null;
           lastSent = text;
+          if (ta.value !== lastSent) { sendNow(ta.value); return; }
           var hm = new Date().toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' });
           status.textContent = text.trim() ? '✅ 칠판에 실시간 반영됨 (' + hm + ')' : '🧹 종례 안내를 비웠어요';
         } else status.textContent = '⚠ 반영하지 못했어요. 다시 시도해 주세요';
-      }).catch(function () { status.textContent = '⚠ 연결 확인 중…'; });
+      }).catch(function () { busy = false; status.textContent = '⚠ 연결 확인 중…'; });
     }
     ta.addEventListener('input', function () {
-      clearTimeout(tmr);
       status.textContent = '✍ 입력 중…';
-      tmr = setTimeout(function () { if (ta.value !== lastSent) sendNow(ta.value); }, 350);
+      if (!tmr) {
+        tmr = setTimeout(function () { tmr = null; if (ta.value !== lastSent) sendNow(ta.value); }, 300);
+      }
     });
     showBtn.addEventListener('click', function () {
       var tk = function () { try { return localStorage.getItem('tok26') || ''; } catch (e) { return ''; } };

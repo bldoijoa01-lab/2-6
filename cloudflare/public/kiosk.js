@@ -409,7 +409,7 @@
       return st;
     }
     function rpoll() {
-      var hr = kst().getUTCHours(), delay = hr >= 7 && hr < 22 ? 3000 : 15000;
+      var hr = kst().getUTCHours(), delay = mode === 'jongrye' ? 800 : (hr >= 7 && hr < 22 ? 3000 : 15000);
       if (!rBusy) { rBusy = true;
         fetch('/api/kiosk/poll', { method: 'POST', headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: JSON.stringify({ since: rSince, state: remoteState() }), cache: 'no-store' })
           .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { rBusy = false; if (!j) return; rSince = j.last; (j.cmds || []).forEach(function (c) { try { runCmd(c); } catch (e) {} }); }).catch(function () { rBusy = false; });
