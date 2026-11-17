@@ -184,7 +184,9 @@
       if (activeBtn.scrollIntoView && !reduceMotion()) {
         try { activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); } catch (e) {}
       }
-    }
+    } else if (tabBox) tabBox.removeAttribute('data-pill');
+    var whoBtn = document.getElementById('who');
+    if (whoBtn) whoBtn.classList.toggle('active', name === 'me');
     if (name === 'home' && DATA && DATA.me && DATA.me.role !== 'teacher') renderHome();   // 내신·선택과목 등 바뀐 값이 홈에도 바로 반영되게
     if (name === 'naesin') { applyNsSub(''); if (nsSub === 'grade') loadGrade(); else renderNaesin(); }
     if (name === 'me') renderMe();
@@ -206,6 +208,16 @@
   registerPill(tabBox, function () { return document.querySelector('.tab[aria-selected="true"]'); });
   if (nsSegBox) registerPill(nsSegBox, function () { return nsSegBox.querySelector('.seg-b[aria-pressed="true"]'); });
 
+  function setWho(text) {
+    var w = document.getElementById('who'), wt = document.getElementById('whoTxt');
+    if (wt) wt.textContent = text; else if (w) w.textContent = text;
+  }
+  (function () {
+    var w = document.getElementById('who');
+    if (w) w.addEventListener('click', function () {
+      if (DATA && DATA.me && DATA.me.role !== 'teacher') { selectTab('me'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    });
+  })();
   document.getElementById('logoutBtn').addEventListener('click', function () { store('tok26', null); store('gk26', null); store('pwlen26', null); store('gcscore26', null); store('pref26', null); location.hash = ''; location.reload(); });
 
   // ---------- 테마 ----------
@@ -842,7 +854,7 @@
       document.body.classList.remove('teacher'); document.body.classList.remove('admin'); document.body.classList.add('preview');
       var bar = document.getElementById('previewBar'); bar.hidden = false;
       document.getElementById('previewWho').textContent = '👀 ' + name + '(' + n + '번) 학생 화면 · 읽기 전용' + (sh ? ' · 성적 공유됨' : ' · 아직 공유 데이터 없음(학생이 한 번 로그인하면 생겨요)');
-      document.getElementById('who').textContent = name + ' · ' + n + '번';
+      setWho(name + ' · ' + n + '번');
       clear(document.getElementById('panel-exam'));
       renderMe(); renderNaesin(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution(); tagExamCards();
       selectTab('home'); window.scrollTo({ top: 0 });
@@ -860,7 +872,7 @@
     document.getElementById('previewBar').hidden = false;
     document.getElementById('previewWho').textContent = '👀 게스트 둘러보기 · 샘플 데이터 · 읽기 전용';
     document.getElementById('previewExit').textContent = '로그인하러 가기';
-    document.getElementById('who').textContent = '게스트';
+    setWho('게스트');
   }
   function enterGuest() {   // 게스트 둘러보기: 서버·계정 없이 샘플 데이터로 앱을 읽기 전용으로 체험
     if (!window.makeDemo) return;
@@ -873,7 +885,7 @@
     document.getElementById('previewBar').hidden = false;
     document.getElementById('previewWho').textContent = '👀 게스트 둘러보기 · 샘플 데이터 · 읽기 전용';
     document.getElementById('previewExit').textContent = '로그인하러 가기';
-    document.getElementById('who').textContent = '게스트';
+    setWho('게스트');
   }
   function enterGuest() {   // 게스트 둘러보기: 서버·계정 없이 샘플 데이터로 앱을 읽기 전용으로 체험
     if (!window.makeDemo) return;
@@ -886,7 +898,7 @@
     document.getElementById('previewBar').hidden = false;
     document.getElementById('previewWho').textContent = '👀 게스트 둘러보기 · 샘플 데이터 · 읽기 전용';
     document.getElementById('previewExit').textContent = '로그인하러 가기';
-    document.getElementById('who').textContent = '게스트';
+    setWho('게스트');
   }
   function exitPreview() {
     if (PREVIEW && PREVIEW.guest) { location.hash = ''; location.reload(); return; }
@@ -895,7 +907,7 @@
     PREVIEW = null; GC_STATE = GC ? 'dirty' : 'idle'; document.body.classList.remove('preview'); document.getElementById('previewBar').hidden = true;
     fetch('/api/data', { headers: { authorization: 'Bearer ' + load('tok26') }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       DATA = d; document.body.classList.add('teacher');
-      document.getElementById('who').textContent = DATA.me.name + ' 선생님';
+      setWho(DATA.me.name + ' 선생님');
       renderMore(); renderToday(); renderTeacher(); selectTab('teacher'); window.scrollTo({ top: 0 });
     });
   }
@@ -3042,7 +3054,7 @@
     document.body.classList.add('enter'); setTimeout(function () { document.body.classList.remove('enter'); BOOTED = true; }, 1700);
     var who = document.getElementById('who'); who.hidden = false;
     var isT = DATA.me.role === 'teacher';
-    who.textContent = isT ? DATA.me.name + ' 선생님' : DATA.me.name + ' · ' + DATA.me.n + '번';
+    setWho(isT ? DATA.me.name + ' 선생님' : DATA.me.name + ' · ' + DATA.me.n + '번');
     document.body.classList.toggle('teacher', isT);
     document.body.classList.toggle('admin', !!DATA.me.admin);
     var d = new Date(TODAY);
