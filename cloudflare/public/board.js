@@ -278,6 +278,12 @@
     function hit(o, axis, v) {   // 부딪힘 → 부드럽게 찌부러졌다가 복귀
       v = Math.abs(v); if (v < 80) return; o.sa = axis; o.sqv = Math.max(o.sqv || 0, 0) + Math.min(4.5, v * 0.008);
     }
+    function spongeHit(o, axis, v) {   // 스펀지 벽: 튕기지 않고 푹 눌렸다가 스르르 복귀
+      v = Math.abs(v); if (v < 30) return;
+      o.sa = axis;
+      o.sq = Math.max(o.sq || 0, Math.min(0.22, 0.06 + v * 0.00018));
+      o.sqv = Math.min(2.4, v * 0.0025);
+    }
     function clearSel() {
       if (selEl) { selEl.remove(); selEl = null; }
       if (selBubble) { selBubble.el.classList.remove('selected'); selBubble = null; }
@@ -324,10 +330,12 @@
           a.freeTime -= dt;
           a.vx *= Math.max(0, 1 - 3.2 * dt); a.vy *= Math.max(0, 1 - 3.2 * dt);
           a.x += a.vx * dt; a.y += a.vy * dt;
-          if (a.x < MARGIN_X + a.w / 2) { a.x = MARGIN_X + a.w / 2; hit(a, 'x', a.vx); a.vx = Math.abs(a.vx) * 0.65; }
-          if (a.x > S.w - MARGIN_X - a.w / 2) { a.x = S.w - MARGIN_X - a.w / 2; hit(a, 'x', a.vx); a.vx = -Math.abs(a.vx) * 0.65; }
-          if (a.y < MARGIN_Y + a.h / 2) { a.y = MARGIN_Y + a.h / 2; hit(a, 'y', a.vy); a.vy = Math.abs(a.vy) * 0.65; }
-          if (a.y > ch - 40 - a.h / 2) { a.y = ch - 40 - a.h / 2; hit(a, 'y', a.vy); a.vy = -Math.abs(a.vy) * 0.65; }
+          var rightWall = rail.hidden ? MARGIN_X : 56, hitWall = false;
+          if (a.x < MARGIN_X + a.w / 2) { a.x = MARGIN_X + a.w / 2; spongeHit(a, 'x', a.vx); a.vx = 0; a.vy *= 0.72; hitWall = true; }
+          if (a.x > S.w - rightWall - a.w / 2) { a.x = S.w - rightWall - a.w / 2; spongeHit(a, 'x', a.vx); a.vx = 0; a.vy *= 0.72; hitWall = true; }
+          if (a.y < MARGIN_Y + a.h / 2) { a.y = MARGIN_Y + a.h / 2; spongeHit(a, 'y', a.vy); a.vy = 0; a.vx *= 0.72; hitWall = true; }
+          if (a.y > ch - 40 - a.h / 2) { a.y = ch - 40 - a.h / 2; spongeHit(a, 'y', a.vy); a.vy = 0; a.vx *= 0.72; hitWall = true; }
+          if (hitWall) a.freeTime = Math.min(a.freeTime, 0.14);
           for (j = 0; j < list.length; j++) {
             b = list[j]; if (b === a || b.drag) continue;
             var dx0 = b.x - a.x, dy0 = b.y - a.y;
