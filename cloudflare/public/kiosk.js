@@ -292,7 +292,10 @@
       if (JR && JR.text) { var meta = (JR.by ? JR.by + ' · ' : '') + (JR.at ? hm(JR.at) : ''); if (meta) hdr.appendChild(el('small', 'ks-jnote-m', meta)); }
       var tools = el('span', 'ks-jtools');
       var mic = el('button', 'ks-chip' + (dictOn ? ' on rec' : ''), dictOn ? '🔴 듣는 중 · 끝내기' : '🎙 받아쓰기'); mic.type = 'button'; mic.addEventListener('click', dictToggle); tools.appendChild(mic);
-      if (JR && JR.text) { var un = el('button', 'ks-chip', '↩ 마지막 줄 지우기'); un.type = 'button'; un.addEventListener('click', function () { var L = JR.text.split('\n'); L.pop(); jrSet(L.join('\n')); }); tools.appendChild(un); }
+      if (JR && JR.text) { var un = el('button', 'ks-chip', '↩ 마지막 줄 지우기'); un.type = 'button'; un.addEventListener('click', function () { var L = JR.text.split('\n'); L.pop(); jrSet(L.join('\n')); }); tools.appendChild(un);
+        var all = el('button', 'ks-chip', '🗑 전체 지우기'), armed = null; all.type = 'button';
+        all.addEventListener('click', function () { if (!armed) { all.textContent = '정말 지울까요? 한 번 더'; all.classList.add('rec'); armed = setTimeout(function () { armed = null; all.textContent = '🗑 전체 지우기'; all.classList.remove('rec'); }, 3000); return; } clearTimeout(armed); armed = null; dictLast = ''; jrSet(''); });   // 실수 방지: 3초 안에 한 번 더 누르면 삭제
+        tools.appendChild(all); }
       hdr.appendChild(tools); jrBox.appendChild(hdr);
       if (dictMsg) jrBox.appendChild(el('div', 'ks-jnote-e', dictMsg));
       if (JR && JR.text) { var nt = el('div', 'ks-jnote-t'); JR.text.split('\n').forEach(function (ln) { if (ln.trim()) nt.appendChild(el('div', 'ks-jline', ln)); }); jrBox.appendChild(nt); jrBox.classList.remove('empty'); if (jrBox.isConnected) fitNote(nt); }
@@ -308,7 +311,8 @@
     }
     function paintJongrye() {
       var box = el('div', 'ks-jbox'), jv = jView || (kst().getUTCHours() < 12 ? 'jo' : 'jong'), jo = jv === 'jo';
-      var tg = el('div', 'ks-jtog'); [['jo', '🌅 조회'], ['jong', '📣 종례']].forEach(function (x) { var b = el('button', 'ks-chip' + (jv === x[0] ? ' on' : ''), x[1]); b.type = 'button'; b.addEventListener('click', function () { if (jv !== x[0]) { jView = x[0]; setMode('jongrye'); } }); tg.appendChild(b); }); box.appendChild(tg);
+      var tg = el('div', 'ks-jtog'); [['jo', '🌅 조회'], ['jong', '📣 종례']].forEach(function (x) { var b = el('button', 'ks-chip' + (jv === x[0] ? ' on' : ''), x[1]); b.type = 'button'; b.addEventListener('click', function () { if (jv !== x[0]) { jView = x[0]; setMode('jongrye'); } }); tg.appendChild(b); });
+      var fin = el('button', 'ks-chip ks-endbtn', jo ? '✅ 조회 끝' : '✅ 종례 끝'); fin.type = 'button'; fin.addEventListener('click', function () { jView = null; setMode('today'); }); tg.appendChild(fin); box.appendChild(tg);   // 일찍 끝나면 눌러서 오늘 화면으로
       if (jo) box.appendChild(banner('jong', '🌅', '조회 시간', SC.hs + ' ~ ' + SC.he, SC.he, '조회 끝까지'));
       else box.appendChild(banner('jong', '📣', '종례 시간', SC.js + ' ~ ' + SC.ee, SC.ee, '종례 끝까지'));
       jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { jrBox = null; });   // 받아쓰기는 다른 화면으로 가도 계속 듣고, 끄기 버튼을 눌러야 멈춤

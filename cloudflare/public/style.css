@@ -1206,3 +1206,5 @@ body.kiosk{overflow:hidden}
 .ks-period.ks-cdchip{font-size:1.9em; font-weight:900; font-variant-numeric:tabular-nums; background:rgba(255,224,138,.22); color:#FFE08A} .ks-period.ks-cdchip.soon{background:#e0334a; color:#fff; animation:ksBlink 1s ease-in-out infinite}
 @keyframes ksBlink{50%{opacity:.65}}
 .ks-jline{position:relative; padding-left:1.1em} .ks-jline::before{content:'•'; position:absolute; left:.1em; color:#FFE08A; font-weight:900}
+
+.ks-jtog .ks-endbtn{margin-left:auto; background:#2fbf71; border-color:#2fbf71; color:#05301a; font-weight:900; padding:.55em 1.3em; font-size:1.1em}
