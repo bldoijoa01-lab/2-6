@@ -163,6 +163,29 @@
       (D.events || []).forEach(function (e) { if (e.calOnly) return; var s = e.date, en = e.end || e.date; if (s === iso) out.push('내일 ' + e.title + (e.note ? ' · ' + e.note.split(' · ')[0] : '')); else if (en === iso && en > s) out.push('내일 마감 · ' + e.title); });
       return out.slice(0, 6);
     }
+    // ---------- 받아쓰기 (시험용): 선생님 말씀을 글자로. 소리·글자 모두 저장하지 않음 ----------
+    var dictText = [], dictOn = false, dictRec = null;
+    function paintDict() {
+      var SR = window.SpeechRecognition || window.webkitSpeechRecognition, c = card('받아쓰기 (시험 중)', '🎙'), out = el('div', 'ks-dout'), live = el('span', 'ks-dlive'), st = el('div', 'ks-dst');
+      c.classList.add('ks-dict'); c.appendChild(el('div', 'ks-dnote', '선생님 말씀을 글자로 바꿔 보여 줘요. 소리는 저장되지 않고, 이 화면을 나가면 글자도 사라져요. 정확도를 알아보는 시험 기능이에요.'));
+      var row = el('div', 'ks-row left'), go = el('button', 'ks-btn', '🎙 시작'), clr = el('button', 'ks-btn', '지우기'), cp = el('button', 'ks-btn', '복사');
+      function draw() { clear(out); dictText.forEach(function (t) { out.appendChild(el('div', 'ks-dline', t)); }); live.textContent = ''; out.appendChild(live); out.scrollTop = out.scrollHeight; go.textContent = dictOn ? '⏹ 끝내기' : '🎙 시작'; go.classList.toggle('rec', dictOn); c.classList.toggle('on', dictOn); st.textContent = dictOn ? '🔴 듣는 중… 말씀하세요' : ''; }
+      function stop() { dictOn = false; if (dictRec) { try { dictRec.onend = null; dictRec.stop(); } catch (e) {} dictRec = null; } draw(); }
+      function begin() {
+        if (!SR) { st.textContent = '이 브라우저는 받아쓰기를 지원하지 않아요 (크롬을 써 주세요)'; return; }
+        dictOn = true; var r = new SR(); dictRec = r; r.lang = 'ko-KR'; r.continuous = true; r.interimResults = true;
+        r.onresult = function (e) { var interim = ''; for (var i = e.resultIndex; i < e.results.length; i++) { var t = e.results[i][0].transcript; if (e.results[i].isFinal) { if (t.trim()) dictText.push(t.trim()); } else interim += t; } if (out.isConnected) { clear(out); dictText.forEach(function (x) { out.appendChild(el('div', 'ks-dline', x)); }); live.textContent = interim; out.appendChild(live); out.scrollTop = out.scrollHeight; } };
+        r.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { dictOn = false; st.textContent = '마이크 사용을 허용해 주세요 (주소창 왼쪽 자물쇠)'; } else if (e.error !== 'no-speech' && e.error !== 'aborted') st.textContent = '받아쓰기 오류: ' + e.error; };
+        r.onend = function () { if (dictOn) { try { r.start(); } catch (e) { setTimeout(function () { if (dictOn) { try { r.start(); } catch (e2) {} } }, 400); } } else draw(); };   // 크롬은 말이 없으면 끊기므로 계속 이어서 듣기
+        try { r.start(); } catch (e) {} draw();
+      }
+      go.addEventListener('click', function () { if (dictOn) stop(); else begin(); });
+      clr.addEventListener('click', function () { dictText = []; draw(); });
+      cp.addEventListener('click', function () { var t = dictText.join('\n'); try { navigator.clipboard.writeText(t); st.textContent = '복사했어요'; } catch (e) { st.textContent = '복사하지 못했어요'; } });
+      [go, clr, cp].forEach(function (x) { row.appendChild(x); }); c.appendChild(row); c.appendChild(st); c.appendChild(out); draw();
+      cleanups.push(function () { stop(); dictText = []; });
+      return c;
+    }
     function paintJongrye() {
       var box = el('div', 'ks-jbox');
       box.appendChild(banner('jong', '📣', '종례 시간', SC.js + ' ~ ' + SC.ee, SC.ee, '종례 끝까지'));
@@ -170,7 +193,7 @@
       var cols = el('div', 'ks-jcols'), iso = isoOf(kst()), daily = (D.daily || {})[iso];
       var c1 = card('오늘의 알림장', '📒'), ul = el('ul', 'ks-list'); ((daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 없어요' }]).slice(0, 5).forEach(function (i) { var li = el('li'); li.appendChild(el('span', 'ks-k', KIND[i.k] || '📢')); li.appendChild(el('span', 'ks-t', i.t)); ul.appendChild(li); }); c1.appendChild(ul);
       var c2 = card('내일 챙길 것', '🎒'), tm = tomorrowItems(), ul2 = el('ul', 'ks-list'); (tm.length ? tm : ['내일 특별한 일정은 없어요']).forEach(function (t) { var li = el('li'); li.appendChild(el('span', 'ks-t', t)); ul2.appendChild(li); }); c2.appendChild(ul2);
-      cols.appendChild(c1); cols.appendChild(c2); box.appendChild(cols); main.appendChild(box);
+      cols.appendChild(c1); cols.appendChild(c2); box.appendChild(cols); box.appendChild(paintDict()); main.appendChild(box);
     }
 
     // ---------- 자습 중 교실 이탈 ----------

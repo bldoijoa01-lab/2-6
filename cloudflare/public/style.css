@@ -1082,3 +1082,10 @@ body.kiosk{overflow:hidden}
 .ks-nbtn{padding:.6em .3em; border-radius:.7em; border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.1); color:inherit; font:inherit; font-weight:800; cursor:pointer} .ks-nbtn.sel{background:#FFE08A; color:#3a2a00} .ks-nbtn.away{opacity:.35}
 
 .ks-side{max-height:calc(100vh - 14em); overflow:auto} .ks-sbox.ks-stm{margin-top:1.2em; min-width:20em; max-width:34em; text-align:left}
+
+/* 받아쓰기(시험) */
+.ks-dict{margin-top:1em} .ks-dict.on{border-color:#ff5a5a; box-shadow:0 0 0 3px rgba(255,90,90,.35)}
+.ks-dnote{opacity:.75; font-size:.9em; margin-bottom:.5em} .ks-dst{min-height:1.4em; font-weight:800; margin:.4em 0}
+.ks-btn.rec{background:#e0334a; color:#fff}
+.ks-dout{max-height:24vh; overflow:auto; font-size:1.35em; line-height:1.5; background:rgba(0,0,0,.18); border-radius:.8em; padding:.6em .9em; min-height:3em}
+.ks-dline{margin:.1em 0} .ks-dlive{opacity:.55}
