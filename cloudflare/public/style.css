@@ -1199,3 +1199,10 @@ body.kiosk{overflow:hidden}
 .ks-jlive{opacity:.55; margin-top:.3em; font-size:1.05em}
 
 .ks-recbadge{position:fixed; right:1.2em; top:5.2em; z-index:55; border:0; border-radius:99px; padding:.55em 1.1em; font:inherit; font-weight:800; background:#e0334a; color:#fff; box-shadow:0 8px 24px rgba(0,0,0,.4); cursor:pointer}
+
+.ks-jnote-t{white-space:normal} .ks-jline{break-inside:avoid; white-space:pre-wrap; margin:.05em 0}
+.ks-jnote-t.cols{column-width:19em; column-gap:1.8em; column-fill:auto; overflow:hidden; column-rule:1px solid rgba(255,255,255,.18)}
+
+.ks-period.ks-cdchip{font-size:1.9em; font-weight:900; font-variant-numeric:tabular-nums; background:rgba(255,224,138,.22); color:#FFE08A} .ks-period.ks-cdchip.soon{background:#e0334a; color:#fff; animation:ksBlink 1s ease-in-out infinite}
+@keyframes ksBlink{50%{opacity:.65}}
+.ks-jline{position:relative; padding-left:1.1em} .ks-jline::before{content:'•'; position:absolute; left:.1em; color:#FFE08A; font-weight:900}

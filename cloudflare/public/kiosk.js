@@ -61,6 +61,11 @@
       var p = curPeriod(); periodEl.textContent = p.text; periodEl.style.display = p.text ? '' : 'none';
       if (mode === 'today' && p.idx !== lastIdx) { lastIdx = p.idx; paintToday(true); }
       var ph = phase();
+      periodEl.classList.remove('ks-cdchip', 'soon');
+      var nowSec = k.getUTCHours() * 3600 + k.getUTCMinutes() * 60 + k.getUTCSeconds(), toJo = mins(SC.hs) * 60 - nowSec, dw = k.getUTCDay();
+      if (dw >= 1 && dw <= 5 && toJo > 0 && nowSec >= 6 * 3600 && !(D.events || []).some(function (e) { var i0 = isoOf(k); return e.noSchool && e.date <= i0 && i0 <= (e.end || e.date); })) {   // 조회 시작 전 카운트다운
+        periodEl.textContent = '🌅 조회까지 ' + (toJo >= 3600 ? Math.floor(toJo / 3600) + ':' : '') + pad(Math.floor(toJo % 3600 / 60)) + ':' + pad(toJo % 60); periodEl.style.display = ''; periodEl.classList.add('ks-cdchip'); if (toJo <= 60) periodEl.classList.add('soon');
+      }
       if (ph) { periodEl.textContent = ph === 'clean' ? '🧹 청소 시간' : ph === 'jo' ? '🌅 조회 시간' : '📣 종례 시간'; periodEl.style.display = ''; }
       if (ph !== lastPhase) {   // 시간대가 바뀔 때 자동 전환 (설정에서 끌 수 있음)
         var prev = lastPhase; lastPhase = ph;
@@ -238,10 +243,23 @@
         .then(function (j) { jrPending--; if (j && j.ok && jrPending === 0 && !dictOn) { JR = j.rec || null; D.jongrye = JR; paintJrNote(); } }).catch(function () { jrPending--; });
     }
     function jrSet(text) { JR = text ? { text: text, by: '받아쓰기', at: Date.now() } : null; D.jongrye = JR; paintJrNote(); jrSave(text); }
+    var dictLast = '';
     function dictAppend(line) {
-      var t = ((JR && JR.text) ? JR.text + '\n' : '') + line;
+      // 일부 기기(안드로이드 크롬)는 확정 결과를 '앞 문장+새 단어'로 계속 다시 보내 같은 줄이 늘어난 채 반복됨 → 직전 줄의 연장이면 그 줄을 교체, 같거나 더 짧으면 무시
+      var L = ((JR && JR.text) || '').split('\n').filter(function (x) { return x; }), last = L[L.length - 1] || '', n = function (x) { return x.replace(/\s+/g, ''); };
+      if (dictLast && last === dictLast) {
+        if (n(line) === n(dictLast) || n(dictLast).indexOf(n(line)) === 0) return;
+        if (n(line).indexOf(n(dictLast)) === 0) L[L.length - 1] = line; else L.push(line);
+      } else L.push(line);
+      dictLast = line; var t = L.join('\n');
       while (t.length > 800 && t.indexOf('\n') > -1) t = t.slice(t.indexOf('\n') + 1);
       jrSet(t.slice(-800));
+    }
+    function fitNote(t) {   // 한 화면에: 줄이 많으면 옆 칸으로 이어 붙이고, 그래도 넘치면 글자를 줄임
+      t.classList.remove('cols'); t.style.height = ''; t.style.fontSize = '';
+      var lim = window.innerHeight * 0.34; if (t.scrollHeight <= lim) return;
+      t.classList.add('cols'); t.style.height = lim + 'px';
+      var fs = 1.65; for (var i = 0; i < 14 && t.scrollWidth > t.clientWidth + 2 && fs > 0.8; i++) { fs -= 0.1; t.style.fontSize = fs + 'em'; }
     }
     var dictBadge = null;
     function paintBadge() {
@@ -265,7 +283,7 @@
     function dictToggle() {
       if (dictOn) { dictStop(); return; }
       if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) { dictMsg = '이 브라우저는 받아쓰기를 지원하지 않아요 (크롬을 써 주세요)'; paintJrNote(); return; }
-      dictOn = true; dictFail = 0; dictMsg = ''; dictRun(); paintJrNote(); paintBadge();
+      dictOn = true; dictFail = 0; dictMsg = ''; dictLast = ''; dictRun(); paintJrNote(); paintBadge();
     }
     function paintJrNote(flash) {
       if (!jrBox) return; clear(jrBox); jrLive = null; jrBox.classList.toggle('rec', dictOn);
@@ -277,7 +295,7 @@
       if (JR && JR.text) { var un = el('button', 'ks-chip', '↩ 마지막 줄 지우기'); un.type = 'button'; un.addEventListener('click', function () { var L = JR.text.split('\n'); L.pop(); jrSet(L.join('\n')); }); tools.appendChild(un); }
       hdr.appendChild(tools); jrBox.appendChild(hdr);
       if (dictMsg) jrBox.appendChild(el('div', 'ks-jnote-e', dictMsg));
-      if (JR && JR.text) { jrBox.appendChild(el('div', 'ks-jnote-t', JR.text)); jrBox.classList.remove('empty'); }
+      if (JR && JR.text) { var nt = el('div', 'ks-jnote-t'); JR.text.split('\n').forEach(function (ln) { if (ln.trim()) nt.appendChild(el('div', 'ks-jline', ln)); }); jrBox.appendChild(nt); jrBox.classList.remove('empty'); if (jrBox.isConnected) fitNote(nt); }
       else { jrBox.appendChild(el('div', 'ks-jnote-e', '🎙를 눌러 말씀하시거나, 관리자 화면에서 입력하면 여기에 떠요')); jrBox.classList.add('empty'); }
       if (dictOn) { jrLive = el('div', 'ks-jlive', dictInterim); jrBox.appendChild(jrLive); }
       if (flash) { jrBox.classList.remove('flash'); void jrBox.offsetWidth; jrBox.classList.add('flash'); }
