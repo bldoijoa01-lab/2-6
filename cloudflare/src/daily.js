@@ -143,3 +143,15 @@ export function eveningText({ tomorrow, items }) {
   const body = mine.slice(0, 4).map((i) => { const t = i.t.split(' · ')[0]; return '• ' + (t.length > 40 ? t.slice(0, 39) + '…' : t); }).join('\n');
   return { title: `⏰ 내일 일정 · ${fmtKo(tomorrow)}`, body, tag: 'eve-' + tomorrow };
 }
+
+// 조회/종례 말씀 요약: AI 응답에서 '- ' 글머리 줄만 뽑아 최대 6줄·줄당 60자로 정리
+export function parseSummary(raw) {
+  const out = [];
+  for (const l of String(raw || '').split(/\r?\n/)) {
+    const t = l.replace(/^\s*(?:[-•*·]|\d+[.)])\s*/, '').replace(/\*\*/g, '').trim();
+    if (!t || t === l.trim() && !/^\s*(?:[-•*·]|\d+[.)])/.test(l)) continue;
+    out.push(t.length > 60 ? t.slice(0, 59) + '…' : t);
+    if (out.length >= 6) break;
+  }
+  return out;
+}

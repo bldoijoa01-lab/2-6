@@ -5,7 +5,7 @@ import ASSETS from './assets.js';
 import FONT from './pretendard.woff2';
 import OG from './og.jpg';
 import ICON from './icon.png';
-import { kstISO, addDaysISO, buildAutoDaily, pinnedItems, calOnlyItems, cleanItems, parseMeals, timetableLine, pushText, eveningText } from './daily.js';
+import { parseSummary, kstISO, addDaysISO, buildAutoDaily, pinnedItems, calOnlyItems, cleanItems, parseMeals, timetableLine, pushText, eveningText } from './daily.js';
 import { sendPush } from './webpush.js';
 const enc = new TextEncoder();
 const TTL = 60 * 60 * 24 * 30, BOARD_TTL = 60 * 60 * 24 * 365;   // 전자칠판 계정은 1년 유지(교실 PC가 매번 로그아웃되지 않게)
@@ -503,6 +503,29 @@ export default {
         const text = String(b.text || '').replace(/\r\n/g, '\n').trim().slice(0, 800);
         const key = 'jongrye:' + date;
         let rec = null;
+        if (b.summarize) {   // 조회/종례 끝: 저장된 말씀을 학생용 요약(글머리)으로 정리해 같은 기록에 붙임
+          const cur = JSON.parse(await env.CLASS_KV.get(key) || 'null');
+          if (!cur || !cur.text) return json({ ok: true, today, date, rec: null });
+          if (!env.AI) return json({ error: 'no_ai', rec: cur }, 501);
+          let lines = [];
+          if (cur.text.replace(/\s+/g, '').length < 20) lines = cur.text.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 6);   // 너무 짧으면 그대로
+          else {
+            try {
+              const r = await env.AI.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', { max_tokens: 400, temperature: 0.2, messages: [
+                { role: 'system', content: '너는 학교 담임 선생님의 조회·종례 말씀(음성 받아쓰기라 오타가 있을 수 있음)을 학생들이 볼 안내로 요약한다.\n규칙: 1) 말씀에 있는 내용만 쓰고 절대 지어내지 않는다. 2) 날짜·시간·과목·제출물·준비물·장소는 반드시 유지한다. 3) 잡담·반복·불필요한 말은 뺀다. 4) 핵심만 3~6줄, 한 줄 50자 이내, 간결하게. 5) 한국어. 6) 각 줄은 "- "로 시작하고 다른 설명은 쓰지 않는다.' },
+                { role: 'user', content: cur.text.slice(0, 1200) }] });
+              lines = parseSummary(r && (r.response || r.result || ''));
+            } catch (e) { return json({ error: 'ai_fail', rec: cur }, 502); }
+          }
+          if (!lines.length) return json({ error: 'ai_fail', rec: cur }, 502);
+          rec = { ...cur, summary: { lines, at: Date.now(), kind: b.kind === 'jo' ? 'jo' : 'jong' } };
+          await env.CLASS_KV.put(key, JSON.stringify(rec), { expirationTtl: 180 * 86400 });
+          if (date === today && env.BOARD) {
+            const stub = env.BOARD.get(env.BOARD.idFromName('main'));
+            await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ op: 'kcmd', cmd: 'jongryesync', args: { date, rec }, me: { n: me0.n, name: me0.name, role: me0.role || 'student', admin: !!me0.admin } }) });
+          }
+          return json({ ok: true, today, date, rec });
+        }
         if (!text) await env.CLASS_KV.delete(key);
         else { rec = { text, by: me0.name, at: Date.now() }; await env.CLASS_KV.put(key, JSON.stringify(rec), { expirationTtl: 180 * 86400 }); }
         if (date === today && env.BOARD) {

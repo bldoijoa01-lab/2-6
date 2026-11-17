@@ -83,6 +83,15 @@
     }
     var lastIdx = -2;
 
+    // ---------- 안내 요약(조회/종례 끝 때 AI가 정리) 배너 ----------
+    var sumBox = null;
+    function paintSum() {
+      if (!sumBox || !sumBox.isConnected) return; clear(sumBox); var sm = D.jongrye && D.jongrye.summary;
+      if (!sm || !sm.lines || !sm.lines.length) { sumBox.style.display = 'none'; return; }
+      sumBox.style.display = ''; var h1 = el('div', 'ks-sumh'); h1.appendChild(el('b', null, '📣 오늘의 안내 요약')); h1.appendChild(el('small', null, hm(sm.at) + ' 정리')); sumBox.appendChild(h1);
+      var ul = el('ul', 'ks-suml'); sm.lines.forEach(function (t) { ul.appendChild(el('li', null, t)); }); sumBox.appendChild(ul);
+    }
+
     // ---------- 오늘 대시보드 ----------
     var todayEl = null;
     function card(title, emoji) { var c = el('div', 'ks-card'), h = el('div', 'ks-ch'); h.appendChild(el('span', 'ks-ce', emoji)); h.appendChild(el('b', null, title)); c.appendChild(h); return c; }
@@ -371,7 +380,13 @@
     function paintJongrye() {
       var box = el('div', 'ks-jbox'), jv = jView || (kst().getUTCHours() < 12 ? 'jo' : 'jong'), jo = jv === 'jo';
       var tg = el('div', 'ks-jtog'); [['jo', '🌅 조회'], ['jong', '📣 종례']].forEach(function (x) { var b = el('button', 'ks-chip' + (jv === x[0] ? ' on' : ''), x[1]); b.type = 'button'; b.addEventListener('click', function () { if (jv !== x[0]) { jView = x[0]; setMode('jongrye'); } }); tg.appendChild(b); });
-      var fin = el('button', 'ks-chip ks-endbtn', jo ? '✅ 조회 끝' : '✅ 종례 끝'); fin.type = 'button'; fin.addEventListener('click', function () { jView = null; setMode('today'); }); tg.appendChild(fin); box.appendChild(tg);   // 일찍 끝나면 눌러서 오늘 화면으로
+      var fin = el('button', 'ks-chip ks-endbtn', jo ? '✅ 조회 끝' : '✅ 종례 끝'); fin.type = 'button'; fin.addEventListener('click', function () {
+        if (fin.disabled) return; fin.disabled = true; fin.textContent = '📝 저장·요약 중…'; var kind = jo ? 'jo' : 'jong'; dictStop();
+        var done = false; function go() { if (done) return; done = true; jView = null; setMode('today'); }
+        setTimeout(go, 15000);   // 요약이 늦어져도 화면은 넘어감 (원문은 이미 저장됨)
+        jrQ.then(function () { return (JR && JR.text) ? fetch('/api/jongrye', { method: 'POST', headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: JSON.stringify({ summarize: true, kind: kind }) }).then(function (r) { return r.json(); }) : null; })
+          .then(function (j) { if (j && j.rec) { JR = j.rec; D.jongrye = JR; } }).catch(function () {}).then(go);
+      }); tg.appendChild(fin); box.appendChild(tg);   // 일찍 끝나면 눌러서 오늘 화면으로
       if (jo) box.appendChild(banner('jong', '🌅', '조회 시간', SC.hs + ' ~ ' + SC.he, SC.he, '조회 끝까지'));
       else box.appendChild(banner('jong', '📣', '종례 시간', SC.js + ' ~ ' + SC.ee, SC.ee, '종례 끝까지'));
       jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { jrBox = null; });   // 받아쓰기는 다른 화면으로 가도 계속 듣고, 끄기 버튼을 눌러야 멈춤
@@ -569,7 +584,7 @@
     function setMode(m) {
       if (m === 'board') { if (window.Board26) window.Board26.show({ power: true, onExit: function () { paintDock(); } }); return; }
       cleanups.forEach(function (f) { f(); }); cleanups = []; KAPI = {}; resetTimers(); cdEl = null; mode = m; setTimeout(paintBadge, 0); clear(main); main.scrollTop = 0; paintDock(); root.classList.toggle('ks-solid', m === 'clean' || m === 'jongrye' || m === 'study'); root.classList.toggle('ks-cleanmode', m === 'clean');
-      if (m === 'today') { todayEl = null; paintToday(); main.appendChild(todayEl); lastIdx = -2; tick(); }
+      if (m === 'today') { todayEl = null; paintToday(); sumBox = el('div', 'ks-sumbn'); main.appendChild(sumBox); paintSum(); main.appendChild(todayEl); lastIdx = -2; tick(); }
       else if (m === 'clean') { paintClean(); tick(); } else if (m === 'jongrye') { paintJongrye(); tick(); } else if (m === 'study') { paintStudy(); tick(); } else if (m === 'seat') paintSeat();
       else if (m === 'pick') paintPick(); else if (m === 'group') paintGroup();
     }
@@ -587,7 +602,7 @@
       else if (c.cmd === 'group') { if (mode !== 'group') setMode('group'); if (KAPI.group) KAPI.group.set(a.n); }
       else if (c.cmd === 'banner') showAlert(a.text ? String(a.text).slice(0, 120) : '');
       else if (c.cmd === 'cleansync') { if (mode === 'clean') pullLog(); else api('GET').then(function (j) { if (j && j.logs) CL = j.logs[j.today] || {}; }).catch(function () {}); }
-      else if (c.cmd === 'jongryesync') { if (dictOn || jrPending) return; JR = a.rec || null; D.jongrye = JR; if (mode === 'jongrye') paintJrNote(true); }
+      else if (c.cmd === 'jongryesync') { if (dictOn || jrPending) return; JR = a.rec || null; D.jongrye = JR; if (mode === 'jongrye') paintJrNote(true); paintSum(); }
       else if (c.cmd === 'outsync') { if (outBox) pullOut(); }
       else if (c.cmd === 'chime') chime();
       else if (c.cmd === 'reload') location.reload();

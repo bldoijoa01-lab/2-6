@@ -2584,6 +2584,12 @@
       });
     }).catch(function () { clear(list); list.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요.' })); });
   }
+  function jrSummaryBlock(jr) {   // 요약이 있으면 글머리 요약을 먼저, 원문은 눌러서 펼침 (없으면 원문 그대로)
+    if (!(jr.summary && jr.summary.lines && jr.summary.lines.length)) return h('div', { class: 'jr-text', text: jr.text });
+    var raw = h('div', { class: 'jr-text', text: jr.text }), tg = h('button', { class: 'linkbtn', type: 'button', text: '원문 보기 ▾' });
+    raw.hidden = true; tg.addEventListener('click', function () { raw.hidden = !raw.hidden; tg.textContent = raw.hidden ? '원문 보기 ▾' : '원문 접기 ▴'; });
+    return h('div', null, [h('div', { class: 'jr-sumlabel', text: '📝 요약' }), h('ul', { class: 'jr-sum' }, jr.summary.lines.map(function (t) { return h('li', { text: t }); })), tg, raw]);
+  }
   function jongryeHomeCard() {
     var jr = DATA && DATA.jongrye;
     if (!jr || !jr.text) return null;
@@ -2591,7 +2597,7 @@
     var hist = h('button', { class: 'linkbtn', type: 'button', text: '지난 안내사항 보기 →' });
     hist.addEventListener('click', openJongryeHistory);
     return h('div', { class: 'card jr-card' }, [head('JONGRYE', '📣 오늘의 조회/종례 안내'), h('div', { class: 'card-b' }, [
-      h('div', { class: 'jr-text', text: jr.text }),
+      jrSummaryBlock(jr),
       meta ? h('div', { class: 'jr-meta', text: '작성: ' + meta }) : null,
       hist
     ])]);
@@ -2600,7 +2606,7 @@
     var jr = DATA && DATA.jongrye;
     var btn = h('button', { class: 'btn out', type: 'button', text: '📜 지난 조회/종례 안내 보기 (최근 30일)' });
     btn.addEventListener('click', openJongryeHistory);
-    var preview = jr && jr.text ? h('div', { class: 'jr-text', text: jr.text }) : h('div', { class: 'note-sm', text: '오늘 등록된 조회/종례 안내사항이 아직 없어요. 지난 기록을 확인할 수 있어요.' });
+    var preview = jr && jr.text ? jrSummaryBlock(jr) : h('div', { class: 'note-sm', text: '오늘 등록된 조회/종례 안내사항이 아직 없어요. 지난 기록을 확인할 수 있어요.' });
     return h('div', { class: 'card' }, [head('JONGRYE', '📣 조회/종례 안내사항'), h('div', { class: 'card-b' }, [preview, btn])]);
   }
   function jongryeAdminCard() {

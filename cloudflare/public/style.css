@@ -1212,3 +1212,11 @@ body.kiosk{overflow:hidden}
 .ks-jline{break-inside:auto; text-align:left}
 
 .ks-jinterim{opacity:.55}
+
+/* 안내 요약 배너 */
+.ks-sumbn{margin-bottom:1em; padding:1em 1.4em; border-radius:22px; border:2px solid rgba(255,224,138,.5); background:linear-gradient(135deg,rgba(255,224,138,.18),rgba(120,160,255,.16)); box-shadow:0 14px 36px rgba(0,0,0,.25)}
+.ks-sumh{display:flex; justify-content:space-between; align-items:baseline; color:#FFE08A; font-size:1.3em; margin-bottom:.35em} .ks-sumh small{font-size:.65em; opacity:.75; color:#fff}
+.ks-suml{margin:0; padding-left:1.2em; font-size:1.5em; font-weight:800; line-height:1.5; columns:2; column-gap:2em} .ks-suml li{break-inside:avoid}
+@media (max-width:900px){.ks-suml{columns:1}}
+
+.jr-sumlabel{font-weight:800; margin-bottom:.2em} .jr-sum{margin:0 0 .4em; padding-left:1.15em; line-height:1.6; font-weight:700}
