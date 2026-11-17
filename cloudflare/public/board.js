@@ -350,22 +350,22 @@
           var minY = MARGIN_Y + a.h / 2, maxY = ch - 40 - a.h / 2;
           var pen;
           if (a.x < minX) {
-            pen = minX - a.x; if (pen > 28) { a.x = minX - 28; pen = 28; }
-            a.vx += (pen * 28 - a.vx * 5.4) * dt;
-            a.sa = 'x'; a.sq = Math.max(a.sq || 0, Math.min(0.28, pen * 0.011));
+            pen = minX - a.x; if (pen > 46) { a.x = minX - 46; pen = 46; }
+            a.vx += (pen * 34 - a.vx * 2.2) * dt;
+            a.sa = 'x'; a.sq = Math.max(a.sq || 0, Math.min(0.24, pen * 0.006));
           } else if (a.x > maxX) {
-            pen = a.x - maxX; if (pen > 28) { a.x = maxX + 28; pen = 28; }
-            a.vx -= (pen * 28 + a.vx * 5.4) * dt;
-            a.sa = 'x'; a.sq = Math.max(a.sq || 0, Math.min(0.28, pen * 0.011));
+            pen = a.x - maxX; if (pen > 46) { a.x = maxX + 46; pen = 46; }
+            a.vx -= (pen * 34 + a.vx * 2.2) * dt;
+            a.sa = 'x'; a.sq = Math.max(a.sq || 0, Math.min(0.24, pen * 0.006));
           }
           if (a.y < minY) {
-            pen = minY - a.y; if (pen > 26) { a.y = minY - 26; pen = 26; }
-            a.vy += (pen * 26 - a.vy * 5.6) * dt;
-            a.sa = 'y'; a.sq = Math.max(a.sq || 0, Math.min(0.26, pen * 0.011));
+            pen = minY - a.y; if (pen > 42) { a.y = minY - 42; pen = 42; }
+            a.vy += (pen * 32 - a.vy * 2.4) * dt;
+            a.sa = 'y'; a.sq = Math.max(a.sq || 0, Math.min(0.22, pen * 0.006));
           } else if (a.y > maxY) {
-            pen = a.y - maxY; if (pen > 26) { a.y = maxY + 26; pen = 26; }
-            a.vy -= (pen * 26 + a.vy * 5.6) * dt;
-            a.sa = 'y'; a.sq = Math.max(a.sq || 0, Math.min(0.26, pen * 0.011));
+            pen = a.y - maxY; if (pen > 42) { a.y = maxY + 42; pen = 42; }
+            a.vy -= (pen * 32 + a.vy * 2.4) * dt;
+            a.sa = 'y'; a.sq = Math.max(a.sq || 0, Math.min(0.22, pen * 0.006));
           }
           for (j = 0; j < list.length; j++) {
             b = list[j]; if (b === a || b.drag) continue;
