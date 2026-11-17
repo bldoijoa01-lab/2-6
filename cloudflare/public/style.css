@@ -1191,3 +1191,5 @@ body.kiosk{overflow:hidden}
 .ks-btn.rec{background:#e0334a; color:#fff}
 .ks-dout{max-height:24vh; overflow:auto; font-size:1.35em; line-height:1.5; background:rgba(0,0,0,.18); border-radius:.8em; padding:.6em .9em; min-height:3em}
 .ks-dline{margin:.1em 0} .ks-dlive{opacity:.55}
+
+.ks-jtog{display:flex; gap:.5em; margin-bottom:.7em}

@@ -2657,8 +2657,8 @@
     function send(cmd, args, label) { return kapi('cmd', { cmd: cmd, args: args || {} }).then(function (j) { toast.textContent = j.ok ? '✅ ' + (label || '보냈어요') + ' (전자칠판에 2~3초 안에 반영)' : '⚠ 보내지 못했어요'; setTimeout(refresh, 3500); return j; }); }
     function btn(label, fn, cls) { var b = h('button', { class: 'btn out rc-b' + (cls ? ' ' + cls : ''), type: 'button', text: label }); b.addEventListener('click', fn); return b; }
     function sec(title, kids) { return h('div', { class: 'rc-sec' }, [h('b', { text: title }), h('div', { class: 'rc-row' }, kids)]); }
-    var MODES = [['today', '🏠 오늘'], ['clean', '🧹 청소'], ['jongrye', '📣 종례'], ['study', '📖 자습'], ['seat', '🪑 자리'], ['pick', '🎲 뽑기'], ['group', '👥 모둠']], modeBtns = {};
-    body.appendChild(status); body.appendChild(sec('화면 전환', MODES.map(function (m) { var b = btn(m[1], function () { send('mode', { m: m[0] }, m[1] + ' 화면'); }); modeBtns[m[0]] = b; return b; })));
+    var MODES = [['today', '🏠 오늘'], ['clean', '🧹 청소'], ['jongrye', '🌅 조회', 'jo'], ['jongrye', '📣 종례', 'jong'], ['study', '📖 자습'], ['seat', '🪑 자리'], ['pick', '🎲 뽑기'], ['group', '👥 모둠']], modeBtns = {};
+    body.appendChild(status); body.appendChild(sec('화면 전환', MODES.map(function (m) { var b = btn(m[1], function () { send('mode', { m: m[0], view: m[2] }, m[1] + ' 화면'); }); modeBtns[m[0] + (m[2] || '')] = b; return b; })));
     body.appendChild(sec('자리 바꾸기', [btn('🔀 자리 섞기', function () { send('seat', { action: 'shuffle' }, '자리 섞기'); }), btn('↺ 처음 배치', function () { send('seat', { action: 'reset' }, '처음 배치'); }), btn('🔢 번호순', function () { send('seat', { action: 'num' }, '번호순'); })]));
     var gn = h('input', { type: 'number', class: 'rc-in', min: '2', max: '10', value: '6', inputmode: 'numeric' });
     body.appendChild(sec('발표자 · 모둠', [btn('🎲 발표자 뽑기', function () { send('pick', { action: 'go' }, '발표자 뽑기'); }), btn('처음부터', function () { send('pick', { action: 'reset' }, '뽑기 초기화'); }), gn, h('span', { text: '모둠' }), btn('🔀 모둠 섞기', function () { send('group', { n: +gn.value || 6 }, '모둠 나누기'); })]));
@@ -2680,7 +2680,7 @@
     function loadClean() { fetch('/api/clean?days=1', { headers: { authorization: 'Bearer ' + tk() }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { done = (j.logs && j.logs[j.today]) || {}; paintClean(); }).catch(function () {}); }
     function paintLive(st) {
       clear(live); if (!st) return;
-      Object.keys(modeBtns).forEach(function (k) { modeBtns[k].classList.toggle('rc-on', st.mode === k); });
+      Object.keys(modeBtns).forEach(function (k) { modeBtns[k].classList.toggle('rc-on', k.indexOf(st.mode) === 0); });
       live.appendChild(h('div', { text: '화면: ' + ((MODES.filter(function (m) { return m[0] === st.mode; })[0] || ['', st.mode])[1]) + (st.alert ? ' · 공지 표시 중: ' + st.alert : '') }));
       if (st.pick) live.appendChild(h('div', { text: '🎲 ' + (st.pick.now ? '방금 뽑힌 사람: ' + st.pick.now : '아직 안 뽑았어요') + (st.pick.picked.length ? ' · 지금까지: ' + st.pick.picked.join(', ') : '') }));
       if (st.group && st.group.groups.length) st.group.groups.forEach(function (g, i) { live.appendChild(h('div', { class: 'rc-g', text: (i + 1) + '모둠: ' + g.join(', ') })); });
