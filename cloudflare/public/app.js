@@ -166,25 +166,27 @@
       var tName = t.getAttribute('data-tab');
       var on = tName === name;
       t.setAttribute('aria-selected', on ? 'true' : 'false');
-      var panel = document.getElementById('panel-' + tName);
-      if (panel) {
-        if (on) {
-          var wasHidden = panel.hidden;
-          panel.hidden = false;
-          if (wasHidden && BOOTED) animateSwap(panel, dir);   // 입장 모션이 끝난 뒤의 탭 전환만 (처음 진입은 입장 모션 하나)
-        } else {
-          panel.hidden = true;
-          panel.removeAttribute('data-dir');
-        }
-      }
       if (on) activeBtn = t;
+    });
+    Array.prototype.forEach.call(document.querySelectorAll('.panel'), function (panel) {
+      var on = panel.id === 'panel-' + name;
+      if (on) {
+        var wasHidden = panel.hidden;
+        panel.hidden = false;
+        if (wasHidden && BOOTED) animateSwap(panel, dir);
+      } else {
+        panel.hidden = true;
+        panel.removeAttribute('data-dir');
+      }
     });
     if (activeBtn) {
       syncPill(tabBox, activeBtn);
       if (activeBtn.scrollIntoView && !reduceMotion()) {
         try { activeBtn.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' }); } catch (e) {}
       }
-    }
+    } else if (tabBox) tabBox.removeAttribute('data-pill');
+    var whoBtn = document.getElementById('who');
+    if (whoBtn) whoBtn.classList.toggle('active', name === 'me');
     if (name === 'home' && DATA && DATA.me && DATA.me.role !== 'teacher') renderHome();   // 내신·선택과목 등 바뀐 값이 홈에도 바로 반영되게
     if (name === 'naesin') { applyNsSub(''); if (nsSub === 'grade') loadGrade(); else renderNaesin(); }
     if (name === 'me') renderMe();
@@ -206,6 +208,16 @@
   registerPill(tabBox, function () { return document.querySelector('.tab[aria-selected="true"]'); });
   if (nsSegBox) registerPill(nsSegBox, function () { return nsSegBox.querySelector('.seg-b[aria-pressed="true"]'); });
 
+  function setWho(text) {
+    var w = document.getElementById('who'), wt = document.getElementById('whoTxt');
+    if (wt) wt.textContent = text; else if (w) w.textContent = text;
+  }
+  (function () {
+    var w = document.getElementById('who');
+    if (w) w.addEventListener('click', function () {
+      if (DATA && DATA.me && DATA.me.role !== 'teacher') { selectTab('me'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
+    });
+  })();
   document.getElementById('logoutBtn').addEventListener('click', function () { store('tok26', null); store('gk26', null); store('pwlen26', null); store('gcscore26', null); store('pref26', null); location.hash = ''; location.reload(); });
 
   // ---------- 테마 ----------
@@ -262,10 +274,48 @@
     return out;
   }
 
+  function isCheckable(e) {
+    return !!(e && !e.calOnly && (e.link || e.check || /제출|신청|수요조사|설문|구글\s*폼/.test(e.title || '')));
+  }
+  function doneKey(e) { return (e.date ? 'ev:' + e.date + '|' : 'nt:') + (e.title || ''); }
+  function isDone(e) { var d = prefLoad().done; return !!(d && d[doneKey(e)]); }
+  function syncDoneUI() {
+    var d = prefLoad().done || {};
+    Array.prototype.forEach.call(document.querySelectorAll('.ev[data-done-key]'), function (row) {
+      var on = !!d[row.getAttribute('data-done-key')];
+      row.classList.toggle('is-done', on);
+      var lbl = row.querySelector('.ev-check');
+      if (lbl) {
+        lbl.classList.toggle('on', on);
+        var cb = lbl.querySelector('input'); if (cb) cb.checked = on;
+        var sp = lbl.querySelector('span'); if (sp) sp.textContent = on ? '제출·완료함' : '완료 체크';
+      }
+    });
+  }
+  function doneCheck(e, row) {
+    if (!isCheckable(e) || (DATA && DATA.me && DATA.me.role === 'teacher')) return null;
+    var k = doneKey(e), on = isDone(e);
+    if (row) { row.setAttribute('data-done-key', k); row.classList.toggle('is-done', on); }
+    var cb = h('input', { type: 'checkbox' }); cb.checked = on;
+    var txt = h('span', { text: on ? '제출·완료함' : '완료 체크' });
+    var lbl = h('label', { class: 'ev-check' + (on ? ' on' : '') }, [cb, txt]);
+    if (PREVIEW) cb.disabled = true;
+    cb.addEventListener('change', function () {
+      var p = prefLoad(); p.done = Object.assign({}, p.done || {});
+      if (cb.checked) p.done[k] = 1; else delete p.done[k];
+      prefSave(p);
+      syncDoneUI();
+    });
+    return lbl;
+  }
+
   function noticesCard() {
     var ns = DATA.notices || []; if (!ns.length) return null;
     return h('div', { class: 'card notice-card' }, [head('NOTICE', '공지'), h('div', { class: 'card-b' }, ns.map(function (n) {
-      return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: n.title }), n.text ? h('div', { class: 'ev-sub', text: n.text }) : null].concat(evExtras(n)))]);
+      var main = h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: n.title }), n.text ? h('div', { class: 'ev-sub', text: n.text }) : null].concat(evExtras(n)));
+      var row = h('div', { class: 'ev' }, [main]);
+      var ck = doneCheck(n, row); if (ck) main.appendChild(ck);
+      return row;
     }))]);
   }
 
@@ -462,6 +512,7 @@
     var bd0 = boardSlot(); if (bd0) p.appendChild(bd0);   // 수업 의견 (의견 받는 중일 때만)
     var pn0 = pushNudge(); if (pn0) p.appendChild(pn0);   // 알림 켜기 안내
     p.appendChild(dailyCard());   // 오늘의 알림장
+    var jhc = jongryeHomeCard(); if (jhc) p.appendChild(jhc);   // 오늘의 종례 안내사항
     if (!PREVIEW) {   // 쪽지 보내기 (눌러서 펼침 — 펼칠 때 받는 사람 목록을 불러옴)
       var mdet = h('details', { class: 'card el-card msg-det' }, [h('summary', { class: 'el-sum' }, [h('div', null, [h('div', { class: 'eyebrow', text: 'MESSAGE' }), h('h2', { text: '💌 쪽지 보내기' })]), h('span', { class: 'el-count', text: '친구에게' })])]), mfilled = false;
       function fillMsg() { if (mfilled || !mdet.open) return; mfilled = true; var c = msgComposer(); c.className = 'msg-inner'; var hd = c.querySelector('.card-h'); if (hd) hd.parentNode.removeChild(hd); mdet.appendChild(c); }
@@ -510,7 +561,10 @@
     // 다음 일정 미리보기
     var rows = others.slice(0, 3).map(function (e) {
       var d = diffDays(e.date, TODAY), when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
-      return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: e.title }), h('div', { class: 'ev-sub' }, [h('b', { text: when })])]), ddayBadge(e)]);
+      var main = h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title', text: e.title }), h('div', { class: 'ev-sub' }, [h('b', { text: when })])]);
+      var row = h('div', { class: 'ev' }, [main, ddayBadge(e)]);
+      var ck = doneCheck(e, row); if (ck) main.appendChild(ck);
+      return row;
     });
     var more = h('button', { class: 'linkbtn', type: 'button', text: '일정 전체 보기 →' });
     more.addEventListener('click', function () { goTab('today'); });
@@ -546,7 +600,10 @@
       listTitle.textContent = sel ? fmt(sel) : (month + 1) + '월 일정';
       var rows = shown.length ? shown.map(function (e) {
         var when = e.end ? fmt(e.date) + '~' + fmt(e.end) : fmt(e.date);
-        return h('div', { class: 'ev' }, [h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title' }, [e.title, myBadge(e)]), h('div', { class: 'ev-sub' }, [h('b', { text: when }), e.note ? ' · ' + e.note : ''])].concat(evExtras(e)).concat([myDelBtn(e), pinBtn(e)])), ddayBadge(e)]);
+        var main = h('div', { class: 'ev-main' }, [h('div', { class: 'ev-title' }, [e.title, myBadge(e)]), h('div', { class: 'ev-sub' }, [h('b', { text: when }), e.note ? ' · ' + e.note : ''])].concat(evExtras(e)).concat([myDelBtn(e), pinBtn(e)]));
+        var row = h('div', { class: 'ev' }, [main, ddayBadge(e)]);
+        var ck = doneCheck(e, row); if (ck) main.appendChild(ck);
+        return row;
       }) : [h('div', { class: 'empty', text: '이 날은 일정이 없어요.' })];
       rows.forEach(function (r) { listEvents.appendChild(r); });
       if (animate) animateSwap(listEvents, '');
@@ -797,7 +854,7 @@
       document.body.classList.remove('teacher'); document.body.classList.remove('admin'); document.body.classList.add('preview');
       var bar = document.getElementById('previewBar'); bar.hidden = false;
       document.getElementById('previewWho').textContent = '👀 ' + name + '(' + n + '번) 학생 화면 · 읽기 전용' + (sh ? ' · 성적 공유됨' : ' · 아직 공유 데이터 없음(학생이 한 번 로그인하면 생겨요)');
-      document.getElementById('who').textContent = name + ' · ' + n + '번';
+      setWho(name + ' · ' + n + '번');
       clear(document.getElementById('panel-exam'));
       renderMe(); renderNaesin(); renderMore(); renderHome(); renderToday(); renderExamJump(); renderTable(); renderMove(); renderCaution(); tagExamCards();
       selectTab('home'); window.scrollTo({ top: 0 });
@@ -815,7 +872,7 @@
     document.getElementById('previewBar').hidden = false;
     document.getElementById('previewWho').textContent = '👀 게스트 둘러보기 · 샘플 데이터 · 읽기 전용';
     document.getElementById('previewExit').textContent = '로그인하러 가기';
-    document.getElementById('who').textContent = '게스트';
+    setWho('게스트');
   }
   function enterGuest() {   // 게스트 둘러보기: 서버·계정 없이 샘플 데이터로 앱을 읽기 전용으로 체험
     if (!window.makeDemo) return;
@@ -828,7 +885,7 @@
     document.getElementById('previewBar').hidden = false;
     document.getElementById('previewWho').textContent = '👀 게스트 둘러보기 · 샘플 데이터 · 읽기 전용';
     document.getElementById('previewExit').textContent = '로그인하러 가기';
-    document.getElementById('who').textContent = '게스트';
+    setWho('게스트');
   }
   function enterGuest() {   // 게스트 둘러보기: 서버·계정 없이 샘플 데이터로 앱을 읽기 전용으로 체험
     if (!window.makeDemo) return;
@@ -841,7 +898,7 @@
     document.getElementById('previewBar').hidden = false;
     document.getElementById('previewWho').textContent = '👀 게스트 둘러보기 · 샘플 데이터 · 읽기 전용';
     document.getElementById('previewExit').textContent = '로그인하러 가기';
-    document.getElementById('who').textContent = '게스트';
+    setWho('게스트');
   }
   function exitPreview() {
     if (PREVIEW && PREVIEW.guest) { location.hash = ''; location.reload(); return; }
@@ -850,7 +907,7 @@
     PREVIEW = null; GC_STATE = GC ? 'dirty' : 'idle'; document.body.classList.remove('preview'); document.getElementById('previewBar').hidden = true;
     fetch('/api/data', { headers: { authorization: 'Bearer ' + load('tok26') }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (d) {
       DATA = d; document.body.classList.add('teacher');
-      document.getElementById('who').textContent = DATA.me.name + ' 선생님';
+      setWho(DATA.me.name + ' 선생님');
       renderMore(); renderToday(); renderTeacher(); selectTab('teacher'); window.scrollTo({ top: 0 });
     });
   }
@@ -1034,18 +1091,26 @@
       var u = URL.createObjectURL(bl), l = document.createElement('a'); l.href = u; l.download = name; document.body.appendChild(l); l.click(); l.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 4000);
     });
   }
+  var adminCache = null;
   function renderAdmin() {
     var p = document.getElementById('panel-admin'); if (!p || !DATA || !DATA.me.admin) return; clear(p);
-    var onlyNo = false, last = null;
-    var top = h('div', { class: 'card' }, [head('ADMIN', '관리자 대시보드'), h('div', { class: 'card-b' }, [h('div', { class: 'empty', text: '불러오는 중…' })])]);
-    var body = h('div'); p.appendChild(top); p.appendChild(body);
-    function load2() {
-      return aApi('overview').then(function (j) { if (!j._ok) throw new Error('x'); last = j; draw(); }).catch(function () { clear(top.lastChild); top.lastChild.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요. 다시 눌러 주세요.' })); });
+    var onlyNo = false, last = adminCache;
+    var skelGrid = h('div', { class: 'adm-skel-grid' }, [h('div', { class: 'adm-skel-box' }), h('div', { class: 'adm-skel-box' }), h('div', { class: 'adm-skel-box' }), h('div', { class: 'adm-skel-box' }), h('div', { class: 'adm-skel-box' })]);
+    var top = h('div', { class: 'card' }, [head('ADMIN', '관리자 대시보드'), h('div', { class: 'card-b' }, [skelGrid])]);
+    var body = h('div', { class: 'adm-fade' }, [h('div', { class: 'adm-skel-card' }), h('div', { class: 'adm-skel-card' })]);
+    p.appendChild(top); p.appendChild(body);
+    function load2(force) {
+      return aApi('overview').then(function (j) {
+        if (!j._ok) throw new Error('x');
+        var same = last && !force && last.students.length === j.students.length && last.submissions.length === j.submissions.length && last.uploads.length === j.uploads.length;
+        adminCache = last = j;
+        if (!same) draw(!force);
+      }).catch(function () { if (!last) { clear(top.lastChild); top.lastChild.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요. 다시 눌러 주세요.' })); clear(body); } });
     }
-    function draw() {
+    function draw(anim) {
       var j = last, S = j.students, cnt = function (f) { return S.filter(f).length; };
       var refresh = h('button', { class: 'linkbtn', type: 'button', text: '↻ 새로고침' });
-      refresh.addEventListener('click', function () { refresh.textContent = '불러오는 중…'; load2(); });
+      refresh.addEventListener('click', function () { refresh.textContent = '불러오는 중…'; load2(true); });
       var stat = function (l, v, s) { return h('div', { class: 'adm-stat' }, [h('small', { text: l }), h('b', { text: v }), s ? h('em', { text: s }) : null]); };
       var t = j.teachers[0];
       clear(top.lastChild);
@@ -1057,8 +1122,9 @@
         stat('선생님 로그인', t ? (t.loggedIn ? '완료' : '아직') : '-', t ? t.name : '')]));
       top.lastChild.appendChild(h('div', { class: 'note-sm', text: '관리자는 암호화된 성적·내신은 볼 수 없어요. 가입 여부, 공유 여부, 학생이 보낸 선택과목·파일만 보여요.  마지막 갱신 ' + new Date(j.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) }));
       top.lastChild.appendChild(refresh);
+      if (anim) animateSwap(top.lastChild, '');
       clear(body);
-      var bcc2 = boardControlCard(); if (bcc2) body.appendChild(bcc2); body.appendChild(remoteCard()); body.appendChild(cleanLogCard()); body.appendChild(outLogCard());   // 전자칠판 띄우기는 맨 위
+      var bcc2 = boardControlCard(); if (bcc2) body.appendChild(bcc2); body.appendChild(jongryeAdminCard()); body.appendChild(remoteCard()); body.appendChild(cleanLogCard()); body.appendChild(outLogCard());   // 전자칠판 띄우기는 맨 위
       var pnow = h('button', { class: 'btn out', type: 'button', text: '📣 지금 알림장 푸시 보내기 (테스트·재발송)' });
       pnow.addEventListener('click', function () { if (!confirm('알림을 켠 모든 학생에게 지금 오늘의 알림장을 보낼까요?')) return; pnow.disabled = true; aApi('push-now', {}).then(function (j) { pnow.disabled = false; alert(j._ok ? '보냄 ' + j.sent + '건 · 실패 ' + j.failed + '건 · 만료 정리 ' + j.gone + '건 · 건너뜀(보낼 내용 없음) ' + j.skipped + '명' : '실행하지 못했어요.'); }); });
       var reqOn = DATA.pushRequired !== false, reqSw = h('button', { class: 'sw' + (reqOn ? ' on' : ''), type: 'button', role: 'switch', 'aria-checked': reqOn ? 'true' : 'false', 'aria-label': '알림 필수' }, [h('i')]);
@@ -1107,7 +1173,8 @@
       }) : [h('div', { class: 'empty', text: '올라온 파일이 없어요.' })];
       body.appendChild(h('div', { class: 'card' }, [head('FILES', '올라온 명단 파일'), h('div', { class: 'card-b' }, ups)]));
     }
-    load2();
+    if (last) draw(false);
+    load2(!last);
   }
 
   // ---------- 교사 도구 ----------
@@ -1118,7 +1185,7 @@
   function renderTeacher() {
     var p = document.getElementById('panel-teacher'); clear(p);
     p.appendChild(h('div', { class: 'greet' }, [h('div', { class: 'greet-hi', text: DATA.me.name + ' 선생님, 안녕하세요 👋' }), h('div', { class: 'greet-s', text: DATA.className + ' 교사 도구' })]));
-    var bcc = boardControlCard(); if (bcc) p.appendChild(bcc); p.appendChild(remoteCard()); p.appendChild(cleanLogCard()); p.appendChild(outLogCard());   // 수업 의견 보드(전자칠판) — 선생님 화면 맨 위
+    var bcc = boardControlCard(); if (bcc) p.appendChild(bcc); p.appendChild(jongryeAdminCard()); p.appendChild(remoteCard()); p.appendChild(cleanLogCard()); p.appendChild(outLogCard());   // 수업 의견 보드(전자칠판) — 선생님 화면 맨 위
     p.appendChild(dailyCard());
     p.appendChild(msgComposer());
 
@@ -1312,6 +1379,7 @@
   function renderMore() {
     var p = document.getElementById('panel-more'); if (!p || !DATA) return; clear(p);
     if (!PREVIEW && DATA.me.role !== 'teacher') p.appendChild(pushCard());
+    p.appendChild(jongryeMoreCard());
     var clc = cleanCard(); if (clc) p.appendChild(clc);
     var about = DATA.about || {}, ups = (DATA.updates || []).slice().sort(function (x, y) { return x.date < y.date ? 1 : x.date > y.date ? -1 : 0; });
     p.appendChild(h('div', { class: 'card' }, [head('UPDATES', '업데이트 내역'), h('div', { class: 'card-b' },
@@ -2088,7 +2156,9 @@
       evExtras(e).forEach(function (x) { main.appendChild(x); });
       var dl = myDelBtn(e); if (dl) main.appendChild(dl);
       var pb = pinBtn(e); if (pb) main.appendChild(pb);
-      return h('div', { class: 'ev' }, [main, ddayBadge(e)]);
+      var row = h('div', { class: 'ev' }, [main, ddayBadge(e)]);
+      var ck = doneCheck(e, row); if (ck) main.appendChild(ck);
+      return row;
     }
 
     var body = [];
@@ -2459,8 +2529,8 @@
     var box = h('div', { class: 'card bd-compose' }), body = h('div', { class: 'card-b' });
     var ta = h('textarea', { class: 'field', rows: '2', maxlength: '80', placeholder: '내 의견을 짧게 써 보세요 (80자까지)' });
     var anon = h('input', { type: 'checkbox', id: 'bd-anon' }), cnt = h('small', { class: 'bd-cnt' }), msg = h('div', { class: 'bd-msg' }), send = h('button', { class: 'btn', type: 'button', text: '💬 전자칠판에 올리기' });
-    var mine = j.mine || 0, max = j.max || 8;
-    function paint() { cnt.textContent = '내가 올린 의견 ' + mine + ' / ' + max; send.disabled = mine >= max && !j.power; }
+    var mine = j.mine || 0, max = j.max || 0;
+    function paint() { cnt.textContent = max > 0 ? ('내가 올린 의견 ' + mine + ' / ' + max) : ('내가 올린 의견 ' + mine + '개 · 제한 없이 올릴 수 있어요'); send.disabled = max > 0 && mine >= max && !j.power; }
     paint();
     send.addEventListener('click', function () {
       var t = ta.value.trim(); if (!t) { msg.textContent = '내용을 써 주세요'; return; }
@@ -2486,6 +2556,96 @@
     var open = h('button', { class: 'btn', type: 'button', text: '🖥 전자칠판에 띄우기' }); open.addEventListener('click', function () { window.Board26.show({ power: true }); });
     var link = h('div', { class: 'note-sm', text: '전자칠판 컴퓨터에서 이 앱에 로그인한 뒤 "전자칠판에 띄우기"를 누르세요. 화면 위쪽에서 질문을 정하고 "받기 열기"를 누르면 학생 폰 홈에 의견 칸이 나타나요. 올라온 의견은 말풍선으로 떠올라요. 말풍선을 누르면 작성자 확인·삭제가 돼요.' });
     return h('div', { class: 'card' }, [head('CLASS BOARD', '💬 수업 의견 보드'), h('div', { class: 'card-b' }, [link, open])]);
+  }
+
+  // ---------- 오늘의 종례 안내사항 (관리자 실시간 입력 → 전자칠판 반영 + 학생 지난 종례 조회) ----------
+  function jongryeApi(body, qs) {
+    var tk = function () { try { return localStorage.getItem('tok26') || ''; } catch (e) { return ''; } };
+    return fetch('/api/jongrye' + (qs || ''), { method: body ? 'POST' : 'GET', headers: { authorization: 'Bearer ' + tk(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' }).then(function (r) { return r.json(); });
+  }
+  function openJongryeHistory() {
+    var ov = h('div', { class: 'jr-modal' }), card = h('div', { class: 'jr-mcard' });
+    var top = h('div', { class: 'jr-mtop' }, [h('h3', { text: '📣 종례 안내사항 기록' }), h('button', { class: 'linkbtn', type: 'button', text: '✕ 닫기' })]);
+    var list = h('div', { class: 'jr-mlist' }, [h('div', { class: 'adm-skel-card' })]);
+    top.lastChild.addEventListener('click', function () { ov.remove(); });
+    ov.addEventListener('click', function (ev) { if (ev.target === ov) ov.remove(); });
+    card.appendChild(top); card.appendChild(list); ov.appendChild(card); document.body.appendChild(ov);
+    jongryeApi(null, '?days=30').then(function (j) {
+      clear(list);
+      var logs = (j && j.logs) || {}, dates = Object.keys(logs).sort().reverse();
+      if (!dates.length) { list.appendChild(h('div', { class: 'empty', text: '아직 저장된 종례 기록이 없어요.' })); return; }
+      dates.forEach(function (iso) {
+        var r = logs[iso], isToday = iso === j.today;
+        var meta = (r.by ? r.by + ' · ' : '') + new Date(r.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' });
+        list.appendChild(h('div', { class: 'jr-item' + (isToday ? ' today' : '') }, [
+          h('div', { class: 'jr-item-h' }, [h('b', { text: (isToday ? '오늘 · ' : '') + fmt(iso) }), h('small', { text: meta })]),
+          h('div', { class: 'jr-text', text: r.text })
+        ]));
+      });
+    }).catch(function () { clear(list); list.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요.' })); });
+  }
+  function jongryeHomeCard() {
+    var jr = DATA && DATA.jongrye;
+    if (!jr || !jr.text) return null;
+    var meta = (jr.by ? jr.by + ' · ' : '') + (jr.at ? new Date(jr.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) : '');
+    var hist = h('button', { class: 'linkbtn', type: 'button', text: '지난 종례 보기 →' });
+    hist.addEventListener('click', openJongryeHistory);
+    return h('div', { class: 'card jr-card' }, [head('JONGRYE', '📣 오늘의 종례 안내'), h('div', { class: 'card-b' }, [
+      h('div', { class: 'jr-text', text: jr.text }),
+      meta ? h('div', { class: 'jr-meta', text: '작성: ' + meta }) : null,
+      hist
+    ])]);
+  }
+  function jongryeMoreCard() {
+    var jr = DATA && DATA.jongrye;
+    var btn = h('button', { class: 'btn out', type: 'button', text: '📜 지난 종례 보기 (최근 30일)' });
+    btn.addEventListener('click', openJongryeHistory);
+    var preview = jr && jr.text ? h('div', { class: 'jr-text', text: jr.text }) : h('div', { class: 'note-sm', text: '오늘 등록된 종례 안내사항이 아직 없어요. 지난 기록을 확인할 수 있어요.' });
+    return h('div', { class: 'card' }, [head('JONGRYE', '📣 종례 안내사항'), h('div', { class: 'card-b' }, [preview, btn])]);
+  }
+  function jongryeAdminCard() {
+    var ta = h('textarea', { class: 'field jr-ta', rows: '4', maxlength: '800', placeholder: '오늘의 종례 안내사항을 입력하세요.\n입력하는 대로 교실 전자칠판 종례 화면에 실시간 반영돼요!' });
+    ta.value = (DATA && DATA.jongrye && DATA.jongrye.text) || '';
+    var status = h('div', { class: 'note-sm jr-st', text: ta.value ? '✅ 현재 칠판에 반영됨' : '입력하면 0.35초 후 자동으로 전자칠판에 반영돼요' });
+    var showBtn = h('button', { class: 'btn out', type: 'button', text: '📣 칠판 종례 화면 띄우기' });
+    var clrBtn = h('button', { class: 'linkbtn', type: 'button', text: '내용 비우기' });
+    var histBtn = h('button', { class: 'linkbtn', type: 'button', text: '지난 종례 보기 →' });
+    var tmr = null, lastSent = ta.value, busy = false;
+    function sendNow(text) {
+      if (busy) return;
+      busy = true;
+      status.textContent = '📡 칠판에 반영 중…';
+      jongryeApi({ text: text }).then(function (j) {
+        busy = false;
+        if (j && j.ok) {
+          DATA.jongrye = j.rec || null;
+          lastSent = text;
+          if (ta.value !== lastSent) { sendNow(ta.value); return; }
+          var hm = new Date().toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' });
+          status.textContent = text.trim() ? '✅ 칠판에 실시간 반영됨 (' + hm + ')' : '🧹 종례 안내를 비웠어요';
+        } else status.textContent = '⚠ 반영하지 못했어요. 다시 시도해 주세요';
+      }).catch(function () { busy = false; status.textContent = '⚠ 연결 확인 중…'; });
+    }
+    ta.addEventListener('input', function () {
+      status.textContent = '✍ 입력 중…';
+      if (!tmr) {
+        tmr = setTimeout(function () { tmr = null; if (ta.value !== lastSent) sendNow(ta.value); }, 300);
+      }
+    });
+    showBtn.addEventListener('click', function () {
+      var tk = function () { try { return localStorage.getItem('tok26') || ''; } catch (e) { return ''; } };
+      fetch('/api/kiosk/cmd', { method: 'POST', headers: { authorization: 'Bearer ' + tk(), 'content-type': 'application/json' }, body: JSON.stringify({ cmd: 'mode', args: { m: 'jongrye' } }) })
+        .then(function (r) { return r.json(); }).then(function (j) { status.textContent = j.ok ? '📣 전자칠판을 종례 화면으로 전환했어요' : '⚠ 전환하지 못했어요'; }).catch(function () {});
+    });
+    clrBtn.addEventListener('click', function () { if (ta.value && confirm('오늘의 종례 안내사항을 지울까요?')) { clearTimeout(tmr); ta.value = ''; sendNow(''); } });
+    histBtn.addEventListener('click', openJongryeHistory);
+    jongryeApi(null, '?days=1').then(function (j) {
+      if (j && j.logs) {
+        var r = j.logs[j.today]; DATA.jongrye = r || null;
+        if (document.activeElement !== ta) { ta.value = (r && r.text) || ''; lastSent = ta.value; if (r && r.text) status.textContent = '✅ 현재 칠판에 반영됨'; }
+      }
+    }).catch(function () {});
+    return h('div', { class: 'card' }, [head('JONGRYE LIVE', '📣 오늘의 종례 안내 (실시간 칠판 연동)'), h('div', { class: 'card-b' }, [ta, status, h('div', { class: 'jr-btns' }, [showBtn, clrBtn, histBtn])])]);
   }
 
   // 전자칠판 리모컨: 관리자·교사 폰에서 교실 전자칠판을 원격으로 조작
@@ -2894,7 +3054,7 @@
     document.body.classList.add('enter'); setTimeout(function () { document.body.classList.remove('enter'); BOOTED = true; }, 1700);
     var who = document.getElementById('who'); who.hidden = false;
     var isT = DATA.me.role === 'teacher';
-    who.textContent = isT ? DATA.me.name + ' 선생님' : DATA.me.name + ' · ' + DATA.me.n + '번';
+    setWho(isT ? DATA.me.name + ' 선생님' : DATA.me.name + ' · ' + DATA.me.n + '번');
     document.body.classList.toggle('teacher', isT);
     document.body.classList.toggle('admin', !!DATA.me.admin);
     var d = new Date(TODAY);
@@ -2990,17 +3150,37 @@
     card([h('div', { class: 'login-brand' }, [logoSvg(), h('b', { text: '비밀번호 설정' })]), h('div', { class: 'login-sub', text: '반 코드 확인 완료! 나만의 비밀번호를 정하세요. 다음부터는 이 비밀번호로 입장해요. (잊어버리면 담당자에게 초기화 요청)' }), p1, p2, h('div', { class: 'note-sm', text: '4자리 숫자도 가능해요. 다만 짧을수록 남이 맞히기 쉽고, 내 점수 암호도 약해져요. 6자 이상을 권장해요.' }), btn, err]);
   }
 
+  var appLoaderEl = null;
+  function showAppLoader() {
+    if (appLoaderEl) return;
+    var card = h('div', { class: 'ld-card' }, [
+      h('div', { class: 'ld-orb' }, [logoSvg()]),
+      h('div', { class: 'ld-txt', text: '2-6 알림장 불러오는 중…' }),
+      h('div', { class: 'ld-bars' }, [h('div', { class: 'ld-bar' }), h('div', { class: 'ld-bar s' })])
+    ]);
+    appLoaderEl = h('div', { class: 'app-loader', 'aria-live': 'polite' }, [card]);
+    document.body.appendChild(appLoaderEl);
+  }
+  function hideAppLoader() {
+    if (!appLoaderEl) return;
+    var el = appLoaderEl; appLoaderEl = null;
+    el.classList.add('out');
+    setTimeout(function () { el.remove(); }, 360);
+  }
+
   function loadData() {
     var tok = load('tok26');
-    if (!tok) return showLogin();
+    if (!tok) { hideAppLoader(); return showLogin(); }
+    showAppLoader();
     fetch('/api/data', { headers: { authorization: 'Bearer ' + tok }, cache: 'no-store' })
       .then(function (r) {
-        if (r.status === 401) { store('tok26', null); showLogin('로그인이 만료됐어요. 다시 입장하세요.'); return null; }
+        if (r.status === 401) { store('tok26', null); hideAppLoader(); showLogin('로그인이 만료됐어요. 다시 입장하세요.'); return null; }
         if (!r.ok) throw new Error(r.status);
         return r.json();
       })
-      .then(function (d) { if (d) init(d); })
+      .then(function (d) { if (d) { hideAppLoader(); init(d); } })
       .catch(function () {
+        hideAppLoader();
         var p = document.getElementById('panel-today'); clear(p);
         p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, [
           h('div', { class: 'empty', text: '데이터를 못 불러왔어요. 잠시 후 다시 시도하세요.' })])]));

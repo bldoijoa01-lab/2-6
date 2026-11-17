@@ -129,34 +129,98 @@
       cdEl = el('b', 'ks-cd'); cdEnd = mins(endHM) * 60; var r = el('div', 'ks-banr'); r.appendChild(el('small', null, endLabel)); r.appendChild(cdEl); b.appendChild(r); return b;
     }
     // 청소 체크: 이름을 누르면 ✓ (오늘 날짜로 서버에 저장 → 선생님·관리자가 앱에서 기록 확인)
-    var CL = D.cleanlog || {}, chips = [], sumEl = null;
-    function api(method, body) { return fetch('/api/clean' + (method === 'GET' ? '' : ''), { method: method, headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' }).then(function (r) { return r.json(); }); }
+    var CL = D.cleanlog || {}, chips = [], sumEl = null, cleanSeq = 0, cleanBusy = 0, cleanChain = Promise.resolve();
+    function api(method, body) {
+      return fetch('/api/clean', { method: method, headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+    }
     function chk(name) {
       var b = el('button', 'ks-who'); b.type = 'button'; b.dataset.name = name; chips.push(b); paintChip(b);
       b.addEventListener('click', function () {
-        var done = !CL[name]; if (done) CL[name] = Date.now(); else delete CL[name]; paintChips();
-        api('POST', { name: name, done: done }).then(function (j) { if (j && j.log) { CL = j.log; paintChips(); } }).catch(function () { if (done) delete CL[name]; else CL[name] = 1; paintChips(); });
+        var now = Date.now();
+        if (now - (b._tap || 0) < 350) return;   // 전자칠판 터치 바운스(이중 클릭) 방지
+        b._tap = now;
+        var done = !CL[name], seq = ++cleanSeq;
+        if (done) CL[name] = now; else delete CL[name];
+        chips.forEach(function (c) { if (c.dataset.name === name) paintChip(c); });
+        paintSummary();
+        cleanBusy++;
+        cleanChain = cleanChain.then(function () { return api('POST', { name: name, done: done }); }).then(function (j) {
+          cleanBusy--;
+          if (seq === cleanSeq && j && j.log) { CL = j.log; paintChips(); }
+        }).catch(function () {
+          cleanBusy--;
+          if (seq === cleanSeq) {
+            if (done) delete CL[name]; else CL[name] = 1;
+            chips.forEach(function (c) { if (c.dataset.name === name) paintChip(c); });
+            paintSummary();
+          }
+        });
       }); return b;
     }
-    function paintChip(b) { var n = b.dataset.name, t = CL[n]; b.classList.toggle('done', !!t); clear(b); b.appendChild(el('span', 'ks-ck', t ? '✓' : '')); b.appendChild(document.createTextNode(n)); }
-    function paintChips() {
-      chips.forEach(paintChip); var all = {}; chips.forEach(function (b) { all[b.dataset.name] = 1; });
-      var tot = Object.keys(all).length, dn = Object.keys(all).filter(function (n) { return CL[n]; }).length;
-      if (sumEl) { sumEl.textContent = '✅ 청소 완료 ' + dn + ' / ' + tot + '명'; sumEl.classList.toggle('all', tot > 0 && dn === tot); }
+    function paintChip(b) {
+      var n = b.dataset.name, on = !!CL[n];
+      if (b._on === on && b.firstChild) return;
+      b._on = on;
+      b.classList.toggle('done', on);
+      if (!b.firstChild) { b.appendChild(el('span', 'ks-ck', on ? '✓' : '')); b.appendChild(document.createTextNode(n)); }
+      else { b.firstChild.textContent = on ? '✓' : ''; }
     }
-    function pullLog() { api('GET').then(function (j) { if (j && j.logs) { CL = j.logs[j.today] || {}; paintChips(); } }).catch(function () {}); }
+    var zoneCards = [];
+    function paintSummary() {
+      var all = {}; chips.forEach(function (b) { all[b.dataset.name] = 1; });
+      var tot = Object.keys(all).length, dn = Object.keys(all).filter(function (n) { return CL[n]; }).length;
+      if (sumEl) {
+        var pct = tot ? Math.round((dn / tot) * 100) : 0;
+        sumEl.firstChild.textContent = '✨ 청소 완료 ' + dn + ' / ' + tot + '명 (' + pct + '%)';
+        if (sumEl._bar) sumEl._bar.style.width = pct + '%';
+        sumEl.classList.toggle('all', tot > 0 && dn === tot);
+      }
+      zoneCards.forEach(function (z) {
+        var done = z.btns.length > 0 && z.btns.every(function (b) { return !!CL[b.dataset.name]; });
+        z.el.classList.toggle('zdone', done);
+      });
+    }
+    function paintChips() {
+      chips.forEach(paintChip);
+      paintSummary();
+    }
+    function pullLog() {
+      if (cleanBusy > 0) return;
+      var seq = cleanSeq;
+      api('GET').then(function (j) {
+        if (cleanBusy === 0 && seq === cleanSeq && j && j.logs) { CL = j.logs[j.today] || {}; paintChips(); }
+      }).catch(function () {});
+    }
     function paintClean() {
-      chips = []; var box = el('div', 'ks-cleanbox'), zs = cleanZones();
-      box.appendChild(banner('clean', '🧹', '청소 시간', SC.cs + ' ~ ' + SC.js + ' · 맡은 구역을 깨끗하게!', SC.js, '종례까지'));
+      chips = []; zoneCards = []; var box = el('div', 'ks-cleanbox'), zs = cleanZones();
+      box.appendChild(banner('clean', '🧹', '차분하게 청소 시간', SC.cs + ' ~ ' + SC.js + ' · 맡은 구역을 조용히 정리해요', SC.js, '종례까지'));
+      sumEl = el('div', 'ks-sumbar');
+      var sumTxt = el('div', 'ks-sumtxt', '✨ 청소 완료 0 / 0명 (0%)');
+      var prog = el('div', 'ks-cprog'), fill = el('div', 'ks-cprog-fill'); prog.appendChild(fill);
+      sumEl.appendChild(sumTxt); sumEl.appendChild(prog); sumEl._bar = fill;
       var grid = el('div', 'ks-zones');
       if (!zs) grid.appendChild(el('div', 'ks-empty big', '이번 달 청소배정표가 없어요. 학급 구역을 함께 정리해요 🧹'));
       else zs.forEach(function (z) {
-        var c = el('div', 'ks-zone'); c.appendChild(el('div', 'ks-zn', z.zone.replace(/\(\d+\)/g, '').trim())); if (z.note) c.appendChild(el('div', 'ks-zt', z.note));
-        (z.rows || []).forEach(function (r) { var row = el('div', 'ks-zr'); if (r.task) row.appendChild(el('span', 'ks-ztask', r.task.replace(/\(\d+\)/g, ''))); var zw = el('span', 'ks-zw'); r.who.forEach(function (nm) { zw.appendChild(chk(nm)); }); row.appendChild(zw); c.appendChild(row); if (r.handover) c.appendChild(el('div', 'ks-zh', '인수인계 ' + r.handover)); });
+        var c = el('div', 'ks-zone'), zBtns = [];
+        var hdr = el('div', 'ks-zhdr');
+        hdr.appendChild(el('div', 'ks-zn', z.zone.replace(/\(\d+\)/g, '').trim()));
+        hdr.appendChild(el('span', 'ks-zbadge', '✓ 완료'));
+        c.appendChild(hdr);
+        if (z.note) c.appendChild(el('div', 'ks-zt', z.note));
+        (z.rows || []).forEach(function (r) {
+          var row = el('div', 'ks-zr');
+          if (r.task) row.appendChild(el('span', 'ks-ztask', r.task.replace(/\(\d+\)/g, '')));
+          var zw = el('span', 'ks-zw');
+          r.who.forEach(function (nm) { var btn = chk(nm); zBtns.push(btn); zw.appendChild(btn); });
+          row.appendChild(zw); c.appendChild(row);
+          if (r.handover) c.appendChild(el('div', 'ks-zh', '인수인계 ' + r.handover));
+        });
+        zoneCards.push({ el: c, btns: zBtns });
         grid.appendChild(c);
       });
-      sumEl = el('div', 'ks-sum'); box.appendChild(sumEl); box.appendChild(grid); main.appendChild(box); paintChips(); pullLog();
-      var iv = setInterval(pullLog, 15000); cleanups.push(function () { clearInterval(iv); sumEl = null; chips = []; });
+      box.appendChild(sumEl); box.appendChild(grid); main.appendChild(box); paintChips(); pullLog();
+      var iv = setInterval(pullLog, 15000); cleanups.push(function () { clearInterval(iv); sumEl = null; chips = []; zoneCards = []; });
     }
     function tomorrowItems() {   // 종례 때 알려 줄 내일 일정
       var tm = new Date(kst().getTime() + 86400000), iso = isoOf(tm), out = [];
@@ -186,14 +250,40 @@
       cleanups.push(function () { stop(); dictText = []; });
       return c;
     }
+    // ---------- 종례 ----------
+    var JR = D.jongrye || null, jrBox = null;
+    function paintJrNote(flash) {
+      if (!jrBox) return; clear(jrBox);
+      var hdr = el('div', 'ks-jnote-h');
+      hdr.appendChild(el('span', null, '📣 오늘의 종례 안내사항'));
+      if (JR && JR.text) {
+        var meta = (JR.by ? JR.by + ' · ' : '') + (JR.at ? hm(JR.at) : '');
+        if (meta) hdr.appendChild(el('small', 'ks-jnote-m', meta));
+        jrBox.appendChild(hdr);
+        jrBox.appendChild(el('div', 'ks-jnote-t', JR.text));
+        jrBox.classList.remove('empty');
+      } else {
+        jrBox.appendChild(hdr);
+        jrBox.appendChild(el('div', 'ks-jnote-e', '관리자 화면에서 입력하면 실시간으로 여기에 떠요'));
+        jrBox.classList.add('empty');
+      }
+      if (flash) { jrBox.classList.remove('flash'); void jrBox.offsetWidth; jrBox.classList.add('flash'); }
+    }
+    function pullJongrye() {
+      fetch('/api/jongrye?days=1', { headers: { authorization: 'Bearer ' + tok() }, cache: 'no-store' })
+        .then(function (r) { return r.ok ? r.json() : null; })
+        .then(function (j) { if (j && j.logs) { JR = j.logs[j.today] || null; D.jongrye = JR; paintJrNote(); } })
+        .catch(function () {});
+    }
     function paintJongrye() {
       var box = el('div', 'ks-jbox');
       box.appendChild(banner('jong', '📣', '종례 시간', SC.js + ' ~ ' + SC.ee, SC.ee, '종례 끝까지'));
-      var hero = el('div', 'ks-hero'); hero.appendChild(el('div', 'ks-hero-e', '🪑')); hero.appendChild(el('div', 'ks-hero-t', SC.msg)); box.appendChild(hero);
+      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote();
       var cols = el('div', 'ks-jcols'), iso = isoOf(kst()), daily = (D.daily || {})[iso];
       var c1 = card('오늘의 알림장', '📒'), ul = el('ul', 'ks-list'); ((daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 없어요' }]).slice(0, 5).forEach(function (i) { var li = el('li'); li.appendChild(el('span', 'ks-k', KIND[i.k] || '📢')); li.appendChild(el('span', 'ks-t', i.t)); ul.appendChild(li); }); c1.appendChild(ul);
       var c2 = card('내일 챙길 것', '🎒'), tm = tomorrowItems(), ul2 = el('ul', 'ks-list'); (tm.length ? tm : ['내일 특별한 일정은 없어요']).forEach(function (t) { var li = el('li'); li.appendChild(el('span', 'ks-t', t)); ul2.appendChild(li); }); c2.appendChild(ul2);
       cols.appendChild(c1); cols.appendChild(c2); box.appendChild(cols); box.appendChild(paintDict()); main.appendChild(box);
+      pullJongrye();
     }
 
     // ---------- 자습 중 교실 이탈 ----------
@@ -374,7 +464,7 @@
     }
     function setMode(m) {
       if (m === 'board') { if (window.Board26) window.Board26.show({ power: true, onExit: function () { paintDock(); } }); return; }
-      cleanups.forEach(function (f) { f(); }); cleanups = []; KAPI = {}; resetTimers(); cdEl = null; mode = m; clear(main); main.scrollTop = 0; paintDock(); root.classList.toggle('ks-solid', m === 'clean' || m === 'jongrye' || m === 'study');
+      cleanups.forEach(function (f) { f(); }); cleanups = []; KAPI = {}; resetTimers(); cdEl = null; mode = m; clear(main); main.scrollTop = 0; paintDock(); root.classList.toggle('ks-solid', m === 'clean' || m === 'jongrye' || m === 'study'); root.classList.toggle('ks-cleanmode', m === 'clean');
       if (m === 'today') { todayEl = null; paintToday(); main.appendChild(todayEl); lastIdx = -2; tick(); }
       else if (m === 'clean') { paintClean(); tick(); } else if (m === 'jongrye') { paintJongrye(); tick(); } else if (m === 'study') { paintStudy(); tick(); } else if (m === 'seat') paintSeat();
       else if (m === 'pick') paintPick(); else if (m === 'group') paintGroup();
@@ -393,6 +483,7 @@
       else if (c.cmd === 'group') { if (mode !== 'group') setMode('group'); if (KAPI.group) KAPI.group.set(a.n); }
       else if (c.cmd === 'banner') showAlert(a.text ? String(a.text).slice(0, 120) : '');
       else if (c.cmd === 'cleansync') { if (mode === 'clean') pullLog(); else api('GET').then(function (j) { if (j && j.logs) CL = j.logs[j.today] || {}; }).catch(function () {}); }
+      else if (c.cmd === 'jongryesync') { JR = a.rec || null; D.jongrye = JR; if (mode === 'jongrye') paintJrNote(true); }
       else if (c.cmd === 'outsync') { if (outBox) pullOut(); }
       else if (c.cmd === 'chime') chime();
       else if (c.cmd === 'reload') location.reload();
@@ -405,7 +496,7 @@
       return st;
     }
     function rpoll() {
-      var hr = kst().getUTCHours(), delay = hr >= 7 && hr < 22 ? 3000 : 15000;
+      var hr = kst().getUTCHours(), delay = mode === 'jongrye' ? 800 : (hr >= 7 && hr < 22 ? 3000 : 15000);
       if (!rBusy) { rBusy = true;
         fetch('/api/kiosk/poll', { method: 'POST', headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: JSON.stringify({ since: rSince, state: remoteState() }), cache: 'no-store' })
           .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { rBusy = false; if (!j) return; rSince = j.last; (j.cmds || []).forEach(function (c) { try { runCmd(c); } catch (e) {} }); }).catch(function () { rBusy = false; });

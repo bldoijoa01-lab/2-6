@@ -163,7 +163,9 @@ async function saveDaily(env, b, who) {
 
 async function personalized(env, me) {
   const d = JSON.parse(await env.CLASS_KV.get('data') || '{}');
+  const iso0 = env.TODAY_OVERRIDE || kstISO();
   d.me = { n: me.n, name: me.name, role: me.role === 'teacher' ? 'teacher' : me.role === 'board' ? 'board' : 'student', admin: !!me.admin };
+  d.jongrye = JSON.parse(await env.CLASS_KV.get('jongrye:' + iso0) || 'null');
   if (me.role === 'board') {   // 전자칠판 계정: 개인 정보 없이 '교실에 띄워도 되는' 반 공통 정보만 (알림장·급식(조식 포함)·일정·시간표·청소표)
     const iso = env.TODAY_OVERRIDE || kstISO(), anon = { n: 0, name: '', dorm: false };
     d.events = (d.events || []).filter((e) => !Array.isArray(e.audience) && !e.dorm);
@@ -171,6 +173,12 @@ async function personalized(env, me) {
     const b = await dailyBundle(env, { ...d }, anon, iso, null, true, []);
     d.daily = { [iso]: b.daily }; d.today = { date: iso, meals: b.meals, tt: b.tt };
     d.cleanlog = JSON.parse(await env.CLASS_KV.get('cleanlog:' + iso) || '{}');
+    if (env.BOARD) {
+      const stub = env.BOARD.get(env.BOARD.idFromName('main'));
+      const dr = await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ op: 'clean_get', date: iso }) });
+      const dj = await dr.json().catch(() => null);
+      if (dj && dj.log) d.cleanlog = dj.log;
+    }
     return d;
   }
   d.special = (d.special || []).filter((x) => (x.members || []).includes(me.name)).map((x) => ({ ...x, members: [me.name] }));
@@ -212,14 +220,14 @@ async function saveOfficial(env, roster, rows) {
 
 
 // ---------- 수업 의견 보드 (Durable Object: 여러 학생이 동시에 올려도 순서·개수가 꼬이지 않게 한 곳에서 처리) ----------
-const BOARD_MAX = 8, BOARD_COLORS = 8;
+const BOARD_COLORS = 8;
 export class Board {
   constructor(state) { this.state = state; this.s = null; this.last = {}; }
   async load() { if (!this.s) this.s = (await this.state.storage.get('s')) || { open: false, topic: '', seq: 0, msgs: [], counts: {} }; return this.s; }
   async fetch(request) {
     const b = await request.json(), s = await this.load(), me = b.me || {}, power = !!(me.admin || me.role === 'teacher' || me.role === 'board');
     const view = () => ({
-      open: s.open, topic: s.topic, seq: s.seq, mine: s.counts[me.n] || 0, max: BOARD_MAX, power,
+      open: s.open, topic: s.topic, seq: s.seq, mine: s.counts[me.n] || 0, max: 0, power,
       msgs: s.msgs.map((m) => ({ id: m.id, text: m.text, name: m.anon ? '익명' : m.name, c: m.c, at: m.at, ...(power ? { by: m.name, anon: m.anon } : {}) })),
     });
     const out = (o, st = 200) => new Response(JSON.stringify(o), { status: st, headers: { 'content-type': 'application/json' } });
@@ -229,11 +237,10 @@ export class Board {
       const text = typeof b.text === 'string' ? b.text.replace(/\s+/g, ' ').trim().slice(0, 80) : '';
       if (!text) return out({ error: 'text' }, 400);
       const now = Date.now();
-      if (now - (this.last[me.n] || 0) < 4000) return out({ error: 'slow' }, 429);
-      if (!power && (s.counts[me.n] || 0) >= BOARD_MAX) return out({ error: 'max', ...view() }, 429);
+      if (now - (this.last[me.n] || 0) < 800) return out({ error: 'slow' }, 429);
       this.last[me.n] = now; s.seq++; s.counts[me.n] = (s.counts[me.n] || 0) + 1;
       s.msgs.push({ id: s.seq, n: me.n, name: me.name, text, anon: !!b.anon, c: s.seq % BOARD_COLORS, at: now });
-      if (s.msgs.length > 150) s.msgs.shift();
+      if (s.msgs.length > 500) s.msgs.shift();
       await this.state.storage.put('s', s);
       return out(view());
     }
@@ -251,7 +258,7 @@ export class Board {
     // ---- 전자칠판 원격 제어: 관리자·교사가 명령(kcmd)을 올리면 전자칠판이 주기적으로(kpoll) 가져가 실행하고 상태를 알려 줌 ----
     if (b.op === 'kcmd' || b.op === 'kpoll' || b.op === 'kstate') {
       if (!this.k) this.k = { id: 0, q: [], st: null, ts: 0 };
-      const k = this.k, ctl = !!(me.admin || me.role === 'teacher');
+      const k = this.k, ctl = !!(me.admin || me.role === 'teacher' || (me.role === 'board' && b.cmd === 'jongryesync'));
       if (b.op === 'kcmd') {
         if (!ctl) return out({ error: 'forbidden' }, 403);
         const cmd = String(b.cmd || '').slice(0, 20); if (!/^[a-z]+$/.test(cmd)) return out({ error: 'bad' }, 400);
@@ -266,6 +273,17 @@ export class Board {
       }
       if (!ctl) return out({ error: 'forbidden' }, 403);
       return out({ online: Date.now() - k.ts < 20000, state: k.st, age: k.ts ? Date.now() - k.ts : null });
+    }
+    if (b.op === 'clean_post') {
+      const key = 'clean:' + b.date;
+      const log = (await this.state.storage.get(key)) || b.fallback || {};
+      if (b.done) log[b.name] = Date.now(); else delete log[b.name];
+      await this.state.storage.put(key, log);
+      return out({ ok: true, date: b.date, log });
+    }
+    if (b.op === 'clean_get') {
+      const log = await this.state.storage.get('clean:' + b.date);
+      return out({ ok: true, log: log || null });
     }
     return out({ error: 'bad' }, 400);
   }
@@ -423,13 +441,29 @@ export default {
       if (request.method === 'POST') {
         const b = await request.json().catch(() => ({})), st = roster.find((x) => isStu(x) && x.name === b.name);
         if (!st) return json({ error: 'bad' }, 400);
-        const key = 'cleanlog:' + today, log = JSON.parse(await env.CLASS_KV.get(key) || '{}');
-        if (b.done) log[st.name] = Date.now(); else delete log[st.name];
-        await env.CLASS_KV.put(key, JSON.stringify(log), { expirationTtl: 90 * 86400 });
+        const key = 'cleanlog:' + today;
+        let log;
+        if (env.BOARD) {
+          const stub = env.BOARD.get(env.BOARD.idFromName('main'));
+          const fallback = JSON.parse(await env.CLASS_KV.get(key) || '{}');
+          const dr = await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ op: 'clean_post', date: today, name: st.name, done: !!b.done, fallback }) });
+          const dj = await dr.json(); log = dj.log || {};
+          await env.CLASS_KV.put(key, JSON.stringify(log), { expirationTtl: 90 * 86400 });
+        } else {
+          log = JSON.parse(await env.CLASS_KV.get(key) || '{}');
+          if (b.done) log[st.name] = Date.now(); else delete log[st.name];
+          await env.CLASS_KV.put(key, JSON.stringify(log), { expirationTtl: 90 * 86400 });
+        }
         return json({ ok: true, date: today, log });
       }
       const days = me0.role === 'board' ? 1 : Math.min(31, Math.max(1, parseInt(url.searchParams.get('days'), 10) || 14)), logs = {};
       for (let i = 0; i < days; i++) { const iso = addDaysISO(today, -i), l = JSON.parse(await env.CLASS_KV.get('cleanlog:' + iso) || 'null'); if (l && Object.keys(l).length) logs[iso] = l; }
+      if (env.BOARD) {
+        const stub = env.BOARD.get(env.BOARD.idFromName('main'));
+        const dr = await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ op: 'clean_get', date: today }) });
+        const dj = await dr.json();
+        if (dj && dj.log) { if (Object.keys(dj.log).length) logs[today] = dj.log; else delete logs[today]; }
+      }
       return json({ today, logs });
     }
     if (url.pathname === '/api/out' && (request.method === 'GET' || request.method === 'POST')) {   // 자습 중 교실 이탈 기록: 전자칠판·교사·관리자
@@ -454,6 +488,32 @@ export default {
       const days = me0.role === 'board' ? 1 : Math.min(31, Math.max(1, parseInt(url.searchParams.get('days'), 10) || 14)), logs = {};
       for (let i = 0; i < days; i++) { const iso = addDaysISO(today, -i), l = JSON.parse(await env.CLASS_KV.get('outlog:' + iso) || 'null'); if (l && l.length) logs[iso] = l; }
       return json({ today, logs, now: Date.now() });
+    }
+    if (url.pathname === '/api/jongrye' && (request.method === 'GET' || request.method === 'POST')) {   // 오늘·지난 종례 안내사항: 누구나 조회, 관리자·교사·전자칠판만 작성(실시간 칠판 반영)
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), me0 = roster.find((x) => x.n === tok.w);
+      if (!me0) return json({ error: 'unauthorized' }, 401);
+      const today = env.TODAY_OVERRIDE || kstISO();
+      if (request.method === 'POST') {
+        if (!(me0.role === 'teacher' || me0.role === 'board' || me0.admin)) return json({ error: 'forbidden' }, 403);
+        const b = await request.json().catch(() => ({}));
+        const date = typeof b.date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(b.date) ? b.date : today;
+        const text = String(b.text || '').replace(/\r\n/g, '\n').trim().slice(0, 800);
+        const key = 'jongrye:' + date;
+        let rec = null;
+        if (!text) await env.CLASS_KV.delete(key);
+        else { rec = { text, by: me0.name, at: Date.now() }; await env.CLASS_KV.put(key, JSON.stringify(rec), { expirationTtl: 180 * 86400 }); }
+        if (date === today && env.BOARD) {
+          const stub = env.BOARD.get(env.BOARD.idFromName('main'));
+          await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ op: 'kcmd', cmd: 'jongryesync', args: { date, rec }, me: { n: me0.n, name: me0.name, role: me0.role || 'student', admin: !!me0.admin } }) });
+        }
+        return json({ ok: true, today, date, rec });
+      }
+      const days = Math.min(45, Math.max(1, parseInt(url.searchParams.get('days'), 10) || 30)), logs = {};
+      for (let i = 0; i < days; i++) { const iso = addDaysISO(today, -i), r = JSON.parse(await env.CLASS_KV.get('jongrye:' + iso) || 'null'); if (r && r.text) logs[iso] = r; }
+      return json({ ok: true, today, logs });
     }
     if (url.pathname === '/api/pins' && request.method === 'POST') {   // 일정을 내 알림장에 담기/빼기
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
