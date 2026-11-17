@@ -151,9 +151,9 @@
       var rows = [];
       for (i = 0; i < list.length; i++) {
         var o = list[i];
-        if (o.pinned) {
-          o.tx = Math.max(MARGIN_X + o.w / 2, Math.min(S.w - rightPad - o.w / 2, o.tx));
-          o.ty = Math.max(MARGIN_Y + o.h / 2, o.ty);
+        if (o.free) {
+          o.x = Math.max(MARGIN_X + o.w / 2, Math.min(S.w - rightPad - o.w / 2, o.x));
+          o.y = Math.max(MARGIN_Y + o.h / 2, o.y);
           continue;
         }
         var placedRow = null;
@@ -200,7 +200,7 @@
       }
 
       var maxBottom = 0;
-      for (i = 0; i < list.length; i++) maxBottom = Math.max(maxBottom, list[i].ty + list[i].h / 2);
+      for (i = 0; i < list.length; i++) maxBottom = Math.max(maxBottom, (list[i].free ? list[i].y : list[i].ty) + list[i].h / 2);
       canvasH = list.length ? Math.max(S.h, Math.ceil(maxBottom + 84)) : S.h;
       canvas.style.height = canvasH + 'px';
       var scrollable = canvasH > S.h + 8;
@@ -249,7 +249,7 @@
         if (id !== null || (ev.button && ev.button !== 0) || ev.target.closest('.bd-sel')) return;
         id = ev.pointerId; try { b.setPointerCapture(id); } catch (e) {}
         var r = canvas.getBoundingClientRect(); ox = ev.clientX - r.left - o.x; oy = ev.clientY - r.top - o.y; sx = ev.clientX; sy = ev.clientY;
-        o.drag = true; o.pinned = false; o.freeTime = 0; o.rising = false; o.moved = false; o.sa = 'y'; o.sqv = 4.5; o.vx = 0; o.vy = 0; hist = [[performance.now(), ev.clientX, ev.clientY]]; b.classList.add('held'); kick();
+        o.drag = true; o.rising = false; o.moved = false; o.sa = 'y'; o.sqv = 4.5; o.vx = 0; o.vy = 0; hist = [[performance.now(), ev.clientX, ev.clientY]]; b.classList.add('held'); kick();
       });
       b.addEventListener('pointermove', function (ev) {
         if (ev.pointerId !== id) return;
@@ -263,16 +263,16 @@
       function release(ev) {
         if (ev.pointerId !== id) return; id = null; o.drag = false; b.classList.remove('held');
         var f = hist[0], l = hist[hist.length - 1], dt = Math.max(16, l[0] - f[0]) / 1000;
-        if (o.moved && hist.length > 1 && performance.now() - l[0] < 120) {
-          var vx = Math.max(-FLING, Math.min(FLING, (l[1] - f[1]) / dt)), vy = Math.max(-FLING, Math.min(FLING, (l[2] - f[2]) / dt));
-          if (Math.hypot(vx, vy) > 140) {
-            o.vx = vx; o.vy = vy; o.freeTime = 0.42; o.sa = Math.abs(vx) > Math.abs(vy) ? 'x' : 'y'; o.sqv = -4.5;
-          } else {
-            o.vx = vx * 0.3; o.vy = vy * 0.3; o.sqv = -3.5; reorderAndRelayout();
-          }
+        if (o.moved) {
+          o.free = true;
+          if (hist.length > 1 && performance.now() - l[0] < 120) {
+            o.vx = Math.max(-FLING, Math.min(FLING, (l[1] - f[1]) / dt));
+            o.vy = Math.max(-FLING, Math.min(FLING, (l[2] - f[2]) / dt));
+            if (Math.hypot(o.vx, o.vy) > 120) { o.sa = Math.abs(o.vx) > Math.abs(o.vy) ? 'x' : 'y'; o.sqv = -3.5; }
+          } else { o.vx = 0; o.vy = 0; o.sqv = -2.5; }
+          relayout(false);
         } else {
           o.vx = 0; o.vy = 0; o.sqv = -3.5;
-          if (o.moved) reorderAndRelayout();
         }
         kick();
       }
@@ -282,7 +282,7 @@
     function place(o, t) {
       var now = t || performance.now();
       var dist = Math.hypot((o.tx || 0) - o.x, (o.ty || 0) - o.y);
-      var calm = (o.drag || o.freeTime > 0 || reduce()) ? 0 : Math.max(0, 1 - dist / 40);
+      var calm = (o.drag || reduce()) ? 0 : (o.free ? Math.max(0, 1 - Math.hypot(o.vx, o.vy) / 60) : Math.max(0, 1 - dist / 40));
       var bobX = calm * Math.sin(now / 1500 + o.ph) * 2.2;
       var bobY = calm * Math.cos(now / 1200 + o.ph * 1.3) * 2.8;
       var bobRot = calm * Math.sin(now / 1800 + o.ph * 0.7) * 0.85;
@@ -318,7 +318,7 @@
       var dt = Math.min(0.05, Math.max(0.001, (t - lastT) / 1000)); lastT = t;
       step(dt, t);
       var busy = list.some(function (o) {
-        return o.drag || o.freeTime > 0 || Math.abs(o.vy) > 1.5 || Math.abs(o.vx) > 1.5 || Math.abs(o.tx - o.x) > 1.5 || Math.abs(o.ty - o.y) > 1.5 || Math.abs(o.sq) > 0.005 || Math.abs(o.sqv) > 0.02;
+        return o.drag || Math.abs(o.vy) > 1.5 || Math.abs(o.vx) > 1.5 || (!o.free && (Math.abs(o.tx - o.x) > 1.5 || Math.abs(o.ty - o.y) > 1.5)) || Math.abs(o.sq) > 0.005 || Math.abs(o.sqv) > 0.02;
       });
       if (busy || (list.length && !reduce())) raf = requestAnimationFrame(frame);
     }
@@ -341,49 +341,36 @@
           a.rot = (a.rot || 0) + (0 - (a.rot || 0)) * Math.min(1, dt * 14);
           continue;
         }
-        if (a.freeTime > 0) {
-          a.freeTime -= dt;
-          a.vx *= Math.max(0, 1 - 3.6 * dt); a.vy *= Math.max(0, 1 - 3.6 * dt);
+        if (a.free) {
+          a.vy -= 90 * dt;
+          a.vx -= a.vx * 2.5 * dt; a.vy -= a.vy * 2.6 * dt;
           a.x += a.vx * dt; a.y += a.vy * dt;
-          var rightWall = rail.hidden ? MARGIN_X : 56, hitWall = false;
-          var stickX = a.x, stickY = a.y;
-          if (a.x < MARGIN_X + a.w / 2) { spongeHit(a, 'x', a.vx); stickX = MARGIN_X + a.w / 2; a.x = stickX - 6; a.vx = 0; a.vy *= 0.5; hitWall = true; }
-          if (a.x > S.w - rightWall - a.w / 2) { spongeHit(a, 'x', a.vx); stickX = S.w - rightWall - a.w / 2; a.x = stickX + 6; a.vx = 0; a.vy *= 0.5; hitWall = true; }
-          if (a.y < MARGIN_Y + a.h / 2) { spongeHit(a, 'y', a.vy); stickY = MARGIN_Y + a.h / 2; a.y = stickY - 6; a.vy = 0; a.vx *= 0.5; hitWall = true; }
-          if (a.y > ch - 40 - a.h / 2) { spongeHit(a, 'y', a.vy); stickY = ch - 40 - a.h / 2; a.y = stickY + 6; a.vy = 0; a.vx *= 0.5; hitWall = true; }
-          if (hitWall) {
-            a.pinned = true; a.softReturn = true; a.freeTime = 0;
-            a.tx = Math.max(MARGIN_X + a.w / 2, Math.min(S.w - rightWall - a.w / 2, stickX));
-            a.ty = Math.max(MARGIN_Y + a.h / 2, Math.min(ch - 40 - a.h / 2, stickY));
-            continue;
-          }
+          var rightWall = rail.hidden ? MARGIN_X : 56;
+          if (a.x < MARGIN_X + a.w / 2) { if (a.vx < -35) spongeHit(a, 'x', a.vx); a.x = MARGIN_X + a.w / 2; if (a.vx < 0) a.vx = 0; }
+          if (a.x > S.w - rightWall - a.w / 2) { if (a.vx > 35) spongeHit(a, 'x', a.vx); a.x = S.w - rightWall - a.w / 2; if (a.vx > 0) a.vx = 0; }
+          if (a.y < MARGIN_Y + a.h / 2) { if (a.vy < -35) spongeHit(a, 'y', a.vy); a.y = MARGIN_Y + a.h / 2; if (a.vy < 0) a.vy = 0; }
+          if (a.y > ch - 40 - a.h / 2) { if (a.vy > 35) spongeHit(a, 'y', a.vy); a.y = ch - 40 - a.h / 2; if (a.vy > 0) a.vy = 0; }
           for (j = 0; j < list.length; j++) {
             b = list[j]; if (b === a || b.drag) continue;
             var dx0 = b.x - a.x, dy0 = b.y - a.y;
-            var ox = (a.w + b.w) / 2 + 8 - Math.abs(dx0), oy = (a.h + b.h) / 2 + 8 - Math.abs(dy0);
+            var ox = (a.w + b.w) / 2 + 10 - Math.abs(dx0), oy = (a.h + b.h) / 2 + 10 - Math.abs(dy0);
             if (ox > 0 && oy > 0) {
+              var share = b.free ? 0.35 : 0.65;
               if (ox < oy) {
-                var sg = dx0 >= 0 ? 1 : -1, vr = (b.vx - a.vx) * sg;
-                a.x -= sg * ox * 0.25; b.x += sg * ox * 0.25;
-                if (vr < -60) { var jh = -0.25 * vr * sg; a.vx -= jh; b.vx += jh * 0.45; hit(a, 'x', vr); hit(b, 'x', vr * 0.5); }
+                var sg = dx0 >= 0 ? 1 : -1;
+                a.x -= sg * ox * share; if (b.free) b.x += sg * ox * 0.35;
+                if (a.vx * sg > 0) a.vx *= 0.4;
               } else {
-                var sy0 = dy0 >= 0 ? 1 : -1, vn = (b.vy - a.vy) * sy0;
-                a.y -= sy0 * oy * 0.25; b.y += sy0 * oy * 0.25;
-                if (vn < -60) { var jv = -0.25 * vn * sy0; a.vy -= jv; b.vy += jv * 0.45; hit(a, 'y', vn); hit(b, 'y', vn * 0.5); }
+                var sy0 = dy0 >= 0 ? 1 : -1;
+                a.y -= sy0 * oy * share; if (b.free) b.y += sy0 * oy * 0.35;
+                if (a.vy * sy0 > 0) a.vy = 0;
               }
             }
           }
-          if (a.freeTime <= 0) { a.freeTime = 0; needRelayout = true; }
         } else {
           var dx = a.tx - a.x, dy = a.ty - a.y;
-          if (a.softReturn) {
-            a.vx += (dx * 9 - a.vx * 8.0) * dt;
-            a.vy += (dy * 9 - a.vy * 8.0) * dt;
-            if (Math.hypot(dx, dy) < 12) a.softReturn = false;
-          } else {
-            a.vx += (dx * 20 - a.vx * 9.0) * dt;
-            a.vy += (dy * 20 - a.vy * 9.0) * dt;
-          }
+          a.vx += (dx * 20 - a.vx * 9.0) * dt;
+          a.vy += (dy * 20 - a.vy * 9.0) * dt;
           if (draggedBubble) {
             var rx = a.x - draggedBubble.x, ry = a.y - draggedBubble.y;
             var needX = (a.w + draggedBubble.w) / 2 + 14, needY = (a.h + draggedBubble.h) / 2 + 14;
@@ -393,8 +380,8 @@
               else a.vy += (ry >= 0 ? 1 : -1) * py * 16 * dt;
             }
           }
-          var spd = Math.hypot(a.vx, a.vy), maxSpd = a.softReturn ? 200 : 560;
-          if (spd > maxSpd) { var sc = maxSpd / spd; a.vx *= sc; a.vy *= sc; }
+          var spd = Math.hypot(a.vx, a.vy);
+          if (spd > 560) { var sc = 560 / spd; a.vx *= sc; a.vy *= sc; }
           a.x += a.vx * dt; a.y += a.vy * dt;
           if (a.rising && Math.hypot(dx, dy) < 24) {
             a.rising = false; a.sa = 'y'; a.sqv = Math.min(3.0, Math.abs(a.vy) * 0.01);
