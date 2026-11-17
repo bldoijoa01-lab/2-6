@@ -270,9 +270,45 @@
       dictBadge = el('button', 'ks-recbadge', '🔴 받아쓰기 중 · 누르면 끝내기'); dictBadge.type = 'button'; dictBadge.addEventListener('click', function () { dictStop(); }); root.appendChild(dictBadge);
     }
     function dictStop(msg) {
-      dictOn = false; dictInterim = ''; dictMsg = msg || ''; if (dictRec) { try { dictRec.onend = null; dictRec.stop(); } catch (e) {} dictRec = null; } paintJrNote(); paintBadge();
+      dictOn = false; dictInterim = ''; dictMsg = msg || ''; aiStopAll(); if (dictRec) { try { dictRec.onend = null; dictRec.stop(); } catch (e) {} dictRec = null; } paintJrNote(); paintBadge();
+    }
+    // ---- 고정밀 받아쓰기(AI): 마이크 소리를 5~12초 조각으로 잘라 서버(Whisper)에 보내 글자로 받음. 무음 조각은 보내지 않음 ----
+    var aiStream = null, aiRec = null, aiCtx = null, aiQ = Promise.resolve(), aiTimer = 0, aiSeg = null;
+    function engine() { return load('ks_stt') === 'chrome' ? 'chrome' : 'ai'; }
+    function aiStopAll() { clearInterval(aiTimer); aiTimer = 0; try { if (aiRec && aiRec.state !== 'inactive') { aiSeg = null; aiRec.stop(); } } catch (e) {} aiRec = null; if (aiStream) { aiStream.getTracks().forEach(function (t) { t.stop(); }); aiStream = null; } if (aiCtx) { try { aiCtx.close(); } catch (e) {} aiCtx = null; } }
+    function aiUpload(blob) {
+      aiQ = aiQ.then(function () {
+        if (!dictOn) return; dictInterim = '🎧 인식 중…'; if (jrLive && jrLive.isConnected) jrLive.textContent = dictInterim;
+        return fetch('/api/stt', { method: 'POST', headers: { authorization: 'Bearer ' + tok(), 'content-type': blob.type || 'audio/webm' }, body: blob }).then(function (r) { return r.json().then(function (j) { j._st = r.status; return j; }); })
+          .then(function (j) { dictInterim = ''; if (jrLive && jrLive.isConnected) jrLive.textContent = ''; if (j && j.ok) { dictMsg = ''; if (j.text) dictAppend(j.text); } else if (j && (j.error === 'no_ai' || j.error === 'ai_fail')) { dictMsg = 'AI 받아쓰기를 쓸 수 없어요 → 기본(크롬) 방식으로 바꿔요'; store('ks_stt', 'chrome'); stopAiStartChrome(); } })
+          .catch(function () { dictInterim = ''; dictMsg = '연결이 불안정해요 · 자동으로 다시 시도 중'; paintJrNote(); });
+      });
+    }
+    function stopAiStartChrome() { aiStopAll(); if (dictOn) dictRun(); paintJrNote(); }
+    function aiRun() {
+      if (!navigator.mediaDevices || !window.MediaRecorder) { store('ks_stt', 'chrome'); dictMsg = '이 브라우저는 AI 받아쓰기를 지원하지 않아 기본 방식으로 바꿨어요'; dictRun(); return; }
+      navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }).then(function (stream) {
+        if (!dictOn) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
+        aiStream = stream; var C = window.AudioContext || window.webkitAudioContext; aiCtx = new C(); var an = aiCtx.createAnalyser(); an.fftSize = 1024; aiCtx.createMediaStreamSource(stream).connect(an); var data = new Uint8Array(an.fftSize);
+        var mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].filter(function (m) { return MediaRecorder.isTypeSupported(m); })[0] || '';
+        function startSeg() {
+          var chunks = [], rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined), seg = { t0: Date.now(), loud: 0, quietSince: 0, rec: rec }; aiSeg = seg; aiRec = rec;
+          rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
+          rec.onstop = function () { var loud = seg.loud; if (dictOn && aiStream) startSeg(); if (loud > 0.012 * 6 && chunks.length) aiUpload(new Blob(chunks, { type: rec.mimeType || 'audio/webm' })); };   // 말소리가 있었던 조각만 전송
+          rec.start();
+        }
+        aiTimer = setInterval(function () {   // 소리 크기 감시: 5초 이상 쌓였고 0.7초 이상 조용하면 그 자리에서 자름(말 중간을 덜 자르려고), 12초 넘으면 무조건 자름
+          if (!aiSeg) return; an.getByteTimeDomainData(data); var sum = 0; for (var i = 0; i < data.length; i++) { var v = (data[i] - 128) / 128; sum += v * v; } var rms = Math.sqrt(sum / data.length), now = Date.now();
+          if (rms > 0.012) { aiSeg.loud += rms; aiSeg.quietSince = 0; } else if (!aiSeg.quietSince) aiSeg.quietSince = now;
+          var age = now - aiSeg.t0;
+          if ((age > 5000 && aiSeg.quietSince && now - aiSeg.quietSince > 700) || age > 12000 || (age > 4000 && !aiSeg.loud && age > 8000)) { var r = aiSeg.rec; aiSeg = null; try { r.stop(); } catch (e) {} }
+          else if (!aiSeg.loud && age > 8000) { var r2 = aiSeg.rec; aiSeg = null; try { r2.stop(); } catch (e) {} }
+        }, 100);
+        startSeg();
+      }).catch(function () { dictStop('마이크 사용을 허용해 주세요 (주소창 왼쪽 자물쇠)'); });
     }
     function dictRun() {
+      if (engine() === 'ai') { aiRun(); return; }
       var SR = window.SpeechRecognition || window.webkitSpeechRecognition, r = new SR(); dictRec = r; r.lang = 'ko-KR'; r.continuous = true; r.interimResults = true; dictAt = Date.now();
       r.onresult = function (e) { var interim = ''; for (var i = e.resultIndex; i < e.results.length; i++) { var t = e.results[i][0].transcript; if (e.results[i].isFinal) { if (t.trim()) dictAppend(t.trim()); } else interim += t; } dictInterim = interim; if (jrLive && jrLive.isConnected) jrLive.textContent = interim; };
       r.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') dictStop('마이크 사용을 허용해 주세요 (주소창 왼쪽 자물쇠)'); else if (e.error === 'network' || e.error === 'audio-capture') { dictMsg = '연결이 불안정해요 (' + (e.error === 'network' ? '인터넷' : '마이크') + ') · 자동으로 다시 시도 중'; paintJrNote(); } };
@@ -294,6 +330,7 @@
       if (JR && JR.text) { var meta = (JR.by ? JR.by + ' · ' : '') + (JR.at ? hm(JR.at) : ''); if (meta) hdr.appendChild(el('small', 'ks-jnote-m', meta)); }
       var tools = el('span', 'ks-jtools');
       var mic = el('button', 'ks-chip' + (dictOn ? ' on rec' : ''), dictOn ? '🔴 듣는 중 · 끝내기' : '🎙 받아쓰기'); mic.type = 'button'; mic.addEventListener('click', dictToggle); tools.appendChild(mic);
+      var eng = el('button', 'ks-chip', engine() === 'ai' ? '🧠 AI 인식' : '🌐 기본 인식'); eng.type = 'button'; eng.title = '받아쓰기 방식 바꾸기'; eng.addEventListener('click', function () { store('ks_stt', engine() === 'ai' ? 'chrome' : 'ai'); var was = dictOn; if (was) { dictStop(); dictToggle(); } else paintJrNote(); }); tools.appendChild(eng);
       if (JR && JR.text) { var un = el('button', 'ks-chip', '↩ 마지막 문장 지우기'); un.type = 'button'; un.addEventListener('click', function () { if (dictSent.length) { dictSent.pop(); jrSet(dictText()); return; } var L = JR.text.split('\n'); L.pop(); dictBase = L.join('\n'); jrSet(dictBase); }); tools.appendChild(un);
         var all = el('button', 'ks-chip', '🗑 전체 지우기'), armed = null; all.type = 'button';
         all.addEventListener('click', function () { if (!armed) { all.textContent = '정말 지울까요? 한 번 더'; all.classList.add('rec'); armed = setTimeout(function () { armed = null; all.textContent = '🗑 전체 지우기'; all.classList.remove('rec'); }, 3000); return; } clearTimeout(armed); armed = null; dictBase = ''; dictSent = []; jrSet(''); });   // 실수 방지: 3초 안에 한 번 더 누르면 삭제

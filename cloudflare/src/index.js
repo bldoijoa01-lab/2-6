@@ -515,6 +515,23 @@ export default {
       for (let i = 0; i < days; i++) { const iso = addDaysISO(today, -i), r = JSON.parse(await env.CLASS_KV.get('jongrye:' + iso) || 'null'); if (r && r.text) logs[iso] = r; }
       return json({ ok: true, today, logs });
     }
+    if (url.pathname === '/api/stt' && request.method === 'POST') {   // 받아쓰기(고정밀): 전자칠판이 보낸 짧은 음성 조각 → 글자 (Workers AI Whisper). 소리는 저장하지 않음
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), me0 = roster.find((x) => x.n === tok.w);
+      if (!me0 || !(me0.role === 'board' || me0.role === 'teacher' || me0.admin)) return json({ error: 'forbidden' }, 403);
+      if (!env.AI) return json({ error: 'no_ai' }, 501);
+      const buf = new Uint8Array(await request.arrayBuffer());
+      if (buf.length < 1500 || buf.length > 1.6e6) return json({ error: 'size' }, 400);
+      try {
+        let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
+        const r = await env.AI.run('@cf/openai/whisper-large-v3-turbo', { audio: btoa(bin), language: 'ko', initial_prompt: '학교 종례·조회 안내입니다. 수행평가, 미적분, 기하, 영어, 시험 범위, 청소, 알림장, 준비물, 제출, 내일까지.' });
+        let text = String((r && r.text) || '').replace(/\s+/g, ' ').trim();
+        if (text.length < 25 && /^(감사합니다|시청해 ?주셔서 감사합니다|구독|좋아요|MBC|자막|한글자막|다음 영상)/.test(text)) text = '';   // 무음에서 Whisper가 지어내는 문구 제거
+        return json({ ok: true, text });
+      } catch (e) { return json({ error: 'ai_fail', msg: String(e && e.message || e).slice(0, 120) }, 502); }
+    }
     if (url.pathname === '/api/pins' && request.method === 'POST') {   // 일정을 내 알림장에 담기/빼기
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
       const tok = await verifyToken(env, auth, 'full');

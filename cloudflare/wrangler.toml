@@ -26,3 +26,6 @@ class_name = "Board"
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = ["Board"]
+
+[ai]
+binding = "AI"   # 받아쓰기(고정밀): Workers AI Whisper
