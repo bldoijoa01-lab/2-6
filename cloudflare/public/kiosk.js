@@ -129,21 +129,32 @@
       cdEl = el('b', 'ks-cd'); cdEnd = mins(endHM) * 60; var r = el('div', 'ks-banr'); r.appendChild(el('small', null, endLabel)); r.appendChild(cdEl); b.appendChild(r); return b;
     }
     // 청소 체크: 이름을 누르면 ✓ (오늘 날짜로 서버에 저장 → 선생님·관리자가 앱에서 기록 확인)
-    var CL = D.cleanlog || {}, chips = [], sumEl = null, cleanSeq = 0, cleanBusy = 0;
-    function api(method, body) { return fetch('/api/clean', { method: method, headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' }).then(function (r) { return r.json(); }); }
+    var CL = D.cleanlog || {}, chips = [], sumEl = null, cleanSeq = 0, cleanBusy = 0, cleanChain = Promise.resolve();
+    function api(method, body) {
+      return fetch('/api/clean', { method: method, headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' })
+        .then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); });
+    }
     function chk(name) {
       var b = el('button', 'ks-who'); b.type = 'button'; b.dataset.name = name; chips.push(b); paintChip(b);
       b.addEventListener('click', function () {
+        var now = Date.now();
+        if (now - (b._tap || 0) < 350) return;   // 전자칠판 터치 바운스(이중 클릭) 방지
+        b._tap = now;
         var done = !CL[name], seq = ++cleanSeq;
-        if (done) CL[name] = Date.now(); else delete CL[name];
-        paintChip(b); paintSummary();
+        if (done) CL[name] = now; else delete CL[name];
+        chips.forEach(function (c) { if (c.dataset.name === name) paintChip(c); });
+        paintSummary();
         cleanBusy++;
-        api('POST', { name: name, done: done }).then(function (j) {
+        cleanChain = cleanChain.then(function () { return api('POST', { name: name, done: done }); }).then(function (j) {
           cleanBusy--;
           if (seq === cleanSeq && j && j.log) { CL = j.log; paintChips(); }
         }).catch(function () {
           cleanBusy--;
-          if (seq === cleanSeq) { if (done) delete CL[name]; else CL[name] = 1; paintChip(b); paintSummary(); }
+          if (seq === cleanSeq) {
+            if (done) delete CL[name]; else CL[name] = 1;
+            chips.forEach(function (c) { if (c.dataset.name === name) paintChip(c); });
+            paintSummary();
+          }
         });
       }); return b;
     }

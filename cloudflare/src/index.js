@@ -173,6 +173,12 @@ async function personalized(env, me) {
     const b = await dailyBundle(env, { ...d }, anon, iso, null, true, []);
     d.daily = { [iso]: b.daily }; d.today = { date: iso, meals: b.meals, tt: b.tt };
     d.cleanlog = JSON.parse(await env.CLASS_KV.get('cleanlog:' + iso) || '{}');
+    if (env.BOARD) {
+      const stub = env.BOARD.get(env.BOARD.idFromName('main'));
+      const dr = await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ op: 'clean_get', date: iso }) });
+      const dj = await dr.json().catch(() => null);
+      if (dj && dj.log) d.cleanlog = dj.log;
+    }
     return d;
   }
   d.special = (d.special || []).filter((x) => (x.members || []).includes(me.name)).map((x) => ({ ...x, members: [me.name] }));
