@@ -34,7 +34,16 @@
     stageWrap.appendChild(stage); stageWrap.appendChild(rail);
     root.appendChild(top); root.appendChild(stageWrap); root.appendChild(empty); root.appendChild(nav);
 
-    var bubbles = {}, list = [], timer = null, state = { open: false, topic: '', msgs: [] }, alive = true, first = true, raf = 0, lastT = 0, selEl = null, selBubble = null, canvasH = 0;
+    var bubbles = {}, list = [], timer = null, state = { open: false, topic: '', msgs: [] }, alive = true, first = true, loaded = false, raf = 0, lastT = 0, selEl = null, selBubble = null, canvasH = 0;
+    var loader = el('div', 'bd-loading'), ldBubs = el('div', 'bd-ld-bubbles');
+    ldBubs.appendChild(el('div', 'bd-ld-b')); ldBubs.appendChild(el('div', 'bd-ld-b')); ldBubs.appendChild(el('div', 'bd-ld-b'));
+    loader.appendChild(ldBubs); loader.appendChild(el('div', 'bd-ld-t', '의견 불러오는 중…'));
+    root.appendChild(loader);
+    function hideLoader() {
+      if (loaded) return; loaded = true;
+      loader.classList.add('out');
+      setTimeout(function () { loader.remove(); }, 380);
+    }
 
     function size() { return { w: stage.clientWidth || window.innerWidth, h: stage.clientHeight || Math.round(window.innerHeight * 0.8) }; }
 
@@ -399,7 +408,7 @@
     function paintHead() {
       topic.textContent = state.topic || (power ? '질문을 정해 보세요 (⚙ 질문)' : '수업 의견을 올려 주세요');
       chip.textContent = state.open ? '🟢 의견 받는 중' : '⏸ 닫힘'; chip.className = 'bd-chip' + (state.open ? ' on' : '');
-      empty.style.display = list.length ? 'none' : 'flex';
+      empty.style.display = (loaded && !list.length) ? 'flex' : 'none';
       if (btnOpen) btnOpen.textContent = state.open ? '⏸ 받기 닫기' : '▶ 받기 열기';
     }
     function apply(j) {
@@ -425,7 +434,7 @@
     }
     var gone = {};   // MAXLIST 초과로 사라진 말풍선이 다음 폴링에서 되살아나지 않게
     var origPop = pop; pop = function (id) { gone[id] = 1; origPop(id); };
-    function poll() { return api('state').then(function (j) { if (!alive) return; if (j._ok) { root.classList.remove('off'); apply(j); } else root.classList.add('off'); }).catch(function () { root.classList.add('off'); }); }
+    function poll() { return api('state').then(function (j) { if (!alive) return; hideLoader(); if (j._ok) { root.classList.remove('off'); apply(j); } else { root.classList.add('off'); paintHead(); } }).catch(function () { hideLoader(); root.classList.add('off'); paintHead(); }); }
 
     var btnOpen = null;
     function tbtn(label, fn) { var b = el('button', 'bd-btn', label); b.type = 'button'; b.addEventListener('click', fn); tools.appendChild(b); return b; }

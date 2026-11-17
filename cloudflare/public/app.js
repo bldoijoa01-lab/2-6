@@ -3036,17 +3036,37 @@
     card([h('div', { class: 'login-brand' }, [logoSvg(), h('b', { text: '비밀번호 설정' })]), h('div', { class: 'login-sub', text: '반 코드 확인 완료! 나만의 비밀번호를 정하세요. 다음부터는 이 비밀번호로 입장해요. (잊어버리면 담당자에게 초기화 요청)' }), p1, p2, h('div', { class: 'note-sm', text: '4자리 숫자도 가능해요. 다만 짧을수록 남이 맞히기 쉽고, 내 점수 암호도 약해져요. 6자 이상을 권장해요.' }), btn, err]);
   }
 
+  var appLoaderEl = null;
+  function showAppLoader() {
+    if (appLoaderEl) return;
+    var card = h('div', { class: 'ld-card' }, [
+      h('div', { class: 'ld-orb' }, [logoSvg()]),
+      h('div', { class: 'ld-txt', text: '2-6 알림장 불러오는 중…' }),
+      h('div', { class: 'ld-bars' }, [h('div', { class: 'ld-bar' }), h('div', { class: 'ld-bar s' })])
+    ]);
+    appLoaderEl = h('div', { class: 'app-loader', 'aria-live': 'polite' }, [card]);
+    document.body.appendChild(appLoaderEl);
+  }
+  function hideAppLoader() {
+    if (!appLoaderEl) return;
+    var el = appLoaderEl; appLoaderEl = null;
+    el.classList.add('out');
+    setTimeout(function () { el.remove(); }, 360);
+  }
+
   function loadData() {
     var tok = load('tok26');
-    if (!tok) return showLogin();
+    if (!tok) { hideAppLoader(); return showLogin(); }
+    showAppLoader();
     fetch('/api/data', { headers: { authorization: 'Bearer ' + tok }, cache: 'no-store' })
       .then(function (r) {
-        if (r.status === 401) { store('tok26', null); showLogin('로그인이 만료됐어요. 다시 입장하세요.'); return null; }
+        if (r.status === 401) { store('tok26', null); hideAppLoader(); showLogin('로그인이 만료됐어요. 다시 입장하세요.'); return null; }
         if (!r.ok) throw new Error(r.status);
         return r.json();
       })
-      .then(function (d) { if (d) init(d); })
+      .then(function (d) { if (d) { hideAppLoader(); init(d); } })
       .catch(function () {
+        hideAppLoader();
         var p = document.getElementById('panel-today'); clear(p);
         p.appendChild(h('div', { class: 'card' }, [h('div', { class: 'card-b' }, [
           h('div', { class: 'empty', text: '데이터를 못 불러왔어요. 잠시 후 다시 시도하세요.' })])]));
