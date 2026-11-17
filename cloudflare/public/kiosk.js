@@ -139,24 +139,51 @@
       }); return b;
     }
     function paintChip(b) { var n = b.dataset.name, t = CL[n]; b.classList.toggle('done', !!t); clear(b); b.appendChild(el('span', 'ks-ck', t ? '✓' : '')); b.appendChild(document.createTextNode(n)); }
+    var zoneCards = [];
     function paintChips() {
       chips.forEach(paintChip); var all = {}; chips.forEach(function (b) { all[b.dataset.name] = 1; });
       var tot = Object.keys(all).length, dn = Object.keys(all).filter(function (n) { return CL[n]; }).length;
-      if (sumEl) { sumEl.textContent = '✅ 청소 완료 ' + dn + ' / ' + tot + '명'; sumEl.classList.toggle('all', tot > 0 && dn === tot); }
+      if (sumEl) {
+        var pct = tot ? Math.round((dn / tot) * 100) : 0;
+        sumEl.firstChild.textContent = '✨ 청소 완료 ' + dn + ' / ' + tot + '명 (' + pct + '%)';
+        if (sumEl._bar) sumEl._bar.style.width = pct + '%';
+        sumEl.classList.toggle('all', tot > 0 && dn === tot);
+      }
+      zoneCards.forEach(function (z) {
+        var done = z.btns.length > 0 && z.btns.every(function (b) { return !!CL[b.dataset.name]; });
+        z.el.classList.toggle('zdone', done);
+      });
     }
     function pullLog() { api('GET').then(function (j) { if (j && j.logs) { CL = j.logs[j.today] || {}; paintChips(); } }).catch(function () {}); }
     function paintClean() {
-      chips = []; var box = el('div', 'ks-cleanbox'), zs = cleanZones();
-      box.appendChild(banner('clean', '🧹', '청소 시간', SC.cs + ' ~ ' + SC.js + ' · 맡은 구역을 깨끗하게!', SC.js, '종례까지'));
+      chips = []; zoneCards = []; var box = el('div', 'ks-cleanbox'), zs = cleanZones();
+      box.appendChild(banner('clean', '🧹', '차분하게 청소 시간', SC.cs + ' ~ ' + SC.js + ' · 맡은 구역을 조용히 정리해요', SC.js, '종례까지'));
+      sumEl = el('div', 'ks-sumbar');
+      var sumTxt = el('div', 'ks-sumtxt', '✨ 청소 완료 0 / 0명 (0%)');
+      var prog = el('div', 'ks-cprog'), fill = el('div', 'ks-cprog-fill'); prog.appendChild(fill);
+      sumEl.appendChild(sumTxt); sumEl.appendChild(prog); sumEl._bar = fill;
       var grid = el('div', 'ks-zones');
       if (!zs) grid.appendChild(el('div', 'ks-empty big', '이번 달 청소배정표가 없어요. 학급 구역을 함께 정리해요 🧹'));
       else zs.forEach(function (z) {
-        var c = el('div', 'ks-zone'); c.appendChild(el('div', 'ks-zn', z.zone.replace(/\(\d+\)/g, '').trim())); if (z.note) c.appendChild(el('div', 'ks-zt', z.note));
-        (z.rows || []).forEach(function (r) { var row = el('div', 'ks-zr'); if (r.task) row.appendChild(el('span', 'ks-ztask', r.task.replace(/\(\d+\)/g, ''))); var zw = el('span', 'ks-zw'); r.who.forEach(function (nm) { zw.appendChild(chk(nm)); }); row.appendChild(zw); c.appendChild(row); if (r.handover) c.appendChild(el('div', 'ks-zh', '인수인계 ' + r.handover)); });
+        var c = el('div', 'ks-zone'), zBtns = [];
+        var hdr = el('div', 'ks-zhdr');
+        hdr.appendChild(el('div', 'ks-zn', z.zone.replace(/\(\d+\)/g, '').trim()));
+        hdr.appendChild(el('span', 'ks-zbadge', '✓ 완료'));
+        c.appendChild(hdr);
+        if (z.note) c.appendChild(el('div', 'ks-zt', z.note));
+        (z.rows || []).forEach(function (r) {
+          var row = el('div', 'ks-zr');
+          if (r.task) row.appendChild(el('span', 'ks-ztask', r.task.replace(/\(\d+\)/g, '')));
+          var zw = el('span', 'ks-zw');
+          r.who.forEach(function (nm) { var btn = chk(nm); zBtns.push(btn); zw.appendChild(btn); });
+          row.appendChild(zw); c.appendChild(row);
+          if (r.handover) c.appendChild(el('div', 'ks-zh', '인수인계 ' + r.handover));
+        });
+        zoneCards.push({ el: c, btns: zBtns });
         grid.appendChild(c);
       });
-      sumEl = el('div', 'ks-sum'); box.appendChild(sumEl); box.appendChild(grid); main.appendChild(box); paintChips(); pullLog();
-      var iv = setInterval(pullLog, 15000); cleanups.push(function () { clearInterval(iv); sumEl = null; chips = []; });
+      box.appendChild(sumEl); box.appendChild(grid); main.appendChild(box); paintChips(); pullLog();
+      var iv = setInterval(pullLog, 15000); cleanups.push(function () { clearInterval(iv); sumEl = null; chips = []; zoneCards = []; });
     }
     function tomorrowItems() {   // 종례 때 알려 줄 내일 일정
       var tm = new Date(kst().getTime() + 86400000), iso = isoOf(tm), out = [];
@@ -377,7 +404,7 @@
     }
     function setMode(m) {
       if (m === 'board') { if (window.Board26) window.Board26.show({ power: true, onExit: function () { paintDock(); } }); return; }
-      cleanups.forEach(function (f) { f(); }); cleanups = []; KAPI = {}; resetTimers(); cdEl = null; mode = m; clear(main); main.scrollTop = 0; paintDock(); root.classList.toggle('ks-solid', m === 'clean' || m === 'jongrye' || m === 'study');
+      cleanups.forEach(function (f) { f(); }); cleanups = []; KAPI = {}; resetTimers(); cdEl = null; mode = m; clear(main); main.scrollTop = 0; paintDock(); root.classList.toggle('ks-solid', m === 'clean' || m === 'jongrye' || m === 'study'); root.classList.toggle('ks-cleanmode', m === 'clean');
       if (m === 'today') { todayEl = null; paintToday(); main.appendChild(todayEl); lastIdx = -2; tick(); }
       else if (m === 'clean') { paintClean(); tick(); } else if (m === 'jongrye') { paintJongrye(); tick(); } else if (m === 'study') { paintStudy(); tick(); } else if (m === 'seat') paintSeat();
       else if (m === 'pick') paintPick(); else if (m === 'group') paintGroup();
