@@ -150,7 +150,13 @@
       var rightPad = 56, availW = Math.max(240, S.w - MARGIN_X - rightPad);
       var rows = [];
       for (i = 0; i < list.length; i++) {
-        var o = list[i], placedRow = null;
+        var o = list[i];
+        if (o.pinned) {
+          o.tx = Math.max(MARGIN_X + o.w / 2, Math.min(S.w - rightPad - o.w / 2, o.tx));
+          o.ty = Math.max(MARGIN_Y + o.h / 2, o.ty);
+          continue;
+        }
+        var placedRow = null;
         for (j = 0; j < rows.length; j++) {
           var r = rows[j];
           if (r.items.length === 0 || r.width + GAP_X + o.w <= availW) { placedRow = r; break; }
@@ -243,7 +249,7 @@
         if (id !== null || (ev.button && ev.button !== 0) || ev.target.closest('.bd-sel')) return;
         id = ev.pointerId; try { b.setPointerCapture(id); } catch (e) {}
         var r = canvas.getBoundingClientRect(); ox = ev.clientX - r.left - o.x; oy = ev.clientY - r.top - o.y; sx = ev.clientX; sy = ev.clientY;
-        o.drag = true; o.freeTime = 0; o.rising = false; o.moved = false; o.sa = 'y'; o.sqv = 4.5; o.vx = 0; o.vy = 0; hist = [[performance.now(), ev.clientX, ev.clientY]]; b.classList.add('held'); kick();
+        o.drag = true; o.pinned = false; o.freeTime = 0; o.rising = false; o.moved = false; o.sa = 'y'; o.sqv = 4.5; o.vx = 0; o.vy = 0; hist = [[performance.now(), ev.clientX, ev.clientY]]; b.classList.add('held'); kick();
       });
       b.addEventListener('pointermove', function (ev) {
         if (ev.pointerId !== id) return;
@@ -340,11 +346,17 @@
           a.vx *= Math.max(0, 1 - 3.6 * dt); a.vy *= Math.max(0, 1 - 3.6 * dt);
           a.x += a.vx * dt; a.y += a.vy * dt;
           var rightWall = rail.hidden ? MARGIN_X : 56, hitWall = false;
-          if (a.x < MARGIN_X + a.w / 2) { spongeHit(a, 'x', a.vx); a.x = MARGIN_X - 6 + a.w / 2; a.vx = 0; a.vy *= 0.65; hitWall = true; }
-          if (a.x > S.w - rightWall - a.w / 2) { spongeHit(a, 'x', a.vx); a.x = S.w - rightWall + 6 - a.w / 2; a.vx = 0; a.vy *= 0.65; hitWall = true; }
-          if (a.y < MARGIN_Y + a.h / 2) { spongeHit(a, 'y', a.vy); a.y = MARGIN_Y - 6 + a.h / 2; a.vy = 0; a.vx *= 0.65; hitWall = true; }
-          if (a.y > ch - 40 - a.h / 2) { spongeHit(a, 'y', a.vy); a.y = ch - 40 + 6 - a.h / 2; a.vy = 0; a.vx *= 0.65; hitWall = true; }
-          if (hitWall) { a.freeTime = Math.min(a.freeTime, 0.55); a.softReturn = true; }
+          var stickX = a.x, stickY = a.y;
+          if (a.x < MARGIN_X + a.w / 2) { spongeHit(a, 'x', a.vx); stickX = MARGIN_X + a.w / 2; a.x = stickX - 6; a.vx = 0; a.vy *= 0.5; hitWall = true; }
+          if (a.x > S.w - rightWall - a.w / 2) { spongeHit(a, 'x', a.vx); stickX = S.w - rightWall - a.w / 2; a.x = stickX + 6; a.vx = 0; a.vy *= 0.5; hitWall = true; }
+          if (a.y < MARGIN_Y + a.h / 2) { spongeHit(a, 'y', a.vy); stickY = MARGIN_Y + a.h / 2; a.y = stickY - 6; a.vy = 0; a.vx *= 0.5; hitWall = true; }
+          if (a.y > ch - 40 - a.h / 2) { spongeHit(a, 'y', a.vy); stickY = ch - 40 - a.h / 2; a.y = stickY + 6; a.vy = 0; a.vx *= 0.5; hitWall = true; }
+          if (hitWall) {
+            a.pinned = true; a.softReturn = true; a.freeTime = 0;
+            a.tx = Math.max(MARGIN_X + a.w / 2, Math.min(S.w - rightWall - a.w / 2, stickX));
+            a.ty = Math.max(MARGIN_Y + a.h / 2, Math.min(ch - 40 - a.h / 2, stickY));
+            continue;
+          }
           for (j = 0; j < list.length; j++) {
             b = list[j]; if (b === a || b.drag) continue;
             var dx0 = b.x - a.x, dy0 = b.y - a.y;
