@@ -12,11 +12,11 @@
   function toUTC(iso) { var p = iso.split('-'); return Date.UTC(+p[0], +p[1] - 1, +p[2]); }
   function pad(n) { return ('0' + n).slice(-2); }
   function beep(times) {                                                      // 타이머 종료음 (WebAudio)
-    try { var C = window.AudioContext || window.webkitAudioContext, a = new C(); for (var i = 0; i < (times || 3); i++) { (function (i) { var o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.value = 880; o.connect(g); g.connect(a.destination); var t = a.currentTime + i * 0.55; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.4, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45); o.start(t); o.stop(t + 0.5); })(i); } } catch (e) {}
+    try { var C = window.AudioContext || window.webkitAudioContext, a = new C(); for (var i = 0; i < (times || 3); i++) { (function (i) { var o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.value = 880; o.connect(g); g.connect(a.destination); var t = a.currentTime + i * 0.55; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.12, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45); o.start(t); o.stop(t + 0.5); })(i); } } catch (e) {}
   }
 
   function chime() {   // 딩동 (전환 알림)
-    try { var C = window.AudioContext || window.webkitAudioContext, a = new C(); [[660, 0], [523, 0.5]].forEach(function (n) { var o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.value = n[0]; o.connect(g); g.connect(a.destination); var t = a.currentTime + n[1]; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.35, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9); o.start(t); o.stop(t + 1); }); } catch (e) {}
+    try { var C = window.AudioContext || window.webkitAudioContext, a = new C(); [[660, 0], [523, 0.5]].forEach(function (n) { var o = a.createOscillator(), g = a.createGain(); o.type = 'sine'; o.frequency.value = n[0]; o.connect(g); g.connect(a.destination); var t = a.currentTime + n[1]; g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.1, t + 0.03); g.gain.exponentialRampToValueAtTime(0.0001, t + 0.9); o.start(t); o.stop(t + 1); }); } catch (e) {}
   }
   var SCHED_DEF = { cs: '16:10', js: '16:25', ee: '16:30', msg: '자리에 앉아 주세요', auto: true, chime: true, hs: '08:20', he: '08:30', smsg: '조용히 자습해요 🤫' };   // 청소 시작 · 종례 시작 · 끝 / 자습 시작·끝   // 청소 시작 · 종례 시작 · 끝
   function loadSched() { var s = {}; try { s = JSON.parse(load('ks_sched') || '{}'); } catch (e) {} var o = {}; Object.keys(SCHED_DEF).forEach(function (k) { o[k] = s[k] != null ? s[k] : SCHED_DEF[k]; }); return o; }
@@ -228,46 +228,53 @@
       (D.events || []).forEach(function (e) { if (e.calOnly) return; var s = e.date, en = e.end || e.date; if (s === iso) out.push('내일 ' + e.title + (e.note ? ' · ' + e.note.split(' · ')[0] : '')); else if (en === iso && en > s) out.push('내일 마감 · ' + e.title); });
       return out.slice(0, 6);
     }
-    // ---------- 받아쓰기 (시험용): 선생님 말씀을 글자로. 소리·글자 모두 저장하지 않음 ----------
-    var dictText = [], dictOn = false, dictRec = null;
-    function paintDict() {
-      var SR = window.SpeechRecognition || window.webkitSpeechRecognition, c = card('받아쓰기 (시험 중)', '🎙'), out = el('div', 'ks-dout'), live = el('span', 'ks-dlive'), st = el('div', 'ks-dst');
-      c.classList.add('ks-dict'); c.appendChild(el('div', 'ks-dnote', '선생님 말씀을 글자로 바꿔 보여 줘요. 소리는 저장되지 않고, 이 화면을 나가면 글자도 사라져요. 정확도를 알아보는 시험 기능이에요.'));
-      var row = el('div', 'ks-row left'), go = el('button', 'ks-btn', '🎙 시작'), clr = el('button', 'ks-btn', '지우기'), cp = el('button', 'ks-btn', '복사');
-      function draw() { clear(out); dictText.forEach(function (t) { out.appendChild(el('div', 'ks-dline', t)); }); live.textContent = ''; out.appendChild(live); out.scrollTop = out.scrollHeight; go.textContent = dictOn ? '⏹ 끝내기' : '🎙 시작'; go.classList.toggle('rec', dictOn); c.classList.toggle('on', dictOn); st.textContent = dictOn ? '🔴 듣는 중… 말씀하세요' : ''; }
-      function stop() { dictOn = false; if (dictRec) { try { dictRec.onend = null; dictRec.stop(); } catch (e) {} dictRec = null; } draw(); }
-      function begin() {
-        if (!SR) { st.textContent = '이 브라우저는 받아쓰기를 지원하지 않아요 (크롬을 써 주세요)'; return; }
-        dictOn = true; var r = new SR(); dictRec = r; r.lang = 'ko-KR'; r.continuous = true; r.interimResults = true;
-        r.onresult = function (e) { var interim = ''; for (var i = e.resultIndex; i < e.results.length; i++) { var t = e.results[i][0].transcript; if (e.results[i].isFinal) { if (t.trim()) dictText.push(t.trim()); } else interim += t; } if (out.isConnected) { clear(out); dictText.forEach(function (x) { out.appendChild(el('div', 'ks-dline', x)); }); live.textContent = interim; out.appendChild(live); out.scrollTop = out.scrollHeight; } };
-        r.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') { dictOn = false; st.textContent = '마이크 사용을 허용해 주세요 (주소창 왼쪽 자물쇠)'; } else if (e.error !== 'no-speech' && e.error !== 'aborted') st.textContent = '받아쓰기 오류: ' + e.error; };
-        r.onend = function () { if (dictOn) { try { r.start(); } catch (e) { setTimeout(function () { if (dictOn) { try { r.start(); } catch (e2) {} } }, 400); } } else draw(); };   // 크롬은 말이 없으면 끊기므로 계속 이어서 듣기
-        try { r.start(); } catch (e) {} draw();
-      }
-      go.addEventListener('click', function () { if (dictOn) stop(); else begin(); });
-      clr.addEventListener('click', function () { dictText = []; draw(); });
-      cp.addEventListener('click', function () { var t = dictText.join('\n'); try { navigator.clipboard.writeText(t); st.textContent = '복사했어요'; } catch (e) { st.textContent = '복사하지 못했어요'; } });
-      [go, clr, cp].forEach(function (x) { row.appendChild(x); }); c.appendChild(row); c.appendChild(st); c.appendChild(out); draw();
-      cleanups.push(function () { stop(); dictText = []; });
-      return c;
-    }
     // ---------- 종례 ----------
     var JR = D.jongrye || null, jrBox = null, jView = null;   // jView: 'jo'(조회) | 'jong'(종례), 비어 있으면 오전=조회 오후=종례
+    // 안내사항에 받아쓰기 통합: 🎙를 켜면 말씀이 글자로 안내사항 끝에 줄 단위로 쌓이고 바로 저장·학생 반영 (소리는 저장 안 함)
+    var dictOn = false, dictRec = null, dictInterim = '', dictMsg = '', dictFail = 0, dictAt = 0, jrPending = 0, jrQ = Promise.resolve(), jrLive = null;
+    function jrSave(text) {
+      jrPending++;
+      jrQ = jrQ.then(function () { return fetch('/api/jongrye', { method: 'POST', headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: JSON.stringify({ text: text }) }).then(function (r) { return r.json(); }); })
+        .then(function (j) { jrPending--; if (j && j.ok && jrPending === 0 && !dictOn) { JR = j.rec || null; D.jongrye = JR; paintJrNote(); } }).catch(function () { jrPending--; });
+    }
+    function jrSet(text) { JR = text ? { text: text, by: '받아쓰기', at: Date.now() } : null; D.jongrye = JR; paintJrNote(); jrSave(text); }
+    function dictAppend(line) {
+      var t = ((JR && JR.text) ? JR.text + '\n' : '') + line;
+      while (t.length > 800 && t.indexOf('\n') > -1) t = t.slice(t.indexOf('\n') + 1);
+      jrSet(t.slice(-800));
+    }
+    function dictStop(msg) {
+      dictOn = false; dictInterim = ''; dictMsg = msg || ''; if (dictRec) { try { dictRec.onend = null; dictRec.stop(); } catch (e) {} dictRec = null; } paintJrNote();
+    }
+    function dictRun() {
+      var SR = window.SpeechRecognition || window.webkitSpeechRecognition, r = new SR(); dictRec = r; r.lang = 'ko-KR'; r.continuous = true; r.interimResults = true; dictAt = Date.now();
+      r.onresult = function (e) { var interim = ''; for (var i = e.resultIndex; i < e.results.length; i++) { var t = e.results[i][0].transcript; if (e.results[i].isFinal) { if (t.trim()) dictAppend(t.trim()); } else interim += t; } dictInterim = interim; if (jrLive && jrLive.isConnected) jrLive.textContent = interim; };
+      r.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') dictStop('마이크 사용을 허용해 주세요 (주소창 왼쪽 자물쇠)'); else if (e.error === 'network' || e.error === 'audio-capture') dictStop('받아쓰기를 쓸 수 없어요 (' + (e.error === 'network' ? '인터넷 연결' : '마이크 연결') + '을 확인해 주세요)'); };
+      r.onend = function () {   // 크롬은 말이 없으면 끊김 → 다시 이어 듣되, 금방 계속 끊기면(소리 나는 기기에서 반복음 방지) 멈춤
+        if (!dictOn) return; var ran = Date.now() - dictAt; dictFail = ran < 4000 ? dictFail + 1 : 0;
+        if (dictFail >= 3) { dictStop('계속 끊겨서 받아쓰기를 멈췄어요. 다시 눌러 주세요'); return; }
+        setTimeout(function () { if (dictOn) { try { dictRun(); } catch (e2) { dictStop('받아쓰기를 시작하지 못했어요'); } } }, ran < 4000 ? 1500 : 400);
+      };
+      try { r.start(); } catch (e) { dictStop('받아쓰기를 시작하지 못했어요'); }
+    }
+    function dictToggle() {
+      if (dictOn) { dictStop(); return; }
+      if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) { dictMsg = '이 브라우저는 받아쓰기를 지원하지 않아요 (크롬을 써 주세요)'; paintJrNote(); return; }
+      dictOn = true; dictFail = 0; dictMsg = ''; dictRun(); paintJrNote();
+    }
     function paintJrNote(flash) {
-      if (!jrBox) return; clear(jrBox);
+      if (!jrBox) return; clear(jrBox); jrLive = null; jrBox.classList.toggle('rec', dictOn);
       var hdr = el('div', 'ks-jnote-h');
       hdr.appendChild(el('span', null, '📣 오늘의 안내사항'));
-      if (JR && JR.text) {
-        var meta = (JR.by ? JR.by + ' · ' : '') + (JR.at ? hm(JR.at) : '');
-        if (meta) hdr.appendChild(el('small', 'ks-jnote-m', meta));
-        jrBox.appendChild(hdr);
-        jrBox.appendChild(el('div', 'ks-jnote-t', JR.text));
-        jrBox.classList.remove('empty');
-      } else {
-        jrBox.appendChild(hdr);
-        jrBox.appendChild(el('div', 'ks-jnote-e', '관리자 화면에서 입력하면 실시간으로 여기에 떠요'));
-        jrBox.classList.add('empty');
-      }
+      if (JR && JR.text) { var meta = (JR.by ? JR.by + ' · ' : '') + (JR.at ? hm(JR.at) : ''); if (meta) hdr.appendChild(el('small', 'ks-jnote-m', meta)); }
+      var tools = el('span', 'ks-jtools');
+      var mic = el('button', 'ks-chip' + (dictOn ? ' on rec' : ''), dictOn ? '🔴 듣는 중 · 끝내기' : '🎙 받아쓰기'); mic.type = 'button'; mic.addEventListener('click', dictToggle); tools.appendChild(mic);
+      if (JR && JR.text) { var un = el('button', 'ks-chip', '↩ 마지막 줄 지우기'); un.type = 'button'; un.addEventListener('click', function () { var L = JR.text.split('\n'); L.pop(); jrSet(L.join('\n')); }); tools.appendChild(un); }
+      hdr.appendChild(tools); jrBox.appendChild(hdr);
+      if (dictMsg) jrBox.appendChild(el('div', 'ks-jnote-e', dictMsg));
+      if (JR && JR.text) { jrBox.appendChild(el('div', 'ks-jnote-t', JR.text)); jrBox.classList.remove('empty'); }
+      else { jrBox.appendChild(el('div', 'ks-jnote-e', '🎙를 눌러 말씀하시거나, 관리자 화면에서 입력하면 여기에 떠요')); jrBox.classList.add('empty'); }
+      if (dictOn) { jrLive = el('div', 'ks-jlive', dictInterim); jrBox.appendChild(jrLive); }
       if (flash) { jrBox.classList.remove('flash'); void jrBox.offsetWidth; jrBox.classList.add('flash'); }
     }
     function pullJongrye() {
@@ -281,7 +288,7 @@
       var tg = el('div', 'ks-jtog'); [['jo', '🌅 조회'], ['jong', '📣 종례']].forEach(function (x) { var b = el('button', 'ks-chip' + (jv === x[0] ? ' on' : ''), x[1]); b.type = 'button'; b.addEventListener('click', function () { if (jv !== x[0]) { jView = x[0]; setMode('jongrye'); } }); tg.appendChild(b); }); box.appendChild(tg);
       if (jo) box.appendChild(banner('jong', '🌅', '조회 시간', SC.hs + ' ~ ' + SC.he, SC.he, '조회 끝까지'));
       else box.appendChild(banner('jong', '📣', '종례 시간', SC.js + ' ~ ' + SC.ee, SC.ee, '종례 끝까지'));
-      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote();
+      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { dictStop(); jrBox = null; });
       var cols = el('div', 'ks-jcols'), iso = isoOf(kst()), daily = (D.daily || {})[iso];
       var c1 = card('오늘의 알림장', '📒'), ul = el('ul', 'ks-list'); ((daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 없어요' }]).slice(0, 5).forEach(function (i) { var li = el('li'); li.appendChild(el('span', 'ks-k', KIND[i.k] || '📢')); li.appendChild(el('span', 'ks-t', i.t)); ul.appendChild(li); }); c1.appendChild(ul);
       var c2, ul2 = el('ul', 'ks-list');
@@ -292,7 +299,7 @@
       } else {
         c2 = card('내일 챙길 것', '🎒'); var tm = tomorrowItems(); (tm.length ? tm : ['내일 특별한 일정은 없어요']).forEach(function (t) { var li = el('li'); li.appendChild(el('span', 'ks-t', t)); ul2.appendChild(li); }); c2.appendChild(ul2);
       }
-      cols.appendChild(c1); cols.appendChild(c2); box.appendChild(cols); box.appendChild(paintDict()); main.appendChild(box);
+      cols.appendChild(c1); cols.appendChild(c2); box.appendChild(cols); main.appendChild(box);
       pullJongrye();
     }
 
@@ -494,7 +501,7 @@
       else if (c.cmd === 'group') { if (mode !== 'group') setMode('group'); if (KAPI.group) KAPI.group.set(a.n); }
       else if (c.cmd === 'banner') showAlert(a.text ? String(a.text).slice(0, 120) : '');
       else if (c.cmd === 'cleansync') { if (mode === 'clean') pullLog(); else api('GET').then(function (j) { if (j && j.logs) CL = j.logs[j.today] || {}; }).catch(function () {}); }
-      else if (c.cmd === 'jongryesync') { JR = a.rec || null; D.jongrye = JR; if (mode === 'jongrye') paintJrNote(true); }
+      else if (c.cmd === 'jongryesync') { if (dictOn || jrPending) return; JR = a.rec || null; D.jongrye = JR; if (mode === 'jongrye') paintJrNote(true); }
       else if (c.cmd === 'outsync') { if (outBox) pullOut(); }
       else if (c.cmd === 'chime') chime();
       else if (c.cmd === 'reload') location.reload();
