@@ -1210,3 +1210,5 @@ body.kiosk{overflow:hidden}
 .ks-jtog .ks-endbtn{margin-left:auto; background:#2fbf71; border-color:#2fbf71; color:#05301a; font-weight:900; padding:.55em 1.3em; font-size:1.1em}
 
 .ks-jline{break-inside:auto; text-align:left}
+
+.ks-jinterim{opacity:.55}

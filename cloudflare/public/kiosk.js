@@ -323,7 +323,8 @@
     function dictRun() {
       if (engine() === 'ai') { aiRun(); return; }
       var SR = window.SpeechRecognition || window.webkitSpeechRecognition, r = new SR(); dictRec = r; r.lang = 'ko-KR'; r.continuous = true; r.interimResults = true; dictAt = Date.now();
-      r.onresult = function (e) { var interim = ''; for (var i = e.resultIndex; i < e.results.length; i++) { var t = e.results[i][0].transcript; if (e.results[i].isFinal) { if (t.trim()) dictAppend(t.trim()); } else interim += t; } dictInterim = interim; if (jrLive && jrLive.isConnected) jrLive.textContent = interim; };
+      r.onresult = function (e) { var interim = ''; for (var i = e.resultIndex; i < e.results.length; i++) { var t = e.results[i][0].transcript; if (e.results[i].isFinal) { if (t.trim()) dictAppend(t.trim()); } else interim += t; } dictInterim = interim; paintJrNote(); };   // 말하는 대로 흐린 글자가 바로 문단 끝에 이어 보이고, 확정되면 진해짐
+      r.onspeechstart = function () { if (jrLive && jrLive.isConnected && !dictInterim) jrLive.textContent = '🎙 듣는 중 ●●●'; };
       r.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') dictStop('마이크 사용을 허용해 주세요 (주소창 왼쪽 자물쇠)'); else if (e.error === 'network' || e.error === 'audio-capture') { dictMsg = '연결이 불안정해요 (' + (e.error === 'network' ? '인터넷' : '마이크') + ') · 자동으로 다시 시도 중'; paintJrNote(); } };
       r.onend = function () {   // 크롬은 말이 없으면 끊김 → 다시 이어 듣되, 금방 계속 끊기면(소리 나는 기기에서 반복음 방지) 멈춤
         if (!dictOn) return; var ran = Date.now() - dictAt; dictFail = ran < 4000 ? Math.min(dictFail + 1, 6) : 0;   // 끄기 전까지는 계속 이어 듣되, 자꾸 끊기면 간격을 늘려 반복음을 줄임
@@ -350,9 +351,15 @@
         tools.appendChild(all); }
       hdr.appendChild(tools); jrBox.appendChild(hdr);
       if (dictMsg) jrBox.appendChild(el('div', 'ks-jnote-e', dictMsg));
-      if (JR && JR.text) { var nt = el('div', 'ks-jnote-t'); JR.text.split('\n').forEach(function (ln) { if (ln.trim()) nt.appendChild(el('div', 'ks-jline', ln)); }); jrBox.appendChild(nt); jrBox.classList.remove('empty'); if (jrBox.isConnected) fitNote(nt); }
-      else { jrBox.appendChild(el('div', 'ks-jnote-e', '🎙를 눌러 말씀하시거나, 관리자 화면에서 입력하면 여기에 떠요')); jrBox.classList.add('empty'); }
-      if (dictOn) { jrLive = el('div', 'ks-jlive', dictInterim); jrBox.appendChild(jrLive); }
+      var liveTxt = dictOn && dictInterim && engine() === 'chrome' ? dictInterim : '';   // 기본(크롬) 인식: 말하는 중인 글자를 바로 이어서 보여 줌
+      if ((JR && JR.text) || liveTxt) {
+        var nt = el('div', 'ks-jnote-t'), lines = ((JR && JR.text) || '').split('\n').filter(function (x) { return x.trim(); }), lastEl = null;
+        lines.forEach(function (ln) { lastEl = el('div', 'ks-jline', ln); nt.appendChild(lastEl); });
+        if (liveTxt) { var host = (dictSent.length && lastEl) ? lastEl : nt.appendChild(el('div', 'ks-jline')); host.appendChild(el('span', 'ks-jinterim', (host.textContent ? ' ' : '') + liveTxt)); }
+        jrBox.appendChild(nt); jrBox.classList.remove('empty'); if (jrBox.isConnected) fitNote(nt);
+      }
+      else if (!liveTxt) { jrBox.appendChild(el('div', 'ks-jnote-e', '🎙를 눌러 말씀하시거나, 관리자 화면에서 입력하면 여기에 떠요')); jrBox.classList.add('empty'); }
+      if (dictOn) { jrLive = el('div', 'ks-jlive', engine() === 'ai' ? dictInterim : ''); jrBox.appendChild(jrLive); }
       if (flash) { jrBox.classList.remove('flash'); void jrBox.offsetWidth; jrBox.classList.add('flash'); }
     }
     function pullJongrye() {
