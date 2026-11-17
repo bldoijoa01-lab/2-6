@@ -250,8 +250,8 @@
         var f = hist[0], l = hist[hist.length - 1], dt = Math.max(16, l[0] - f[0]) / 1000;
         if (o.moved && hist.length > 1 && performance.now() - l[0] < 120) {
           var vx = Math.max(-FLING, Math.min(FLING, (l[1] - f[1]) / dt)), vy = Math.max(-FLING, Math.min(FLING, (l[2] - f[2]) / dt));
-          if (Math.hypot(vx, vy) > 260) {
-            o.vx = vx; o.vy = vy; o.freeTime = 0.36; o.sa = Math.abs(vx) > Math.abs(vy) ? 'x' : 'y'; o.sqv = -6;
+          if (Math.hypot(vx, vy) > 140) {
+            o.vx = vx; o.vy = vy; o.freeTime = 0.42; o.sa = Math.abs(vx) > Math.abs(vy) ? 'x' : 'y'; o.sqv = -4.5;
           } else {
             o.vx = vx * 0.3; o.vy = vy * 0.3; o.sqv = -3.5; reorderAndRelayout();
           }
@@ -271,18 +271,18 @@
       var bobX = calm * Math.sin(now / 1500 + o.ph) * 2.2;
       var bobY = calm * Math.cos(now / 1200 + o.ph * 1.3) * 2.8;
       var bobRot = calm * Math.sin(now / 1800 + o.ph * 0.7) * 0.85;
-      var sx = 1, sy = 1, q = Math.max(-0.2, Math.min(0.2, o.sq || 0));
-      if (o.sa === 'x') { sx = 1 - q * 0.45; sy = 1 + q * 0.45; } else { sy = 1 - q * 0.45; sx = 1 + q * 0.45; }
+      var sx = 1, sy = 1, q = Math.max(-0.36, Math.min(0.36, o.sq || 0));
+      if (o.sa === 'x') { sx = 1 - q * 0.65; sy = 1 + q * 0.45; } else { sy = 1 - q * 0.65; sx = 1 + q * 0.45; }
       o.el.style.transform = 'translate3d(' + (o.x + bobX - o.w / 2).toFixed(1) + 'px,' + (o.y + bobY - o.h / 2).toFixed(1) + 'px,0) rotate(' + ((o.rot || 0) + bobRot).toFixed(2) + 'deg) scale(' + sx.toFixed(3) + ',' + sy.toFixed(3) + ')';
     }
     function hit(o, axis, v) {   // 부딪힘 → 부드럽게 찌부러졌다가 복귀
       v = Math.abs(v); if (v < 80) return; o.sa = axis; o.sqv = Math.max(o.sqv || 0, 0) + Math.min(4.5, v * 0.008);
     }
     function spongeHit(o, axis, v) {   // 스펀지 벽: 튕기지 않고 푹 눌렸다가 스르르 복귀
-      v = Math.abs(v); if (v < 25) return;
+      v = Math.abs(v); if (v < 20) return;
       o.sa = axis;
-      o.sq = Math.max(o.sq || 0, Math.min(0.26, 0.09 + v * 0.00022));
-      o.sqv = Math.min(2.6, v * 0.003);
+      o.sq = Math.max(o.sq || 0, Math.min(0.36, 0.16 + v * 0.00024));
+      o.sqv = 0;
     }
     function clearSel() {
       if (selEl) { selEl.remove(); selEl = null; }
@@ -331,11 +331,11 @@
           a.vx *= Math.max(0, 1 - 3.2 * dt); a.vy *= Math.max(0, 1 - 3.2 * dt);
           a.x += a.vx * dt; a.y += a.vy * dt;
           var rightWall = rail.hidden ? MARGIN_X : 56, hitWall = false;
-          if (a.x < MARGIN_X + a.w / 2) { a.x = MARGIN_X + a.w / 2; spongeHit(a, 'x', a.vx); a.vx = 0; a.vy *= 0.72; hitWall = true; }
-          if (a.x > S.w - rightWall - a.w / 2) { a.x = S.w - rightWall - a.w / 2; spongeHit(a, 'x', a.vx); a.vx = 0; a.vy *= 0.72; hitWall = true; }
-          if (a.y < MARGIN_Y + a.h / 2) { a.y = MARGIN_Y + a.h / 2; spongeHit(a, 'y', a.vy); a.vy = 0; a.vx *= 0.72; hitWall = true; }
-          if (a.y > ch - 40 - a.h / 2) { a.y = ch - 40 - a.h / 2; spongeHit(a, 'y', a.vy); a.vy = 0; a.vx *= 0.72; hitWall = true; }
-          if (hitWall) a.freeTime = Math.min(a.freeTime, 0.28);
+          if (a.x < MARGIN_X + a.w / 2) { spongeHit(a, 'x', a.vx); a.x = MARGIN_X - 8 + a.w / 2; a.vx = 0; a.vy *= 0.72; hitWall = true; }
+          if (a.x > S.w - rightWall - a.w / 2) { spongeHit(a, 'x', a.vx); a.x = S.w - rightWall + 8 - a.w / 2; a.vx = 0; a.vy *= 0.72; hitWall = true; }
+          if (a.y < MARGIN_Y + a.h / 2) { spongeHit(a, 'y', a.vy); a.y = MARGIN_Y - 8 + a.h / 2; a.vy = 0; a.vx *= 0.72; hitWall = true; }
+          if (a.y > ch - 40 - a.h / 2) { spongeHit(a, 'y', a.vy); a.y = ch - 40 + 8 - a.h / 2; a.vy = 0; a.vx *= 0.72; hitWall = true; }
+          if (hitWall) a.freeTime = Math.min(a.freeTime, 0.32);
           for (j = 0; j < list.length; j++) {
             b = list[j]; if (b === a || b.drag) continue;
             var dx0 = b.x - a.x, dy0 = b.y - a.y;
@@ -373,8 +373,8 @@
             a.rising = false; a.sa = 'y'; a.sqv = Math.min(3.0, Math.abs(a.vy) * 0.01);
           }
         }
-        a.sqv = (a.sqv || 0) + (-180 * (a.sq || 0) - 14 * (a.sqv || 0)) * dt;
-        a.sq = Math.max(-0.2, Math.min(0.2, (a.sq || 0) + a.sqv * dt));
+        a.sqv = (a.sqv || 0) + (-95 * (a.sq || 0) - 15 * (a.sqv || 0)) * dt;
+        a.sq = Math.max(-0.36, Math.min(0.36, (a.sq || 0) + a.sqv * dt));
         var targetRot = Math.max(-7, Math.min(7, a.vx * 0.018));
         a.rot = (a.rot || 0) + (targetRot - (a.rot || 0)) * Math.min(1, dt * 14);
       }
