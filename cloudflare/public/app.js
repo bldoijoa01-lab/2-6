@@ -2171,16 +2171,17 @@
     var calCard = buildCalendar();
     var seg = h('div', { class: 'seg' });
     var weeklyCard = buildWeeklyCard();
-    var VIEWS = ['list', 'cal', 'week'], vi = Math.max(0, VIEWS.indexOf(todayView));
-    listCard.hidden = vi !== 0; calCard.hidden = vi !== 1; weeklyCard.hidden = vi !== 2;
-    [['목록', listCard], ['캘린더', calCard], ['주간 시간표', weeklyCard]].forEach(function (v, i) {
+    var jrCard = jrLogCard();
+    var VIEWS = ['list', 'cal', 'week', 'jr'], vi = Math.max(0, VIEWS.indexOf(todayView));
+    listCard.hidden = vi !== 0; calCard.hidden = vi !== 1; weeklyCard.hidden = vi !== 2; jrCard.hidden = vi !== 3; if (vi === 3) jrCard.load();
+    [['목록', listCard], ['캘린더', calCard], ['주간 시간표', weeklyCard], ['지난 조회/종례', jrCard]].forEach(function (v, i) {
       var b = h('button', { class: 'seg-b', type: 'button', text: v[0], 'aria-pressed': i === vi ? 'true' : 'false' });
       b.addEventListener('click', function () {
         var prevIdx = VIEWS.indexOf(todayView);
         if (prevIdx === i) return;
         todayView = VIEWS[i];
         var pn = document.getElementById('panel-today'); if (pn) { pn.style.minHeight = pn.offsetHeight + 'px'; setTimeout(function () { pn.style.minHeight = ''; }, 340); }   // 높이가 확 줄어 화면이 튀지 않게
-        listCard.hidden = v[1] !== listCard; calCard.hidden = v[1] !== calCard; weeklyCard.hidden = v[1] !== weeklyCard;
+        listCard.hidden = v[1] !== listCard; calCard.hidden = v[1] !== calCard; weeklyCard.hidden = v[1] !== weeklyCard; jrCard.hidden = v[1] !== jrCard; if (v[1] === jrCard) jrCard.load();
         Array.prototype.forEach.call(seg.children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
         syncPill(seg, b);
         if (prevIdx !== i) animateSwap(v[1], i > prevIdx ? 'right' : 'left');
@@ -2203,7 +2204,7 @@
       pdet.addEventListener('toggle', function () { if (!pdet.open) return; var old = pdet.querySelector('.push-inner'); if (old) old.remove(); pfilled = true; pdet.appendChild(pushCard(true)); });   // 열 때마다 현재 상태로 새로
       p.appendChild(pdet);
     }
-    p.appendChild(listCard); p.appendChild(calCard); p.appendChild(weeklyCard);
+    p.appendChild(listCard); p.appendChild(calCard); p.appendChild(weeklyCard); p.appendChild(jrCard);
   }
 
   // ---------- 기말 시간표 ----------
@@ -2570,19 +2571,28 @@
     top.lastChild.addEventListener('click', function () { ov.remove(); });
     ov.addEventListener('click', function (ev) { if (ev.target === ov) ov.remove(); });
     card.appendChild(top); card.appendChild(list); ov.appendChild(card); document.body.appendChild(ov);
-    jongryeApi(null, '?days=30').then(function (j) {
+    fillJrList(list);
+  }
+  function fillJrList(list) {   // 지난 조회/종례 기록 목록 (일정 탭·더보기 창 공용): 요약이 있으면 요약 먼저, 원문은 펼침
+    jongryeApi(null, '?days=45').then(function (j) {
       clear(list);
       var logs = (j && j.logs) || {}, dates = Object.keys(logs).sort().reverse();
-      if (!dates.length) { list.appendChild(h('div', { class: 'empty', text: '아직 저장된 안내사항 기록이 없어요.' })); return; }
+      if (!dates.length) { list.appendChild(h('div', { class: 'empty', text: '아직 저장된 조회/종례 기록이 없어요.' })); return; }
       dates.forEach(function (iso) {
         var r = logs[iso], isToday = iso === j.today;
         var meta = (r.by ? r.by + ' · ' : '') + new Date(r.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' });
         list.appendChild(h('div', { class: 'jr-item' + (isToday ? ' today' : '') }, [
           h('div', { class: 'jr-item-h' }, [h('b', { text: (isToday ? '오늘 · ' : '') + fmt(iso) }), h('small', { text: meta })]),
-          h('div', { class: 'jr-text', text: r.text })
+          jrSummaryBlock(r)
         ]));
       });
     }).catch(function () { clear(list); list.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요.' })); });
+  }
+  function jrLogCard() {
+    var list = h('div', { class: 'jr-mlist' }, [h('div', { class: 'adm-skel-card' })]), loaded = false;
+    var card = h('div', { class: 'card view-card jr-logcard' }, [head('HOMEROOM LOG', '지난 조회/종례'), h('div', { class: 'card-b' }, [h('div', { class: 'note-sm', text: '선생님이 조회·종례에 하신 말씀을 요약해서 날짜별로 모아 둬요. (최근 45일)' }), list])]);
+    card.load = function () { if (loaded) return; loaded = true; fillJrList(list); };
+    return card;
   }
   function jrSummaryBlock(jr) {   // 요약이 있으면 글머리 요약을 먼저, 원문은 눌러서 펼침 (없으면 원문 그대로)
     if (!(jr.summary && jr.summary.lines && jr.summary.lines.length)) return h('div', { class: 'jr-text', text: jr.text });
