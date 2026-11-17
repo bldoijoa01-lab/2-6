@@ -13,7 +13,7 @@
   }
   var reduce = function () { return !!(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches); };
 
-  // ---- 배치·물리 상수 (px, 초 단위) ----
+    // ---------- 배치·물리 상수 (px, 초 단위) ----
   var GAP_X = 16, GAP_Y = 18, MARGIN_X = 28, MARGIN_Y = 18, MAXLIST = 150, FLING = 2400;
 
   function show(opts) {
@@ -337,14 +337,14 @@
         }
         if (a.freeTime > 0) {
           a.freeTime -= dt;
-          a.vx *= Math.max(0, 1 - 3.2 * dt); a.vy *= Math.max(0, 1 - 3.2 * dt);
+          a.vx *= Math.max(0, 1 - 3.6 * dt); a.vy *= Math.max(0, 1 - 3.6 * dt);
           a.x += a.vx * dt; a.y += a.vy * dt;
           var rightWall = rail.hidden ? MARGIN_X : 56, hitWall = false;
-          if (a.x < MARGIN_X + a.w / 2) { spongeHit(a, 'x', a.vx); a.x = MARGIN_X - 8 + a.w / 2; a.vx = 0; a.vy *= 0.72; hitWall = true; }
-          if (a.x > S.w - rightWall - a.w / 2) { spongeHit(a, 'x', a.vx); a.x = S.w - rightWall + 8 - a.w / 2; a.vx = 0; a.vy *= 0.72; hitWall = true; }
-          if (a.y < MARGIN_Y + a.h / 2) { spongeHit(a, 'y', a.vy); a.y = MARGIN_Y - 8 + a.h / 2; a.vy = 0; a.vx *= 0.72; hitWall = true; }
-          if (a.y > ch - 40 - a.h / 2) { spongeHit(a, 'y', a.vy); a.y = ch - 40 + 8 - a.h / 2; a.vy = 0; a.vx *= 0.72; hitWall = true; }
-          if (hitWall) a.freeTime = Math.min(a.freeTime, 0.32);
+          if (a.x < MARGIN_X + a.w / 2) { spongeHit(a, 'x', a.vx); a.x = MARGIN_X - 6 + a.w / 2; a.vx = 0; a.vy *= 0.65; hitWall = true; }
+          if (a.x > S.w - rightWall - a.w / 2) { spongeHit(a, 'x', a.vx); a.x = S.w - rightWall + 6 - a.w / 2; a.vx = 0; a.vy *= 0.65; hitWall = true; }
+          if (a.y < MARGIN_Y + a.h / 2) { spongeHit(a, 'y', a.vy); a.y = MARGIN_Y - 6 + a.h / 2; a.vy = 0; a.vx *= 0.65; hitWall = true; }
+          if (a.y > ch - 40 - a.h / 2) { spongeHit(a, 'y', a.vy); a.y = ch - 40 + 6 - a.h / 2; a.vy = 0; a.vx *= 0.65; hitWall = true; }
+          if (hitWall) { a.freeTime = Math.min(a.freeTime, 0.55); a.softReturn = true; }
           for (j = 0; j < list.length; j++) {
             b = list[j]; if (b === a || b.drag) continue;
             var dx0 = b.x - a.x, dy0 = b.y - a.y;
@@ -352,20 +352,26 @@
             if (ox > 0 && oy > 0) {
               if (ox < oy) {
                 var sg = dx0 >= 0 ? 1 : -1, vr = (b.vx - a.vx) * sg;
-                a.x -= sg * ox * 0.35; b.x += sg * ox * 0.35;
-                if (vr < -40) { var jh = -0.65 * vr * sg; a.vx -= jh; b.vx += jh * 0.55; hit(a, 'x', vr); hit(b, 'x', vr * 0.6); }
+                a.x -= sg * ox * 0.25; b.x += sg * ox * 0.25;
+                if (vr < -60) { var jh = -0.25 * vr * sg; a.vx -= jh; b.vx += jh * 0.45; hit(a, 'x', vr); hit(b, 'x', vr * 0.5); }
               } else {
                 var sy0 = dy0 >= 0 ? 1 : -1, vn = (b.vy - a.vy) * sy0;
-                a.y -= sy0 * oy * 0.35; b.y += sy0 * oy * 0.35;
-                if (vn < -40) { var jv = -0.65 * vn * sy0; a.vy -= jv; b.vy += jv * 0.55; hit(a, 'y', vn); hit(b, 'y', vn * 0.6); }
+                a.y -= sy0 * oy * 0.25; b.y += sy0 * oy * 0.25;
+                if (vn < -60) { var jv = -0.25 * vn * sy0; a.vy -= jv; b.vy += jv * 0.45; hit(a, 'y', vn); hit(b, 'y', vn * 0.5); }
               }
             }
           }
           if (a.freeTime <= 0) { a.freeTime = 0; needRelayout = true; }
         } else {
           var dx = a.tx - a.x, dy = a.ty - a.y;
-          a.vx += (dx * 22 - a.vx * 8.2) * dt;
-          a.vy += (dy * 22 - a.vy * 8.2) * dt;
+          if (a.softReturn) {
+            a.vx += (dx * 9 - a.vx * 8.0) * dt;
+            a.vy += (dy * 9 - a.vy * 8.0) * dt;
+            if (Math.hypot(dx, dy) < 12) a.softReturn = false;
+          } else {
+            a.vx += (dx * 20 - a.vx * 9.0) * dt;
+            a.vy += (dy * 20 - a.vy * 9.0) * dt;
+          }
           if (draggedBubble) {
             var rx = a.x - draggedBubble.x, ry = a.y - draggedBubble.y;
             var needX = (a.w + draggedBubble.w) / 2 + 14, needY = (a.h + draggedBubble.h) / 2 + 14;
@@ -375,8 +381,8 @@
               else a.vy += (ry >= 0 ? 1 : -1) * py * 16 * dt;
             }
           }
-          var spd = Math.hypot(a.vx, a.vy);
-          if (spd > 560) { var sc = 560 / spd; a.vx *= sc; a.vy *= sc; }
+          var spd = Math.hypot(a.vx, a.vy), maxSpd = a.softReturn ? 200 : 560;
+          if (spd > maxSpd) { var sc = maxSpd / spd; a.vx *= sc; a.vy *= sc; }
           a.x += a.vx * dt; a.y += a.vy * dt;
           if (a.rising && Math.hypot(dx, dy) < 24) {
             a.rising = false; a.sa = 'y'; a.sqv = Math.min(3.0, Math.abs(a.vy) * 0.01);
