@@ -2584,7 +2584,7 @@
         var meta = (r.by ? r.by + ' · ' : '') + new Date(r.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' });
         list.appendChild(h('div', { class: 'jr-item' + (isToday ? ' today' : '') }, [
           h('div', { class: 'jr-item-h' }, [h('b', { text: (isToday ? '오늘 · ' : '') + fmt(iso) }), h('small', { text: meta })]),
-          jrSummaryBlock(r)
+          jrEntriesBlock(r)
         ]));
       });
     }
@@ -2617,14 +2617,20 @@
     raw.hidden = true; tg.addEventListener('click', function () { raw.hidden = !raw.hidden; tg.textContent = raw.hidden ? '원문 보기 ▾' : '원문 접기 ▴'; });
     return h('div', null, [h('div', { class: 'jr-sumlabel', text: '📝 요약' }), h('ul', { class: 'jr-sum' }, lines.map(function (t) { return h('li', { text: t }); })), tg, raw]);
   }
+  function jrEntriesBlock(jr) {   // 끝낸 조회/종례(요약) + 진행 중인 안내사항을 차례로
+    var kids = [], KL = { jo: '🌅 조회', jong: '📣 종례' };
+    (jr.hist || []).forEach(function (e) { kids.push(h('div', { class: 'jr-ent' }, [h('div', { class: 'jr-entl', text: (KL[e.kind] || '📢') + (e.at ? ' · ' + new Date(e.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) : '') }), jrSummaryBlock({ text: e.text, summary: e.summary })])); });
+    if (jr.text) kids.push(h('div', { class: 'jr-ent' }, [(jr.hist && jr.hist.length) ? h('div', { class: 'jr-entl', text: '📢 지금 안내사항' }) : null, jrSummaryBlock(jr)]));
+    return h('div', null, kids);
+  }
   function jongryeHomeCard() {
     var jr = DATA && DATA.jongrye;
-    if (!jr || !jr.text) return null;
+    if (!jr || !(jr.text || (jr.hist && jr.hist.length))) return null;
     var meta = (jr.by ? jr.by + ' · ' : '') + (jr.at ? new Date(jr.at).toLocaleTimeString('ko-KR', { timeZone: 'Asia/Seoul', hour: 'numeric', minute: '2-digit' }) : '');
     var hist = h('button', { class: 'linkbtn', type: 'button', text: '지난 안내사항 보기 →' });
     hist.addEventListener('click', openJongryeHistory);
     return h('div', { class: 'card jr-card' }, [head('JONGRYE', '📣 오늘의 조회/종례 안내'), h('div', { class: 'card-b' }, [
-      jrSummaryBlock(jr),
+      jrEntriesBlock(jr),
       meta ? h('div', { class: 'jr-meta', text: '작성: ' + meta }) : null,
       hist
     ])]);
@@ -2633,7 +2639,7 @@
     var jr = DATA && DATA.jongrye;
     var btn = h('button', { class: 'btn out', type: 'button', text: '📜 지난 조회/종례 안내 보기 (최근 30일)' });
     btn.addEventListener('click', openJongryeHistory);
-    var preview = jr && jr.text ? jrSummaryBlock(jr) : h('div', { class: 'note-sm', text: '오늘 등록된 조회/종례 안내사항이 아직 없어요. 지난 기록을 확인할 수 있어요.' });
+    var preview = jr && (jr.text || (jr.hist && jr.hist.length)) ? jrEntriesBlock(jr) : h('div', { class: 'note-sm', text: '오늘 등록된 조회/종례 안내사항이 아직 없어요. 지난 기록을 확인할 수 있어요.' });
     return h('div', { class: 'card' }, [head('JONGRYE', '📣 조회/종례 안내사항'), h('div', { class: 'card-b' }, [preview, btn])]);
   }
   function jongryeAdminCard() {

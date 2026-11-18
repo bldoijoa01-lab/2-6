@@ -505,7 +505,7 @@ export default {
         let rec = null;
         if (b.summarize) {   // 조회/종례 끝: 저장된 말씀을 학생용 요약(글머리)으로 정리해 같은 기록에 붙임
           const cur = JSON.parse(await env.CLASS_KV.get(key) || 'null');
-          if (!cur || !cur.text) return json({ ok: true, today, date, rec: null });
+          if (!cur || !cur.text) return json({ ok: true, today, date, rec: cur || null });
           let lines = [];
           if (cur.text.replace(/\s+/g, '').length < 20) lines = cur.text.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 6);   // 너무 짧으면 그대로
           else if (env.AI) {
@@ -519,7 +519,9 @@ export default {
           let how = 'ai';
           if (!lines.length) { lines = ruleSummary(cur.text); how = 'rule'; }   // AI가 안 될 때도 요약 기록은 남김
           if (!lines.length) return json({ error: 'ai_fail', rec: cur }, 502);
-          rec = { ...cur, summary: { lines, at: Date.now(), kind: b.kind === 'jo' ? 'jo' : 'jong', how } };
+          const kind = b.kind === 'jo' ? 'jo' : 'jong', hist = Array.isArray(cur.hist) ? cur.hist.slice(-6) : [];
+          hist.push({ kind, text: cur.text, summary: { lines, at: Date.now(), how }, at: Date.now() });   // 끝낸 조회/종례는 기록 칸으로 옮기고, 진행 중 안내사항은 비워 다음(종례)을 새로 시작
+          rec = { text: '', by: me0.name, at: Date.now(), hist };
           await env.CLASS_KV.put(key, JSON.stringify(rec), { expirationTtl: 180 * 86400 });
           if (date === today && env.BOARD) {
             const stub = env.BOARD.get(env.BOARD.idFromName('main'));
@@ -527,8 +529,9 @@ export default {
           }
           return json({ ok: true, today, date, rec });
         }
-        if (!text) await env.CLASS_KV.delete(key);
-        else { rec = { text, by: me0.name, at: Date.now() }; await env.CLASS_KV.put(key, JSON.stringify(rec), { expirationTtl: 180 * 86400 }); }
+        const prev = JSON.parse(await env.CLASS_KV.get(key) || 'null'), keepHist = prev && Array.isArray(prev.hist) && prev.hist.length ? prev.hist : null;   // 끝낸 조회/종례 기록은 유지
+        if (!text && !keepHist) await env.CLASS_KV.delete(key);
+        else { rec = { text, by: me0.name, at: Date.now(), ...(keepHist ? { hist: keepHist } : {}) }; await env.CLASS_KV.put(key, JSON.stringify(rec), { expirationTtl: 180 * 86400 }); }
         if (date === today && env.BOARD) {
           const stub = env.BOARD.get(env.BOARD.idFromName('main'));
           await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ op: 'kcmd', cmd: 'jongryesync', args: { date, rec }, me: { n: me0.n, name: me0.name, role: me0.role || 'student', admin: !!me0.admin } }) });
@@ -537,7 +540,7 @@ export default {
       }
       const days = Math.min(45, Math.max(1, parseInt(url.searchParams.get('days'), 10) || 30)), logs = {};
       const isos = Array.from({ length: days }, (_, i) => addDaysISO(today, -i)), vals = await Promise.all(isos.map((iso) => env.CLASS_KV.get('jongrye:' + iso)));   // 병렬 조회(순차 45번이던 것을 한 번에)
-      isos.forEach((iso, i) => { const r = vals[i] ? JSON.parse(vals[i]) : null; if (r && r.text) logs[iso] = r; });
+      isos.forEach((iso, i) => { const r = vals[i] ? JSON.parse(vals[i]) : null; if (r && (r.text || (r.hist && r.hist.length))) logs[iso] = r; });
       return json({ ok: true, today, logs });
     }
     if (url.pathname === '/api/stt' && request.method === 'POST') {   // 받아쓰기(고정밀): 전자칠판이 보낸 짧은 음성 조각 → 글자 (Workers AI Whisper). 소리는 저장하지 않음

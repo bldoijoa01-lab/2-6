@@ -109,8 +109,9 @@
     var sumBox = null;
     function paintSum() {
       if (!sumBox || !sumBox.isConnected) return; clear(sumBox); var sm = D.jongrye && D.jongrye.summary;
+      if ((!sm || !sm.lines || !sm.lines.length) && D.jongrye && D.jongrye.hist && D.jongrye.hist.length) { var le = D.jongrye.hist[D.jongrye.hist.length - 1]; sm = le.summary && { lines: le.summary.lines, at: le.summary.at || le.at, kind: le.kind }; }
       if (!sm || !sm.lines || !sm.lines.length) { sumBox.style.display = 'none'; return; }
-      sumBox.style.display = ''; var h1 = el('div', 'ks-sumh'); h1.appendChild(el('b', null, '📣 오늘의 안내 요약')); h1.appendChild(el('small', null, hm(sm.at) + ' 정리')); sumBox.appendChild(h1);
+      sumBox.style.display = ''; var h1 = el('div', 'ks-sumh'); h1.appendChild(el('b', null, sm.kind === 'jo' ? '🌅 오늘 조회 요약' : sm.kind === 'jong' ? '📣 오늘 종례 요약' : '📣 오늘의 안내 요약')); h1.appendChild(el('small', null, hm(sm.at) + ' 정리')); sumBox.appendChild(h1);
       var ul = el('ul', 'ks-suml'); sm.lines.forEach(function (t) { ul.appendChild(el('li', null, t)); }); sumBox.appendChild(ul);
     }
 
@@ -266,7 +267,7 @@
       return out.slice(0, 6);
     }
     // ---------- 종례 ----------
-    var JR = D.jongrye || null, jrBox = null, jView = null;   // jView: 'jo'(조회) | 'jong'(종례), 비어 있으면 오전=조회 오후=종례
+    var JR = D.jongrye || null, jrBox = null, histBox = null, jView = null;   // jView: 'jo'(조회) | 'jong'(종례), 비어 있으면 오전=조회 오후=종례
     // 안내사항에 받아쓰기 통합: 🎙를 켜면 말씀이 글자로 안내사항 끝에 줄 단위로 쌓이고 바로 저장·학생 반영 (소리는 저장 안 함)
     var dictOn = false, dictRec = null, dictInterim = '', dictMsg = '', dictFail = 0, dictAt = 0, jrPending = 0, jrQ = Promise.resolve(), jrLive = null;
     function jrSave(text) {
@@ -369,7 +370,19 @@
       if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) { dictMsg = '이 브라우저는 받아쓰기를 지원하지 않아요 (크롬을 써 주세요)'; paintJrNote(); return; }
       dictOn = true; dictFail = 0; dictMsg = ''; dictBase = (JR && JR.text) || ''; dictSent = []; dictRun(); paintJrNote(); paintBadge();
     }
+    function paintHist() {   // 이미 끝낸 조회/종례의 요약본(접을 수 있는 카드)
+      if (!histBox) return; clear(histBox);
+      var KL = { jo: '🌅 오늘 조회 요약', jong: '📣 오늘 종례 요약' };
+      ((JR && JR.hist) || []).forEach(function (e, i, arr) {
+        var d = el('details', 'ks-hcard'); if (i === arr.length - 1) d.open = true;
+        var sm = el('summary'); sm.appendChild(el('b', null, KL[e.kind] || '📢 안내 요약')); if (e.at) sm.appendChild(el('small', null, ' · ' + hm(e.at) + ' 정리')); d.appendChild(sm);
+        var ul = el('ul', 'ks-suml'); ((e.summary && e.summary.lines) || []).forEach(function (t) { ul.appendChild(el('li', null, t)); }); d.appendChild(ul);
+        var rawBtn = el('button', 'ks-chip', '원문 보기'), raw = el('div', 'ks-hraw', e.text || ''); raw.hidden = true; rawBtn.type = 'button'; rawBtn.addEventListener('click', function () { raw.hidden = !raw.hidden; rawBtn.textContent = raw.hidden ? '원문 보기' : '원문 접기'; });
+        d.appendChild(rawBtn); d.appendChild(raw); histBox.appendChild(d);
+      });
+    }
     function paintJrNote(flash) {
+      paintHist();
       if (!jrBox) return; clear(jrBox); jrLive = null; jrBox.classList.toggle('rec', dictOn);
       var hdr = el('div', 'ks-jnote-h');
       hdr.appendChild(el('span', null, '📣 오늘의 안내사항'));
@@ -407,7 +420,7 @@
       suEl.textContent = '🎓 수능까지 ' + left.toLocaleString('ko-KR') + '초';
     }
     function paintJongrye() {
-      var box = el('div', 'ks-jbox'), jv = jView || (kst().getUTCHours() < 12 ? 'jo' : 'jong'), jo = jv === 'jo';
+      var box = el('div', 'ks-jbox'), jv = jView || (JR && JR.hist && JR.hist.length ? 'jong' : (kst().getUTCHours() < 12 ? 'jo' : 'jong')), jo = jv === 'jo';   // 조회를 끝냈으면 다시 열 때 종례 화면
       var tg = el('div', 'ks-jtog'); [['jo', '🌅 조회'], ['jong', '📣 종례']].forEach(function (x) { var b = el('button', 'ks-chip' + (jv === x[0] ? ' on' : ''), x[1]); b.type = 'button'; b.addEventListener('click', function () { if (jv !== x[0]) { jView = x[0]; setMode('jongrye'); } }); tg.appendChild(b); });
       var fin = el('button', 'ks-chip ks-endbtn', jo ? '✅ 조회 끝' : '✅ 종례 끝'); fin.type = 'button'; fin.addEventListener('click', function () {
         if (fin.disabled) return; fin.disabled = true; fin.textContent = '📝 저장·요약 중…'; var kind = jo ? 'jo' : 'jong'; dictStop();
@@ -418,7 +431,8 @@
       }); tg.appendChild(fin); box.appendChild(tg);   // 일찍 끝나면 눌러서 오늘 화면으로
       if (jo) box.appendChild(banner('jong', '🌅', '조회 시간', SC.hs + ' ~ ' + SC.he, SC.he, '조회 끝까지'));
       else box.appendChild(banner('jong', '📣', '종례 시간', SCe().js + ' ~ ' + SCe().ee, SCe().ee, '종례 끝까지'));
-      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { jrBox = null; });
+      histBox = el('div', 'ks-jhist'); box.appendChild(histBox);
+      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { jrBox = null; histBox = null; });
    // 받아쓰기는 다른 화면으로 가도 계속 듣고, 끄기 버튼을 눌러야 멈춤
       var cols = el('div', 'ks-jcols'), iso = isoOf(kst()), daily = (D.daily || {})[iso];
       var c1 = card('오늘의 알림장', '📒'), ul = el('ul', 'ks-list'); ((daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 없어요' }]).slice(0, 5).forEach(function (i) { var li = el('li'); li.appendChild(el('span', 'ks-k', KIND[i.k] || '📢')); li.appendChild(el('span', 'ks-t', i.t)); ul.appendChild(li); }); c1.appendChild(ul);

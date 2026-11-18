@@ -1249,3 +1249,9 @@ body.kiosk{overflow:hidden}
 .gm-hube{font-size:64px} .gm-hubb b{font-size:24px} .gm-hubb small{opacity:.8; font-size:14px; line-height:1.4}
 
 .ks-ttnote{margin-top:.6em; padding:.45em .8em; border-radius:12px; background:rgba(255,224,138,.16); color:#FFE08A; font-weight:800; font-size:.95em}
+
+/* 끝낸 조회/종례 요약 카드 */
+.ks-jhist{display:flex; flex-direction:column; gap:.6em; margin-bottom:.8em}
+.ks-hcard{border-radius:18px; border:1px solid rgba(255,255,255,.28); background:rgba(255,255,255,.08); padding:.7em 1.1em} .ks-hcard summary{cursor:pointer; font-size:1.15em; font-weight:800; color:#FFE08A; list-style:none} .ks-hcard summary::-webkit-details-marker{display:none} .ks-hcard summary::before{content:'▾ '} .ks-hcard:not([open]) summary::before{content:'▸ '} .ks-hcard summary small{opacity:.7; color:#fff; font-weight:600}
+.ks-hcard .ks-suml{font-size:1.2em; margin:.4em 0} .ks-hraw{margin-top:.5em; white-space:pre-wrap; opacity:.8; font-size:.95em; line-height:1.5}
+.jr-ent{margin-bottom:.7em} .jr-entl{font-weight:800; margin-bottom:.15em}
