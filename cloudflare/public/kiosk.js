@@ -74,6 +74,7 @@
           else if (prev && (mode === 'clean' || mode === 'jongrye')) setMode('today');
         }
       }
+      paintSuneung();
       if (barEl) {   // 자습: 지금 교시(일과 시간표) 기준 남은 시간
         var w = studyWin(), nowS = k.getUTCHours() * 3600 + k.getUTCMinutes() * 60 + k.getUTCSeconds();
         if (w) { cdEnd = w.e * 60; barEl.style.width = Math.max(0, Math.min(100, (nowS - w.s * 60) / Math.max(1, (w.e - w.s) * 60) * 100)).toFixed(1) + '%'; if (stLbl) stLbl.textContent = (w.brk ? '다음 수업 ' : (w.n + '교시 ') + '끝 ') + pad(Math.floor(w.e / 60)) + ':' + pad(w.e % 60); if (stRng) stRng.textContent = w.brk ? '쉬는 시간' : pad(Math.floor(w.s / 60)) + ':' + pad(w.s % 60) + ' ~ ' + pad(Math.floor(w.e / 60)) + ':' + pad(w.e % 60); }
@@ -377,6 +378,15 @@
         .then(function (j) { if (j && j.logs) { JR = j.logs[j.today] || null; D.jongrye = JR; paintJrNote(); } })
         .catch(function () {});
     }
+    // 2028학년도 수능(2027-11-18 목) 입실 완료 08:10(KST)까지 남은 시간 — 평가원 시행계획 확정 시 바뀔 수 있음
+    var SUNEUNG_AT = Date.UTC(2027, 10, 18, 8, 10, 0) - 9 * 3600e3, suBox = null;
+    function paintSuneung() {
+      if (!suBox || !suBox.isConnected) return; var left = Math.floor((SUNEUNG_AT - Date.now()) / 1000);
+      if (left <= 0) { suBox.querySelector('.ks-su-n').textContent = '0'; return; }
+      suBox.querySelector('.ks-su-n').textContent = left.toLocaleString('ko-KR');
+      var d = Math.floor(left / 86400), hh = Math.floor(left % 86400 / 3600), mm = Math.floor(left % 3600 / 60), ss = left % 60;
+      suBox.querySelector('.ks-su-d').textContent = 'D-' + d + ' · ' + d + '일 ' + pad(hh) + '시간 ' + pad(mm) + '분 ' + pad(ss) + '초';
+    }
     function paintJongrye() {
       var box = el('div', 'ks-jbox'), jv = jView || (kst().getUTCHours() < 12 ? 'jo' : 'jong'), jo = jv === 'jo';
       var tg = el('div', 'ks-jtog'); [['jo', '🌅 조회'], ['jong', '📣 종례']].forEach(function (x) { var b = el('button', 'ks-chip' + (jv === x[0] ? ' on' : ''), x[1]); b.type = 'button'; b.addEventListener('click', function () { if (jv !== x[0]) { jView = x[0]; setMode('jongrye'); } }); tg.appendChild(b); });
@@ -389,7 +399,9 @@
       }); tg.appendChild(fin); box.appendChild(tg);   // 일찍 끝나면 눌러서 오늘 화면으로
       if (jo) box.appendChild(banner('jong', '🌅', '조회 시간', SC.hs + ' ~ ' + SC.he, SC.he, '조회 끝까지'));
       else box.appendChild(banner('jong', '📣', '종례 시간', SC.js + ' ~ ' + SC.ee, SC.ee, '종례 끝까지'));
-      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { jrBox = null; });   // 받아쓰기는 다른 화면으로 가도 계속 듣고, 끄기 버튼을 눌러야 멈춤
+      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { jrBox = null; suBox = null; });
+      suBox = el('div', 'ks-su'); var sl = el('div', 'ks-su-l'); sl.appendChild(el('div', 'ks-su-t', '🎓 2028학년도 수능 입실까지')); sl.appendChild(el('div', 'ks-su-d')); suBox.appendChild(sl);
+      var sr = el('div', 'ks-su-r'); sr.appendChild(el('b', 'ks-su-n')); sr.appendChild(el('small', null, '초')); suBox.appendChild(sr); box.appendChild(suBox); paintSuneung();   // 받아쓰기는 다른 화면으로 가도 계속 듣고, 끄기 버튼을 눌러야 멈춤
       var cols = el('div', 'ks-jcols'), iso = isoOf(kst()), daily = (D.daily || {})[iso];
       var c1 = card('오늘의 알림장', '📒'), ul = el('ul', 'ks-list'); ((daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 없어요' }]).slice(0, 5).forEach(function (i) { var li = el('li'); li.appendChild(el('span', 'ks-k', KIND[i.k] || '📢')); li.appendChild(el('span', 'ks-t', i.t)); ul.appendChild(li); }); c1.appendChild(ul);
       var c2, ul2 = el('ul', 'ks-list');
