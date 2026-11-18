@@ -178,14 +178,9 @@
   // ================= 원 그리기 (정확도 채점) =================
   // 손가락/마우스로 한 번에 원을 그리면 최소제곱으로 맞춘 '가장 가까운 원'과 비교해 정확도(%)를 계산: 반지름 흔들림 + 시작·끝 이어짐 + 끝까지 한 바퀴 그렸는지
   var curC = null;
-  function scoreCircle(pts) {
+  function scoreCircle(pts, cx, cy) {   // 중심은 화면 가운데 점으로 고정 (cx, cy)
     var n = pts.length; if (n < 12) return { err: '조금 더 길게 그려 주세요' };
-    var sx = 0, sy = 0, i; for (i = 0; i < n; i++) { sx += pts[i][0]; sy += pts[i][1]; }
-    var mx = sx / n, my = sy / n, suu = 0, svv = 0, suv = 0, suuu = 0, svvv = 0, suvv = 0, svuu = 0;   // Kasa 최소제곱 원 맞춤
-    for (i = 0; i < n; i++) { var u = pts[i][0] - mx, v = pts[i][1] - my; suu += u * u; svv += v * v; suv += u * v; suuu += u * u * u; svvv += v * v * v; suvv += u * v * v; svuu += v * u * u; }
-    var det = suu * svv - suv * suv; if (Math.abs(det) < 1e-6) return { err: '원 모양으로 그려 주세요' };
-    var A = (suuu + suvv) / 2, B = (svvv + svuu) / 2, uc = (A * svv - B * suv) / det, vc = (B * suu - A * suv) / det, cx = uc + mx, cy = vc + my;
-    var rs = [], rm = 0; for (i = 0; i < n; i++) { var r = Math.hypot(pts[i][0] - cx, pts[i][1] - cy); rs.push(r); rm += r; } rm /= n;
+    var rs = [], rm = 0, i; for (i = 0; i < n; i++) { var r = Math.hypot(pts[i][0] - cx, pts[i][1] - cy); rs.push(r); rm += r; } rm /= n;
     if (rm < 40) return { err: '조금 더 크게 그려 주세요' };
     // 한 바퀴를 얼마나 돌았는지(누적 각도)
     var tot = 0, prev = Math.atan2(pts[0][1] - cy, pts[0][0] - cx); for (i = 1; i < n; i++) { var a = Math.atan2(pts[i][1] - cy, pts[i][0] - cx), d = a - prev; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; tot += d; prev = a; }
@@ -207,15 +202,15 @@
     paintBest();
     function resize() { SW = window.innerWidth; SH = window.innerHeight; cv.width = Math.round(SW * DPR); cv.height = Math.round(SH * DPR); cv.style.width = SW + 'px'; cv.style.height = SH + 'px'; }
     function say(t, cls) { msgEl.textContent = t; msgEl.className = 'cg-msg' + (cls ? ' ' + cls : ''); }
-    function start() { pts = []; res = null; shown = 0; say('원을 한 번에 그려 보세요 ✏️', 'hint'); }
+    function start() { pts = []; res = null; shown = 0; say('가운데 점을 중심으로 원을 한 번에 그려 보세요 ✏️', 'hint'); }
     function dcol(d) { var t = Math.max(0, Math.min(1, d / 0.12)); return 'hsl(' + Math.round(130 - 130 * t) + ',90%,60%)'; }   // 잘 그린 곳 초록 → 벗어난 곳 빨강
     function down(e) { if (res && shown < 0.98 * res.acc) return; start(); drawing = true; pts.push([e.clientX, e.clientY]); try { cv.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); }
     function move(e) { if (!drawing) return; var l = pts[pts.length - 1]; if (Math.hypot(e.clientX - l[0], e.clientY - l[1]) > 1.5) pts.push([e.clientX, e.clientY]); }
     function up() {
       if (!drawing) return; drawing = false; tries++;
-      var r = scoreCircle(pts); if (r.err) { res = null; say(r.err + ' 🙂', 'err'); paintBest(); return; }
+      var r = scoreCircle(pts, SW / 2, SH / 2); if (r.err) { res = null; say(r.err + ' 🙂', 'err'); paintBest(); return; }
       res = r; shown = 0; var newBest = r.acc > best; if (newBest) { best = r.acc; try { localStorage.setItem('circle_best', String(best)); } catch (e) {} } paintBest();
-      var a = r.acc; say(a >= 99 ? '🤯 소름… 거의 완벽한 원!' : a >= 95 ? '😲 엄청나요! 컴퍼스급' : a >= 90 ? '😎 아주 잘 그렸어요' : a >= 80 ? '👍 꽤 둥글어요' : a >= 60 ? '🙂 조금만 더!' : '🥔 감자 모양… 다시 도전', (newBest ? 'best' : '') + ' res');
+      var a = r.acc; say(a >= 99 ? '🤯 소름… 거의 완벽한 원!' : a >= 95 ? '😲 엄청나요! 컴퍼스급' : a >= 90 ? '😎 아주 잘 그렸어요' : a >= 80 ? '👍 꽤 둥글어요' : a >= 60 ? '🙂 조금만 더!' : a >= 35 ? '🥔 감자 모양… 다시 도전' : '🎯 가운데 점이 원의 중심이에요! 점을 감싸며 그려 보세요', (newBest ? 'best' : '') + ' res');
       if (newBest) msgEl.textContent += '  ⭐ 최고 기록!';
     }
     cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
