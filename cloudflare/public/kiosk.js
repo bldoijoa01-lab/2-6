@@ -382,7 +382,7 @@
     var SUNEUNG_AT = Date.UTC(2027, 10, 18, 8, 10, 0) - 9 * 3600e3;
     function paintSuneung() {
       var left = Math.max(0, Math.floor((SUNEUNG_AT - Date.now()) / 1000));
-      suEl.textContent = '🎓 수능 입실까지 ' + left.toLocaleString('ko-KR') + '초';
+      suEl.textContent = '🎓 수능까지 ' + left.toLocaleString('ko-KR') + '초';
     }
     function paintJongrye() {
       var box = el('div', 'ks-jbox'), jv = jView || (kst().getUTCHours() < 12 ? 'jo' : 'jong'), jo = jv === 'jo';
