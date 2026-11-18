@@ -1247,3 +1247,5 @@ body.kiosk{overflow:hidden}
 .gm-hubrow{display:flex; gap:18px; flex-wrap:wrap; justify-content:center; margin-bottom:22px}
 .gm-hubb{width:min(300px,80vw); padding:26px 18px; border-radius:26px; border:1px solid rgba(255,255,255,.28); background:linear-gradient(135deg,rgba(120,160,255,.22),rgba(255,120,200,.16)); color:#fff; font:inherit; cursor:pointer; display:flex; flex-direction:column; gap:8px; align-items:center}
 .gm-hube{font-size:64px} .gm-hubb b{font-size:24px} .gm-hubb small{opacity:.8; font-size:14px; line-height:1.4}
+
+.ks-ttnote{margin-top:.6em; padding:.45em .8em; border-radius:12px; background:rgba(255,224,138,.16); color:#FFE08A; font-weight:800; font-size:.95em}
