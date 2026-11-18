@@ -1231,3 +1231,9 @@ body.kiosk{overflow:hidden}
 .ks-su{display:flex; justify-content:space-between; align-items:center; gap:1em; margin-bottom:1em; padding:.9em 1.4em; border-radius:22px; background:linear-gradient(135deg,rgba(255,90,120,.28),rgba(255,160,60,.22)); border:2px solid rgba(255,140,120,.5); box-shadow:0 14px 36px rgba(0,0,0,.25)}
 .ks-su-t{font-weight:800; font-size:1.25em; color:#FFD9A8} .ks-su-d{opacity:.85; font-size:1em; margin-top:.2em; font-variant-numeric:tabular-nums}
 .ks-su-r{display:flex; align-items:baseline; gap:.3em; white-space:nowrap} .ks-su-n{font-size:3.1em; font-weight:900; font-variant-numeric:tabular-nums; letter-spacing:.01em; color:#fff} .ks-su-r small{font-size:1.4em; font-weight:800; opacity:.85}
+
+.ks-prow{display:flex; gap:.6em; justify-content:flex-end; align-items:center; flex-wrap:wrap} .ks-period.ks-sucd{background:rgba(255,120,120,.2); color:#FFD0C8; font-variant-numeric:tabular-nums; margin-top:.35em}
+
+.gm-btn.warn{background:#e0334a; border-color:#e0334a}
+.gm-end{position:absolute; left:50%; top:62%; transform:translateX(-50%); display:flex; gap:14px; z-index:3}
+.gm-big{border:0; border-radius:999px; padding:16px 28px; font:inherit; font-weight:900; font-size:20px; background:#5BE7FF; color:#06303d; cursor:pointer; box-shadow:0 10px 30px rgba(0,0,0,.5)} .gm-big.out{background:rgba(255,255,255,.16); color:#fff; border:1px solid rgba(255,255,255,.4)}

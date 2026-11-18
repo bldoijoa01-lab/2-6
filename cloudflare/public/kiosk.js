@@ -24,8 +24,8 @@
 
   function start(data) {
     var D = data, mode = 'today', timers = [], root = el('div', 'ks-root'), head = el('div', 'ks-head'), main = el('div', 'ks-main'), dock = el('div', 'ks-dock');
-    var clockEl = el('div', 'ks-clock'), dateEl = el('div', 'ks-date'), periodEl = el('div', 'ks-period');
-    var hl = el('div', 'ks-hl'); hl.appendChild(clockEl); var hr = el('div', 'ks-hr'); hr.appendChild(dateEl); hr.appendChild(periodEl);
+    var clockEl = el('div', 'ks-clock'), dateEl = el('div', 'ks-date'), periodEl = el('div', 'ks-period'), suEl = el('div', 'ks-period ks-sucd');
+    var hl = el('div', 'ks-hl'); hl.appendChild(clockEl); var hr = el('div', 'ks-hr'); hr.appendChild(dateEl); var prow = el('div', 'ks-prow'); prow.appendChild(suEl); prow.appendChild(periodEl); hr.appendChild(prow);
     head.appendChild(hl); head.appendChild(hr);
     root.appendChild(head); root.appendChild(main); root.appendChild(dock);
     document.body.classList.add('kiosk'); document.body.classList.remove('locked');
@@ -378,14 +378,11 @@
         .then(function (j) { if (j && j.logs) { JR = j.logs[j.today] || null; D.jongrye = JR; paintJrNote(); } })
         .catch(function () {});
     }
-    // 2028학년도 수능(2027-11-18 목) 입실 완료 08:10(KST)까지 남은 시간 — 평가원 시행계획 확정 시 바뀔 수 있음
-    var SUNEUNG_AT = Date.UTC(2027, 10, 18, 8, 10, 0) - 9 * 3600e3, suBox = null;
+    // 2028학년도 수능(2027-11-18 목) 입실 완료 08:10(KST)까지 남은 초 — 헤더의 'n교시 수업 중' 왼쪽에 표시. 평가원 시행계획 확정 시 바뀔 수 있음
+    var SUNEUNG_AT = Date.UTC(2027, 10, 18, 8, 10, 0) - 9 * 3600e3;
     function paintSuneung() {
-      if (!suBox || !suBox.isConnected) return; var left = Math.floor((SUNEUNG_AT - Date.now()) / 1000);
-      if (left <= 0) { suBox.querySelector('.ks-su-n').textContent = '0'; return; }
-      suBox.querySelector('.ks-su-n').textContent = left.toLocaleString('ko-KR');
-      var d = Math.floor(left / 86400), hh = Math.floor(left % 86400 / 3600), mm = Math.floor(left % 3600 / 60), ss = left % 60;
-      suBox.querySelector('.ks-su-d').textContent = 'D-' + d + ' · ' + d + '일 ' + pad(hh) + '시간 ' + pad(mm) + '분 ' + pad(ss) + '초';
+      var left = Math.max(0, Math.floor((SUNEUNG_AT - Date.now()) / 1000));
+      suEl.textContent = '🎓 수능 입실까지 ' + left.toLocaleString('ko-KR') + '초';
     }
     function paintJongrye() {
       var box = el('div', 'ks-jbox'), jv = jView || (kst().getUTCHours() < 12 ? 'jo' : 'jong'), jo = jv === 'jo';
@@ -399,9 +396,8 @@
       }); tg.appendChild(fin); box.appendChild(tg);   // 일찍 끝나면 눌러서 오늘 화면으로
       if (jo) box.appendChild(banner('jong', '🌅', '조회 시간', SC.hs + ' ~ ' + SC.he, SC.he, '조회 끝까지'));
       else box.appendChild(banner('jong', '📣', '종례 시간', SC.js + ' ~ ' + SC.ee, SC.ee, '종례 끝까지'));
-      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { jrBox = null; suBox = null; });
-      suBox = el('div', 'ks-su'); var sl = el('div', 'ks-su-l'); sl.appendChild(el('div', 'ks-su-t', '🎓 2028학년도 수능 입실까지')); sl.appendChild(el('div', 'ks-su-d')); suBox.appendChild(sl);
-      var sr = el('div', 'ks-su-r'); sr.appendChild(el('b', 'ks-su-n')); sr.appendChild(el('small', null, '초')); suBox.appendChild(sr); box.appendChild(suBox); paintSuneung();   // 받아쓰기는 다른 화면으로 가도 계속 듣고, 끄기 버튼을 눌러야 멈춤
+      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { jrBox = null; });
+   // 받아쓰기는 다른 화면으로 가도 계속 듣고, 끄기 버튼을 눌러야 멈춤
       var cols = el('div', 'ks-jcols'), iso = isoOf(kst()), daily = (D.daily || {})[iso];
       var c1 = card('오늘의 알림장', '📒'), ul = el('ul', 'ks-list'); ((daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 없어요' }]).slice(0, 5).forEach(function (i) { var li = el('li'); li.appendChild(el('span', 'ks-k', KIND[i.k] || '📢')); li.appendChild(el('span', 'ks-t', i.t)); ul.appendChild(li); }); c1.appendChild(ul);
       var c2, ul2 = el('ul', 'ks-list');
