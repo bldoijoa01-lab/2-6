@@ -155,3 +155,14 @@ export function parseSummary(raw) {
   }
   return out;
 }
+
+// AI가 실패했을 때 쓰는 규칙 기반 요약: 문장을 나눠 날짜·제출·시험 등 핵심어가 있는 문장 위주로 최대 6줄
+const KEYS = /내일|오늘|까지|제출|시험|수행|평가|준비|지참|청소|마감|신청|발표|월요일|화요일|수요일|목요일|금요일|\d+\s*(?:월|일|시|분|교시)|공지|조용|이동|확인/;
+export function ruleSummary(text) {
+  const t = String(text || '').replace(/[ \t]+/g, ' ').trim(); if (!t) return [];
+  let sents = t.split(/(?<=[.!?。])\s+|\n+/).map((x) => x.trim()).filter(Boolean);
+  if (sents.length <= 1) sents = t.split(/(?<=(?:니다|세요|어요|아요|해요|죠|네요|예요|이에요|요|다))\s+/).map((x) => x.trim()).filter(Boolean);
+  sents = sents.map((x) => x.replace(/^[-•·]\s*/, '')).filter((x) => x.length >= 4);
+  const keyed = sents.filter((x) => KEYS.test(x)), pick = (keyed.length ? keyed : sents).slice(0, 6);
+  return pick.map((x) => (x.length > 60 ? x.slice(0, 59) + '…' : x));
+}

@@ -2573,8 +2573,8 @@
     card.appendChild(top); card.appendChild(list); ov.appendChild(card); document.body.appendChild(ov);
     fillJrList(list);
   }
-  function fillJrList(list) {   // 지난 조회/종례 기록 목록 (일정 탭·더보기 창 공용): 요약이 있으면 요약 먼저, 원문은 펼침
-    jongryeApi(null, '?days=45').then(function (j) {
+  function fillJrList(list) {   // 지난 조회/종례 기록 목록 (일정 탭·더보기 창 공용): 저장해 둔 목록을 먼저 바로 보여 주고 최신 것으로 갱신
+    function render(j) {
       clear(list);
       var logs = (j && j.logs) || {}, dates = Object.keys(logs).sort().reverse();
       if (!dates.length) { list.appendChild(h('div', { class: 'empty', text: '아직 저장된 조회/종례 기록이 없어요.' })); return; }
@@ -2586,7 +2586,22 @@
           jrSummaryBlock(r)
         ]));
       });
-    }).catch(function () { clear(list); list.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요.' })); });
+    }
+    var cached = null; try { cached = JSON.parse(localStorage.getItem('jrlog26') || 'null'); } catch (e) {}
+    if (cached && cached.logs) render(cached);
+    jongryeApi(null, '?days=45').then(function (j) {
+      if (!(j && j.logs)) { if (!cached) { clear(list); list.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요.' })); } return; }
+      var key = JSON.stringify(j.logs); try { localStorage.setItem('jrlog26', JSON.stringify(j)); } catch (e) {}
+      if (!cached || JSON.stringify(cached.logs) !== key) render(j);
+    }).catch(function () { if (!cached) { clear(list); list.appendChild(h('div', { class: 'empty', text: '불러오지 못했어요.' })); } });
+  }
+  function jrRuleSummary(text) {   // 요약이 저장되지 않은 옛 기록용 간단 요약 (핵심어 있는 문장 위주)
+    var t = String(text || '').replace(/[ \t]+/g, ' ').trim(); if (!t) return [];
+    var sents = t.split(/(?<=[.!?。])\s+|\n+/).map(function (x) { return x.trim(); }).filter(Boolean);
+    if (sents.length <= 1) sents = t.split(/(?<=(?:니다|세요|어요|아요|해요|죠|네요|예요|이에요|요|다))\s+/).map(function (x) { return x.trim(); }).filter(Boolean);
+    sents = sents.map(function (x) { return x.replace(/^[-•·]\s*/, ''); }).filter(function (x) { return x.length >= 4; });
+    var K = /내일|오늘|까지|제출|시험|수행|평가|준비|지참|청소|마감|신청|발표|월요일|화요일|수요일|목요일|금요일|\d+\s*(?:월|일|시|분|교시)|공지|조용|이동|확인/, keyed = sents.filter(function (x) { return K.test(x); });
+    return (keyed.length ? keyed : sents).slice(0, 6).map(function (x) { return x.length > 60 ? x.slice(0, 59) + '…' : x; });
   }
   function jrLogCard() {
     var list = h('div', { class: 'jr-mlist' }, [h('div', { class: 'adm-skel-card' })]), loaded = false;
@@ -2595,10 +2610,11 @@
     return card;
   }
   function jrSummaryBlock(jr) {   // 요약이 있으면 글머리 요약을 먼저, 원문은 눌러서 펼침 (없으면 원문 그대로)
-    if (!(jr.summary && jr.summary.lines && jr.summary.lines.length)) return h('div', { class: 'jr-text', text: jr.text });
+    var lines = jr.summary && jr.summary.lines && jr.summary.lines.length ? jr.summary.lines : (jr.text.length > 40 ? jrRuleSummary(jr.text) : []);
+    if (!lines.length) return h('div', { class: 'jr-text', text: jr.text });
     var raw = h('div', { class: 'jr-text', text: jr.text }), tg = h('button', { class: 'linkbtn', type: 'button', text: '원문 보기 ▾' });
     raw.hidden = true; tg.addEventListener('click', function () { raw.hidden = !raw.hidden; tg.textContent = raw.hidden ? '원문 보기 ▾' : '원문 접기 ▴'; });
-    return h('div', null, [h('div', { class: 'jr-sumlabel', text: '📝 요약' }), h('ul', { class: 'jr-sum' }, jr.summary.lines.map(function (t) { return h('li', { text: t }); })), tg, raw]);
+    return h('div', null, [h('div', { class: 'jr-sumlabel', text: '📝 요약' }), h('ul', { class: 'jr-sum' }, lines.map(function (t) { return h('li', { text: t }); })), tg, raw]);
   }
   function jongryeHomeCard() {
     var jr = DATA && DATA.jongrye;

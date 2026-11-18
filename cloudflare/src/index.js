@@ -5,7 +5,7 @@ import ASSETS from './assets.js';
 import FONT from './pretendard.woff2';
 import OG from './og.jpg';
 import ICON from './icon.png';
-import { parseSummary, kstISO, addDaysISO, buildAutoDaily, pinnedItems, calOnlyItems, cleanItems, parseMeals, timetableLine, pushText, eveningText } from './daily.js';
+import { parseSummary, ruleSummary, kstISO, addDaysISO, buildAutoDaily, pinnedItems, calOnlyItems, cleanItems, parseMeals, timetableLine, pushText, eveningText } from './daily.js';
 import { sendPush } from './webpush.js';
 const enc = new TextEncoder();
 const TTL = 60 * 60 * 24 * 30, BOARD_TTL = 60 * 60 * 24 * 365;   // 전자칠판 계정은 1년 유지(교실 PC가 매번 로그아웃되지 않게)
@@ -457,7 +457,7 @@ export default {
         return json({ ok: true, date: today, log });
       }
       const days = me0.role === 'board' ? 1 : Math.min(31, Math.max(1, parseInt(url.searchParams.get('days'), 10) || 14)), logs = {};
-      for (let i = 0; i < days; i++) { const iso = addDaysISO(today, -i), l = JSON.parse(await env.CLASS_KV.get('cleanlog:' + iso) || 'null'); if (l && Object.keys(l).length) logs[iso] = l; }
+      { const isos = Array.from({ length: days }, (_, i) => addDaysISO(today, -i)), vals = await Promise.all(isos.map((iso) => env.CLASS_KV.get('cleanlog:' + iso))); isos.forEach((iso, i) => { const l = vals[i] ? JSON.parse(vals[i]) : null; if (l && Object.keys(l).length) logs[iso] = l; }); }
       if (env.BOARD) {
         const stub = env.BOARD.get(env.BOARD.idFromName('main'));
         const dr = await stub.fetch('https://board/', { method: 'POST', body: JSON.stringify({ op: 'clean_get', date: today }) });
@@ -486,7 +486,7 @@ export default {
         return json({ ok: true, today, list });
       }
       const days = me0.role === 'board' ? 1 : Math.min(31, Math.max(1, parseInt(url.searchParams.get('days'), 10) || 14)), logs = {};
-      for (let i = 0; i < days; i++) { const iso = addDaysISO(today, -i), l = JSON.parse(await env.CLASS_KV.get('outlog:' + iso) || 'null'); if (l && l.length) logs[iso] = l; }
+      { const isos = Array.from({ length: days }, (_, i) => addDaysISO(today, -i)), vals = await Promise.all(isos.map((iso) => env.CLASS_KV.get('outlog:' + iso))); isos.forEach((iso, i) => { const l = vals[i] ? JSON.parse(vals[i]) : null; if (l && l.length) logs[iso] = l; }); }
       return json({ today, logs, now: Date.now() });
     }
     if (url.pathname === '/api/jongrye' && (request.method === 'GET' || request.method === 'POST')) {   // 오늘·지난 종례 안내사항: 누구나 조회, 관리자·교사·전자칠판만 작성(실시간 칠판 반영)
@@ -506,19 +506,20 @@ export default {
         if (b.summarize) {   // 조회/종례 끝: 저장된 말씀을 학생용 요약(글머리)으로 정리해 같은 기록에 붙임
           const cur = JSON.parse(await env.CLASS_KV.get(key) || 'null');
           if (!cur || !cur.text) return json({ ok: true, today, date, rec: null });
-          if (!env.AI) return json({ error: 'no_ai', rec: cur }, 501);
           let lines = [];
           if (cur.text.replace(/\s+/g, '').length < 20) lines = cur.text.split('\n').map((x) => x.trim()).filter(Boolean).slice(0, 6);   // 너무 짧으면 그대로
-          else {
+          else if (env.AI) {
             try {
               const r = await env.AI.run('@cf/meta/llama-3.3-70b-instruct-fp8-fast', { max_tokens: 400, temperature: 0.2, messages: [
                 { role: 'system', content: '너는 학교 담임 선생님의 조회·종례 말씀(음성 받아쓰기라 오타가 있을 수 있음)을 학생들이 볼 안내로 요약한다.\n규칙: 1) 말씀에 있는 내용만 쓰고 절대 지어내지 않는다. 2) 날짜·시간·과목·제출물·준비물·장소는 반드시 유지한다. 3) 잡담·반복·불필요한 말은 뺀다. 4) 핵심만 3~6줄, 한 줄 50자 이내, 간결하게. 5) 한국어. 6) 각 줄은 "- "로 시작하고 다른 설명은 쓰지 않는다.' },
                 { role: 'user', content: cur.text.slice(0, 1200) }] });
               lines = parseSummary(r && (r.response || r.result || ''));
-            } catch (e) { return json({ error: 'ai_fail', rec: cur }, 502); }
+            } catch (e) { lines = []; }
           }
+          let how = 'ai';
+          if (!lines.length) { lines = ruleSummary(cur.text); how = 'rule'; }   // AI가 안 될 때도 요약 기록은 남김
           if (!lines.length) return json({ error: 'ai_fail', rec: cur }, 502);
-          rec = { ...cur, summary: { lines, at: Date.now(), kind: b.kind === 'jo' ? 'jo' : 'jong' } };
+          rec = { ...cur, summary: { lines, at: Date.now(), kind: b.kind === 'jo' ? 'jo' : 'jong', how } };
           await env.CLASS_KV.put(key, JSON.stringify(rec), { expirationTtl: 180 * 86400 });
           if (date === today && env.BOARD) {
             const stub = env.BOARD.get(env.BOARD.idFromName('main'));
@@ -535,7 +536,8 @@ export default {
         return json({ ok: true, today, date, rec });
       }
       const days = Math.min(45, Math.max(1, parseInt(url.searchParams.get('days'), 10) || 30)), logs = {};
-      for (let i = 0; i < days; i++) { const iso = addDaysISO(today, -i), r = JSON.parse(await env.CLASS_KV.get('jongrye:' + iso) || 'null'); if (r && r.text) logs[iso] = r; }
+      const isos = Array.from({ length: days }, (_, i) => addDaysISO(today, -i)), vals = await Promise.all(isos.map((iso) => env.CLASS_KV.get('jongrye:' + iso)));   // 병렬 조회(순차 45번이던 것을 한 번에)
+      isos.forEach((iso, i) => { const r = vals[i] ? JSON.parse(vals[i]) : null; if (r && r.text) logs[iso] = r; });
       return json({ ok: true, today, logs });
     }
     if (url.pathname === '/api/stt' && request.method === 'POST') {   // 받아쓰기(고정밀): 전자칠판이 보낸 짧은 음성 조각 → 글자 (Workers AI Whisper). 소리는 저장하지 않음
