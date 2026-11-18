@@ -575,13 +575,14 @@
     }
 
     // ---------- 모드 전환 ----------
-    var MODES = [['today', '🏠', '오늘'], ['clean', '🧹', '청소'], ['jongrye', '📣', '조회/종례'], ['study', '📖', '자습'], ['seat', '🪑', '자리 바꾸기'], ['board', '💬', '의견 보드'], ['pick', '🎲', '발표자 뽑기'], ['group', '👥', '모둠 나누기']];
+    var MODES = [['today', '🏠', '오늘'], ['clean', '🧹', '청소'], ['jongrye', '📣', '조회/종례'], ['study', '📖', '자습'], ['seat', '🪑', '자리 바꾸기'], ['game', '🎮', '미니게임'], ['board', '💬', '의견 보드'], ['pick', '🎲', '발표자 뽑기'], ['group', '👥', '모둠 나누기']];
     function paintDock() {
       clear(dock);
       MODES.forEach(function (m) { var b = el('button', 'ks-dbtn' + (mode === m[0] ? ' on' : '')); b.appendChild(el('span', 'ks-de', m[1])); b.appendChild(el('span', 'ks-dl', m[2])); b.addEventListener('click', function () { setMode(m[0]); }); dock.appendChild(b); });
       var s = el('button', 'ks-dbtn small'); s.appendChild(el('span', 'ks-de', '⚙')); s.addEventListener('click', openSettings); dock.appendChild(s);
     }
     function setMode(m) {
+      if (m === 'game') { if (window.Game26) window.Game26.show({ onExit: function () { paintDock(); } }); return; }
       if (m === 'board') { if (window.Board26) window.Board26.show({ power: true, onExit: function () { paintDock(); } }); return; }
       cleanups.forEach(function (f) { f(); }); cleanups = []; KAPI = {}; resetTimers(); cdEl = null; mode = m; setTimeout(paintBadge, 0); clear(main); main.scrollTop = 0; paintDock(); root.classList.toggle('ks-solid', m === 'clean' || m === 'jongrye' || m === 'study'); root.classList.toggle('ks-cleanmode', m === 'clean');
       if (m === 'today') { todayEl = null; paintToday(); sumBox = el('div', 'ks-sumbn'); main.appendChild(sumBox); paintSum(); main.appendChild(todayEl); lastIdx = -2; tick(); }

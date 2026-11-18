@@ -1380,6 +1380,7 @@
     var p = document.getElementById('panel-more'); if (!p || !DATA) return; clear(p);
     if (!PREVIEW && DATA.me.role !== 'teacher') p.appendChild(pushCard());
     p.appendChild(jongryeMoreCard());
+    if (!PREVIEW && window.Game26) { var gb = h('button', { class: 'btn', type: 'button', text: '🎮 게임 시작' }); gb.addEventListener('click', function () { window.Game26.show(); }); p.appendChild(h('div', { class: 'card' }, [head('MINI GAME', '🎮 2인 대전 미니게임'), h('div', { class: 'card-b' }, [h('div', { class: 'note-sm', text: '친구와 한 화면을 둘로 나눠 마주 보고 대결! 손가락을 끌어 움직이면 총알은 자동으로 나가요. 먼저 체력을 다 깎으면 승리 (키보드: 1P WASD / 2P 방향키)' }), gb])])); }
     var clc = cleanCard(); if (clc) p.appendChild(clc);
     var about = DATA.about || {}, ups = (DATA.updates || []).slice().sort(function (x, y) { return x.date < y.date ? 1 : x.date > y.date ? -1 : 0; });
     p.appendChild(h('div', { class: 'card' }, [head('UPDATES', '업데이트 내역'), h('div', { class: 'card-b' },
