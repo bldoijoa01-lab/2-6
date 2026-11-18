@@ -1237,3 +1237,13 @@ body.kiosk{overflow:hidden}
 .gm-btn.warn{background:#e0334a; border-color:#e0334a}
 .gm-end{position:absolute; left:50%; top:62%; transform:translateX(-50%); display:flex; gap:14px; z-index:3}
 .gm-big{border:0; border-radius:999px; padding:16px 28px; font:inherit; font-weight:900; font-size:20px; background:#5BE7FF; color:#06303d; cursor:pointer; box-shadow:0 10px 30px rgba(0,0,0,.5)} .gm-big.out{background:rgba(255,255,255,.16); color:#fff; border:1px solid rgba(255,255,255,.4)}
+
+/* 원 그리기·게임 고르기 */
+.cg-msg{position:absolute; left:50%; bottom:7%; transform:translateX(-50%); font-size:clamp(18px,2.4vw,34px); font-weight:800; color:#fff; text-align:center; pointer-events:none; text-shadow:0 2px 12px rgba(0,0,0,.6); width:90%}
+.cg-msg.hint{opacity:.8} .cg-msg.err{color:#FFD0A8} .cg-msg.best{color:#FFE08A}
+.cg-best{position:absolute; left:14px; top:12px; color:#fff; font-weight:800; font-size:15px; opacity:.9; pointer-events:none}
+.gm-hub{position:fixed; inset:0; z-index:590; background:rgba(5,7,26,.92); display:flex; align-items:center; justify-content:center}
+.gm-hubc{text-align:center; color:#fff; padding:20px} .gm-hubc h2{margin:0 0 18px; font-size:clamp(24px,3vw,40px)}
+.gm-hubrow{display:flex; gap:18px; flex-wrap:wrap; justify-content:center; margin-bottom:22px}
+.gm-hubb{width:min(300px,80vw); padding:26px 18px; border-radius:26px; border:1px solid rgba(255,255,255,.28); background:linear-gradient(135deg,rgba(120,160,255,.22),rgba(255,120,200,.16)); color:#fff; font:inherit; cursor:pointer; display:flex; flex-direction:column; gap:8px; align-items:center}
+.gm-hube{font-size:64px} .gm-hubb b{font-size:24px} .gm-hubb small{opacity:.8; font-size:14px; line-height:1.4}

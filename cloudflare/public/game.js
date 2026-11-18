@@ -174,5 +174,85 @@
     resize(); newRound(); cur = { close: close }; raf = requestAnimationFrame(frame);
     window.Game26._debug = { state: function () { return st; }, wins: wins };
   }
-  window.Game26 = { show: show };
+
+  // ================= 원 그리기 (정확도 채점) =================
+  // 손가락/마우스로 한 번에 원을 그리면 최소제곱으로 맞춘 '가장 가까운 원'과 비교해 정확도(%)를 계산: 반지름 흔들림 + 시작·끝 이어짐 + 끝까지 한 바퀴 그렸는지
+  var curC = null;
+  function scoreCircle(pts) {
+    var n = pts.length; if (n < 12) return { err: '조금 더 길게 그려 주세요' };
+    var sx = 0, sy = 0, i; for (i = 0; i < n; i++) { sx += pts[i][0]; sy += pts[i][1]; }
+    var mx = sx / n, my = sy / n, suu = 0, svv = 0, suv = 0, suuu = 0, svvv = 0, suvv = 0, svuu = 0;   // Kasa 최소제곱 원 맞춤
+    for (i = 0; i < n; i++) { var u = pts[i][0] - mx, v = pts[i][1] - my; suu += u * u; svv += v * v; suv += u * v; suuu += u * u * u; svvv += v * v * v; suvv += u * v * v; svuu += v * u * u; }
+    var det = suu * svv - suv * suv; if (Math.abs(det) < 1e-6) return { err: '원 모양으로 그려 주세요' };
+    var A = (suuu + suvv) / 2, B = (svvv + svuu) / 2, uc = (A * svv - B * suv) / det, vc = (B * suu - A * suv) / det, cx = uc + mx, cy = vc + my;
+    var rs = [], rm = 0; for (i = 0; i < n; i++) { var r = Math.hypot(pts[i][0] - cx, pts[i][1] - cy); rs.push(r); rm += r; } rm /= n;
+    if (rm < 40) return { err: '조금 더 크게 그려 주세요' };
+    // 한 바퀴를 얼마나 돌았는지(누적 각도)
+    var tot = 0, prev = Math.atan2(pts[0][1] - cy, pts[0][0] - cx); for (i = 1; i < n; i++) { var a = Math.atan2(pts[i][1] - cy, pts[i][0] - cx), d = a - prev; if (d > Math.PI) d -= 2 * Math.PI; if (d < -Math.PI) d += 2 * Math.PI; tot += d; prev = a; }
+    var turns = Math.abs(tot) / (2 * Math.PI); if (turns < 0.85) return { err: '원을 한 바퀴 이상 그려 주세요' };
+    var dev = 0; for (i = 0; i < n; i++) dev += Math.abs(rs[i] - rm) / rm; dev /= n;
+    var gap = Math.hypot(pts[0][0] - pts[n - 1][0], pts[0][1] - pts[n - 1][1]) / (2 * Math.PI * rm);   // 시작-끝 간격(둘레 대비)
+    var over = Math.max(0, turns - 1.25) * 12;   // 너무 여러 번 덧그리면 감점
+    var acc = 100 - dev * 330 - gap * 50 - over; acc = Math.max(0, Math.min(100, acc));
+    return { acc: acc, cx: cx, cy: cy, r: rm, rs: rs, dev: dev, gap: gap };
+  }
+  function circle(opts) {
+    if (curC) return; opts = opts || {};
+    var root = el('div', 'gm-root cg-root'), cv = el('canvas', 'gm-cv'), ctx = cv.getContext('2d'), bar = el('div', 'gm-bar'), msgEl = el('div', 'cg-msg'), bestEl = el('div', 'cg-best');
+    var btnX = el('button', 'gm-btn', '✕ 나가기'); btnX.type = 'button'; bar.appendChild(btnX);
+    root.appendChild(cv); root.appendChild(bar); root.appendChild(bestEl); root.appendChild(msgEl); document.body.appendChild(root);
+    var DPR = Math.min(2, window.devicePixelRatio || 1), SW = 0, SH = 0, pts = [], drawing = false, res = null, shown = 0, raf = 0, alive = true, tries = 0;
+    var best = 0; try { best = parseFloat(localStorage.getItem('circle_best') || '0') || 0; } catch (e) {}
+    function paintBest() { bestEl.textContent = '🏆 최고 ' + best.toFixed(1) + '%  ·  도전 ' + tries + '회'; }
+    paintBest();
+    function resize() { SW = window.innerWidth; SH = window.innerHeight; cv.width = Math.round(SW * DPR); cv.height = Math.round(SH * DPR); cv.style.width = SW + 'px'; cv.style.height = SH + 'px'; }
+    function say(t, cls) { msgEl.textContent = t; msgEl.className = 'cg-msg' + (cls ? ' ' + cls : ''); }
+    function start() { pts = []; res = null; shown = 0; say('원을 한 번에 그려 보세요 ✏️', 'hint'); }
+    function dcol(d) { var t = Math.max(0, Math.min(1, d / 0.12)); return 'hsl(' + Math.round(130 - 130 * t) + ',90%,60%)'; }   // 잘 그린 곳 초록 → 벗어난 곳 빨강
+    function down(e) { if (res && shown < 0.98 * res.acc) return; start(); drawing = true; pts.push([e.clientX, e.clientY]); try { cv.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); }
+    function move(e) { if (!drawing) return; var l = pts[pts.length - 1]; if (Math.hypot(e.clientX - l[0], e.clientY - l[1]) > 1.5) pts.push([e.clientX, e.clientY]); }
+    function up() {
+      if (!drawing) return; drawing = false; tries++;
+      var r = scoreCircle(pts); if (r.err) { res = null; say(r.err + ' 🙂', 'err'); paintBest(); return; }
+      res = r; shown = 0; var newBest = r.acc > best; if (newBest) { best = r.acc; try { localStorage.setItem('circle_best', String(best)); } catch (e) {} } paintBest();
+      var a = r.acc; say(a >= 99 ? '🤯 소름… 거의 완벽한 원!' : a >= 95 ? '😲 엄청나요! 컴퍼스급' : a >= 90 ? '😎 아주 잘 그렸어요' : a >= 80 ? '👍 꽤 둥글어요' : a >= 60 ? '🙂 조금만 더!' : '🥔 감자 모양… 다시 도전', (newBest ? 'best' : '') + ' res');
+      if (newBest) msgEl.textContent += '  ⭐ 최고 기록!';
+    }
+    cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    function kd(e) { if (e.key === 'Escape') close(); } document.addEventListener('keydown', kd); window.addEventListener('resize', resize);
+    function frame() {
+      raf = 0; if (!alive) return;
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0); var g = ctx.createRadialGradient(SW / 2, SH / 2, 50, SW / 2, SH / 2, Math.max(SW, SH) * 0.7); g.addColorStop(0, '#16204d'); g.addColorStop(1, '#05071a'); ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
+      ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.arc(SW / 2, SH / 2, 5, 0, 6.28); ctx.fill();   // 기준점(가운데)
+      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+      if (res) {
+        ctx.strokeStyle = 'rgba(120,255,170,.7)'; ctx.lineWidth = 3; ctx.setLineDash([10, 9]); ctx.beginPath(); ctx.arc(res.cx, res.cy, res.r, 0, 6.28); ctx.stroke(); ctx.setLineDash([]);
+        for (var i = 1; i < pts.length; i++) { ctx.strokeStyle = dcol(Math.abs(res.rs[i] - res.r) / res.r); ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(pts[i - 1][0], pts[i - 1][1]); ctx.lineTo(pts[i][0], pts[i][1]); ctx.stroke(); }
+        shown += (res.acc - shown) * 0.12 + 0.05; if (shown > res.acc) shown = res.acc;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 18;
+        ctx.font = '900 ' + Math.round(Math.min(SW, SH) * 0.2) + 'px system-ui,sans-serif'; ctx.fillText(shown.toFixed(1) + '%', res.cx, res.cy); ctx.shadowBlur = 0;
+      } else if (pts.length > 1) {
+        ctx.strokeStyle = '#7FE0FF'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (var k = 1; k < pts.length; k++) ctx.lineTo(pts[k][0], pts[k][1]); ctx.stroke();
+      }
+      raf = requestAnimationFrame(frame);
+    }
+    function close() { if (!alive) return; alive = false; cancelAnimationFrame(raf); document.removeEventListener('keydown', kd); window.removeEventListener('resize', resize); root.remove(); curC = null; if (opts.onExit) opts.onExit(); }
+    btnX.addEventListener('click', close);
+    resize(); start(); curC = { close: close }; raf = requestAnimationFrame(frame);
+    window.Game26._debugC = { score: scoreCircle, state: function () { return { res: res, best: best, tries: tries }; } };
+  }
+
+  // ================= 게임 고르기 =================
+  var hubOpen = null;
+  function hub(opts) {
+    if (hubOpen) return; opts = opts || {};
+    var root = el('div', 'gm-hub'), card = el('div', 'gm-hubc'); card.appendChild(el('h2', null, '🎮 미니게임'));
+    var row = el('div', 'gm-hubrow');
+    [['⚔️', '2인 대전', '한 화면을 반으로 나눠 마주 보고 총싸움', function () { show({}); }], ['⭕', '원 그리기', '한 번에 원을 그려 정확도(%) 도전!', function () { circle({}); }]].forEach(function (g) {
+      var b = el('button', 'gm-hubb'); b.type = 'button'; b.appendChild(el('div', 'gm-hube', g[0])); b.appendChild(el('b', null, g[1])); b.appendChild(el('small', null, g[2])); b.addEventListener('click', g[3]); row.appendChild(b);
+    });
+    var x = el('button', 'gm-btn', '✕ 닫기'); x.type = 'button'; x.addEventListener('click', function () { root.remove(); hubOpen = null; if (opts.onExit) opts.onExit(); });
+    card.appendChild(row); card.appendChild(x); root.appendChild(card); document.body.appendChild(root); hubOpen = root;
+  }
+  window.Game26 = { show: show, circle: circle, hub: hub };
 })();

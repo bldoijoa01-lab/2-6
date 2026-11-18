@@ -590,7 +590,7 @@
       var s = el('button', 'ks-dbtn small'); s.appendChild(el('span', 'ks-de', '⚙')); s.addEventListener('click', openSettings); dock.appendChild(s);
     }
     function setMode(m) {
-      if (m === 'game') { if (window.Game26) window.Game26.show({ onExit: function () { paintDock(); } }); return; }
+      if (m === 'game') { if (window.Game26) window.Game26.hub({ onExit: function () { paintDock(); } }); return; }
       if (m === 'board') { if (window.Board26) window.Board26.show({ power: true, onExit: function () { paintDock(); } }); return; }
       cleanups.forEach(function (f) { f(); }); cleanups = []; KAPI = {}; resetTimers(); cdEl = null; mode = m; setTimeout(paintBadge, 0); clear(main); main.scrollTop = 0; paintDock(); root.classList.toggle('ks-solid', m === 'clean' || m === 'jongrye' || m === 'study'); root.classList.toggle('ks-cleanmode', m === 'clean');
       if (m === 'today') { todayEl = null; paintToday(); sumBox = el('div', 'ks-sumbn'); main.appendChild(sumBox); paintSum(); main.appendChild(todayEl); lastIdx = -2; tick(); }
