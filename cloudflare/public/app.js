@@ -1724,6 +1724,15 @@
     Object.keys(bl).forEach(function (n) { if (off.el2.indexOf(n) < 0) delete bl[n]; });
     Object.keys(off.blocks || {}).forEach(function (n) { if (bl[n] !== off.blocks[n]) { Object.keys(bl).forEach(function (m) { if (bl[m] === off.blocks[n] && m !== n) delete bl[m]; }); bl[n] = off.blocks[n]; } });
     if (JSON.stringify(bl) !== JSON.stringify(pr.blocks || {})) { pr.blocks = bl; changed = true; }
+    // 내신 2학기(2-2)에 학교 기준 선택과목 반영: 이미 저장된 학기 표에도 빠진 과목을 추가(입력한 등급은 그대로), 점수를 안 넣은 다른 선택과목 행은 정리
+    var nsv = (pr.naesin && pr.naesin.sems) || null, rows2 = nsv && nsv['2-2'];
+    if (Array.isArray(rows2) && Array.isArray(off.el2)) {
+      var optNames = {}; ((window.ELECTIVES && window.ELECTIVES.sem2 && window.ELECTIVES.sem2.options) || []).forEach(function (o) { optNames[o.n] = 1; });
+      var kept = rows2.filter(function (r) { return !(optNames[r.n] && off.el2.indexOf(r.n) < 0 && !(r.g >= 1)); }), have = {};
+      kept.forEach(function (r) { have[r.n] = 1; });
+      off.el2.forEach(function (n) { if (!have[n]) kept.push({ n: n, cr: 3, g: 0, x: noRank(n) ? 1 : 0 }); });
+      if (JSON.stringify(kept) !== JSON.stringify(rows2)) { nsv['2-2'] = kept; changed = true; }
+    }
     if (changed) prefSave(pr);
   }
   function pruneElectives() {   // 개설되지 않아 목록에서 빠진 2학기 과목을 이미 골라 둔 경우 정리
