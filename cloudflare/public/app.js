@@ -332,9 +332,27 @@
     }
     return { cls: 'k-' + c.k, kids: [h('b', { text: c.t })].concat(c.who ? [h('small', { text: c.who })] : []) };
   }
-  function nowPeriod() {   // 지금 몇 교시인지 (KST)
+  function hmS(m) { return ('0' + Math.floor(m / 60)).slice(-2) + ':' + ('0' + (m % 60)).slice(-2); }
+  function daySchedApp() {   // 오늘 일정 안내에 시간표(1교시 · 08:30~09:10, 점심·청소 …)가 있으면 그날의 특별 일과로 사용
+    var iso = isoToday(), evs = (DATA.events || []).filter(function (e) { return e.info && e.date && e.date <= iso && iso <= (e.end || e.date); }), T = function (h2, m2) { return +h2 * 60 + +m2; };
+    for (var i = 0; i < evs.length; i++) {
+      var rows = [], seen = {}, lunch = null, clean = null, jong = null;
+      (evs[i].info.sections || []).forEach(function (sec) { (sec.items || []).forEach(function (t) {
+        var m1 = /(\d)교시\s*·\s*(\d{1,2}):(\d{2})\s*[~∼\-–]\s*(\d{1,2}):(\d{2})/.exec(t), m3 = /^점심\s*·\s*(\d{1,2}):(\d{2})(?:\s*[~∼\-–]\s*(\d{1,2}):(\d{2}))?/.exec(t), m4 = /^청소\s*·\s*(\d{1,2}):(\d{2})\s*[~∼\-–]\s*(\d{1,2}):(\d{2})/.exec(t), m2 = /^종례\s*·\s*(\d{1,2}):(\d{2})\s*이후/.exec(t);
+        if (m1 && !seen[m1[1]]) { seen[m1[1]] = 1; rows.push({ n: +m1[1], s: T(m1[2], m1[3]), e: T(m1[4], m1[5]) }); }
+        if (m3 && !lunch) lunch = { s: T(m3[1], m3[2]), e: m3[3] ? T(m3[3], m3[4]) : null };
+        if (m4 && !clean) clean = { s: T(m4[1], m4[2]), e: T(m4[3], m4[4]) };
+        if (m2 && jong == null) jong = T(m2[1], m2[2]);
+      }); });
+      if (rows.length >= 2) { rows.sort(function (a, b) { return a.s - b.s; }); if (lunch && lunch.e == null) lunch.e = clean ? clean.s : jong != null ? jong : lunch.s + 60; return { rows: rows, lunch: lunch, clean: clean, jong: jong, title: evs[i].title }; }
+    }
+    return null;
+  }
+  function nowPeriod() {   // 지금 몇 교시인지 (KST) — 주간 시간표 행 번호(오늘 특별 일과가 있으면 그 시각 기준)
     var t = new Intl.DateTimeFormat('en-GB', { timeZone: 'Asia/Seoul', hour: '2-digit', minute: '2-digit', hour12: false }).format(new Date()).split(':');
     var m = (+t[0]) * 60 + (+t[1]), W = DATA.weekly, cur = -1;
+    var ds = daySchedApp();
+    if (ds) { var last = ds.rows[ds.rows.length - 1], cn = -1; ds.rows.forEach(function (p) { if (m >= p.s) cn = p.n; }); if (m >= last.e) return -1; W.rows.forEach(function (r, i) { if (r.n === cn) cur = i; }); return cur; }
     W.rows.forEach(function (r, i) { var s = r.time.split(':'); if (m >= (+s[0]) * 60 + (+s[1])) cur = i; });
     return m >= 16 * 60 + 10 ? -1 : cur;
   }
@@ -422,11 +440,20 @@
     var W = DATA.weekly, dow = todayDow(); if (!W) return null;
     var np = nowPeriod(), dn = W.days[dow];
     if (dow < 0) return null;
-    var rows = W.rows.map(function (r, ri) {
+    var ds = daySchedApp(), rows;
+    function trow(r, ri, label) {
       var x = wCell(r.cells[dow]); if (!r.cells[dow]) return null;
-      return h('div', { class: 'tday' + (ri === np ? ' now' : '') }, [h('span', { class: 'tday-p', text: r.n + '교시' }), h('span', { class: 'tday-t', text: r.time }),
+      return h('div', { class: 'tday' + (ri === np ? ' now' : '') }, [h('span', { class: 'tday-p', text: r.n + '교시' }), h('span', { class: 'tday-t', text: label || r.time }),
         h('span', { class: 'tday-s' + (x.cls === 'k-block' ? ' unset' : '') }, x.kids.map(function (k) { return k.cloneNode(true); }))]);
-    });
+    }
+    if (ds) {   // 오늘은 특별 일과: 교시별 시작~끝, 점심·청소 포함
+      var list = [];
+      ds.rows.forEach(function (p) { var ri = -1; W.rows.forEach(function (r, i) { if (r.n === p.n) ri = i; }); if (ri >= 0) { var el0 = trow(W.rows[ri], ri, hmS(p.s) + '~' + hmS(p.e)); if (el0) list.push({ s: p.s, el: el0 }); } });
+      if (ds.lunch) list.push({ s: ds.lunch.s, el: h('div', { class: 'tday' }, [h('span', { class: 'tday-p', text: '점심' }), h('span', { class: 'tday-t', text: hmS(ds.lunch.s) + '~' + hmS(ds.lunch.e) }), h('span', { class: 'tday-s' }, [h('b', { text: '🍚 중식' })])]) });
+      if (ds.clean) list.push({ s: ds.clean.s, el: h('div', { class: 'tday' }, [h('span', { class: 'tday-p', text: '청소' }), h('span', { class: 'tday-t', text: hmS(ds.clean.s) + '~' + hmS(ds.clean.e) }), h('span', { class: 'tday-s' }, [h('b', { text: '🧹 청소·하교' })])]) });
+      list.sort(function (a, b) { return a.s - b.s; }); rows = list.map(function (x) { return x.el; });
+      rows.push(h('div', { class: 'note-sm', text: '⚡ 오늘은 특별 일과예요 · ' + ds.title.replace(/\(.*?\)/g, '').trim() + (ds.jong != null ? ' · 종례 ' + hmS(ds.jong) + ' 이후' : '') }));
+    } else rows = W.rows.map(function (r, ri) { return trow(r, ri); });
     var more = h('button', { class: 'linkbtn', type: 'button', text: '주간 시간표 보기 →' });
     more.addEventListener('click', function () { goTab('today'); setTimeout(function () { var b = document.querySelectorAll('#panel-today .seg-b'); if (b[2]) b[2].click(); }, 60); });
     return h('div', { class: 'card' }, [head('TODAY', dn + '요일 시간표'), h('div', { class: 'card-b' }, rows.concat([more]))]);

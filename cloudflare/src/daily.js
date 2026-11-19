@@ -110,17 +110,37 @@ export function parseMeals(j) {
   }));
 }
 
-// 오늘 일과(주간 시간표) 한 줄 요약. 선택 블록(A~E)은 학교 명단이 있으면 과목으로 바꿔 줌
+// 오늘 일정의 안내(info)에 시간표가 있으면(예: "1교시 · 08:30~09:20", "점심 · 12:30~13:20", "청소 · 14:50~15:10", "종례 · 12:20 이후") 그날의 특별 일과로 사용 (분 단위)
+const T2M = (h, m) => +h * 60 + +m, HM = (m) => String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0');
+export function daySchedule(data, iso) {
+  for (const e of data.events || []) {
+    if (!e.info || !e.date || e.date > iso || iso > (e.end || e.date)) continue;
+    const rows = [], seen = {}; let lunch = null, clean = null, jong = null, m;
+    for (const sec of e.info.sections || []) for (const t of sec.items || []) {
+      if ((m = /(\d)교시\s*·\s*(\d{1,2}):(\d{2})\s*[~∼\-–]\s*(\d{1,2}):(\d{2})/.exec(t)) && !seen[m[1]]) { seen[m[1]] = 1; rows.push({ n: +m[1], s: T2M(m[2], m[3]), e: T2M(m[4], m[5]) }); }
+      if ((m = /^점심\s*·\s*(\d{1,2}):(\d{2})(?:\s*[~∼\-–]\s*(\d{1,2}):(\d{2}))?/.exec(t)) && !lunch) lunch = { s: T2M(m[1], m[2]), e: m[3] ? T2M(m[3], m[4]) : null };
+      if ((m = /^청소\s*·\s*(\d{1,2}):(\d{2})\s*[~∼\-–]\s*(\d{1,2}):(\d{2})/.exec(t)) && !clean) clean = { s: T2M(m[1], m[2]), e: T2M(m[3], m[4]) };
+      if ((m = /^종례\s*·\s*(\d{1,2}):(\d{2})\s*이후/.exec(t)) && jong == null) jong = T2M(m[1], m[2]);
+    }
+    if (rows.length >= 2) { rows.sort((a, b) => a.s - b.s); return { rows, lunch, clean, jong, title: e.title }; }
+  }
+  return null;
+}
+
+// 오늘 일과(주간 시간표) 한 줄 요약. 선택 블록(A~E)은 학교 명단이 있으면 과목으로 바꿔 줌. 오늘 특별 일과가 있으면 그 교시·시각으로
 export function timetableLine(data, iso, official) {
   const w = data.weekly, dow = new Date(iso + 'T00:00:00Z').getUTCDay();
   if (!w || dow < 1 || dow > 5 || noSchoolEvent(data, iso)) return '';
   const inv = {}; if (official && official.blocks) for (const [sub, L] of Object.entries(official.blocks)) inv[L] = sub;
-  const parts = [];
-  for (const r of w.rows || []) {
-    const c = (r.cells || [])[dow - 1]; if (!c) continue;
-    const name = c.k === 'block' ? (inv[c.b] || c.b + '선택') : c.t;
-    if (name) parts.push(`${r.n}${name}`);
+  const ds = daySchedule(data, iso), parts = [];
+  const nameOf = (r) => { const c = (r.cells || [])[dow - 1]; if (!c) return ''; return c.k === 'block' ? (inv[c.b] || c.b + '선택') : c.t; };
+  if (ds) {
+    for (const p of ds.rows) { const r = (w.rows || []).find((x) => x.n === p.n), name = r ? nameOf(r) : ''; if (name) parts.push(`${p.n}${name}(${HM(p.s)})`); }
+    if (ds.lunch) parts.push(`점심 ${HM(ds.lunch.s)}`);
+    if (ds.clean) parts.push(`청소 ${HM(ds.clean.s)}`); else if (ds.jong != null) parts.push(`종례 ${HM(ds.jong)}`);
+    return parts.join(' ');
   }
+  for (const r of w.rows || []) { const name = nameOf(r); if (name) parts.push(`${r.n}${name}`); }
   return parts.join(' ');
 }
 

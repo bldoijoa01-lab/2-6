@@ -41,13 +41,16 @@
     function daySched() {
       var iso = isoOf(kst()), evs = (D.events || []).filter(function (e) { return e.info && e.date && e.date <= iso && iso <= (e.end || e.date); });
       for (var i = 0; i < evs.length; i++) {
-        var rows = [], jong = null, seen = {};
+        var rows = [], jong = null, lunch = null, clean = null, seen = {}, T = function (h, m) { return +h * 60 + +m; };
         (evs[i].info.sections || []).forEach(function (sec) { (sec.items || []).forEach(function (t) {
-          var m1 = /(\d)교시\s*·\s*(\d{1,2}):(\d{2})\s*[~∼\-–]\s*(\d{1,2}):(\d{2})/.exec(t), m2 = /^종례\s*·\s*(\d{1,2}):(\d{2})\s*이후/.exec(t);
-          if (m1 && !seen[m1[1]]) { seen[m1[1]] = 1; rows.push({ n: +m1[1], s: +m1[2] * 60 + +m1[3], e: +m1[4] * 60 + +m1[5] }); }
-          if (m2 && jong == null) jong = +m2[1] * 60 + +m2[2];
+          var m1 = /(\d)교시\s*·\s*(\d{1,2}):(\d{2})\s*[~∼\-–]\s*(\d{1,2}):(\d{2})/.exec(t), m2 = /^종례\s*·\s*(\d{1,2}):(\d{2})\s*이후/.exec(t),
+              m3 = /^점심\s*·\s*(\d{1,2}):(\d{2})(?:\s*[~∼\-–]\s*(\d{1,2}):(\d{2}))?/.exec(t), m4 = /^청소\s*·\s*(\d{1,2}):(\d{2})\s*[~∼\-–]\s*(\d{1,2}):(\d{2})/.exec(t);
+          if (m1 && !seen[m1[1]]) { seen[m1[1]] = 1; rows.push({ n: +m1[1], s: T(m1[2], m1[3]), e: T(m1[4], m1[5]) }); }
+          if (m2 && jong == null) jong = T(m2[1], m2[2]);
+          if (m3 && !lunch) lunch = { s: T(m3[1], m3[2]), e: m3[3] ? T(m3[3], m3[4]) : null };
+          if (m4 && !clean) clean = { s: T(m4[1], m4[2]), e: T(m4[3], m4[4]) };
         }); });
-        if (rows.length >= 2) { rows.sort(function (a, b) { return a.s - b.s; }); return { rows: rows, jong: jong, title: evs[i].title }; }
+        if (rows.length >= 2) { rows.sort(function (a, b) { return a.s - b.s; }); if (lunch && lunch.e == null) lunch.e = clean ? clean.s : jong != null ? jong : lunch.s + 60; return { rows: rows, jong: jong, lunch: lunch, clean: clean, title: evs[i].title }; }
       }
       return null;
     }
@@ -56,13 +59,17 @@
       if (!W) return []; return W.rows.map(function (w) { var p = w.time.split(':'), st = +p[0] * 60 + +p[1]; return { n: w.n, s: st, e: st + 50, row: w }; });
     }
     function SCe() {   // 청소·종례 시각: 오늘 일정에 '종례 · HH:MM 이후'가 있으면 그 시각부터(청소 15분 → 종례 5분)
-      var ds = daySched(); if (!(ds && ds.jong != null)) return SC;
-      var o = {}; Object.keys(SC).forEach(function (k) { o[k] = SC[k]; }); o.cs = hmStr(ds.jong); o.js = hmStr(ds.jong + 15); o.ee = hmStr(ds.jong + 20); return o;
+      var ds = daySched(); if (!ds || (ds.jong == null && !ds.clean)) return SC;
+      var o = {}; Object.keys(SC).forEach(function (k) { o[k] = SC[k]; });
+      if (ds.clean) { o.cs = hmStr(ds.clean.s); o.js = hmStr(Math.max(ds.clean.s + 1, ds.clean.e - 5)); o.ee = hmStr(ds.clean.e); }   // 청소 시각이 명시된 날: 청소 끝 5분 전부터 종례
+      else { o.cs = hmStr(ds.jong); o.js = hmStr(ds.jong + 15); o.ee = hmStr(ds.jong + 20); }
+      return o;
     }
     function curPeriod() {
       var k = kst(), dow = k.getUTCDay(), m = k.getUTCHours() * 60 + k.getUTCMinutes(), P = periods();
       if (!P.length || dow < 1 || dow > 5) return { idx: -1, text: dow === 0 || dow === 6 ? '주말' : '' };
       for (var i = 0; i < P.length; i++) if (m >= P[i].s && m < P[i].e) return { idx: i, text: P[i].n + '교시 수업 중' };
+      var dsl = daySched(); if (dsl && dsl.lunch && m >= dsl.lunch.s && m < dsl.lunch.e) return { idx: -1, text: '🍚 점심시간 · ~' + hmStr(dsl.lunch.e) };
       for (var j = 0; j < P.length; j++) if (m < P[j].s) return { idx: -1, text: j === 0 ? '등교 전' : '쉬는 시간 · 다음 ' + P[j].n + '교시 ' + hmStr(P[j].s) };
       return { idx: -1, text: '수업 끝' };
     }
@@ -133,10 +140,12 @@
       else if (!W || dow < 1 || dow > 5) c2.appendChild(el('div', 'ks-empty', '주말이에요 😴'));
       else periods().forEach(function (P, i) {
         var cell = P.row && P.row.cells[dow - 1]; if (!cell) return;
-        var name = cell.k === 'block' ? cell.b + ' 선택' : cell.t, row = el('div', 'ks-tt' + (i === p.idx ? ' now' : ''));
+        var name = cell.k === 'block' ? cell.b + ' 선택' : cell.t, row = el('div', 'ks-tt' + (i === p.idx ? ' now' : '')); row.dataset.s = P.s;
         row.appendChild(el('span', 'ks-tp', P.n + '교시')); row.appendChild(el('span', 'ks-tm', P.special ? hmStr(P.s) + '~' + hmStr(P.e) : hmStr(P.s))); row.appendChild(el('span', 'ks-ts', name)); c2.appendChild(row);
       });
-      var dsx = daySched(); if (dsx && !noSchool && dow >= 1 && dow <= 5) { var tag = el('div', 'ks-ttnote', '⚡ 오늘은 특별 일과 · ' + dsx.title.replace(/\(.*?\)/g, '').trim() + (dsx.jong != null ? ' · 종례 ' + hmStr(dsx.jong) + ' 이후' : '')); c2.appendChild(tag); }
+      var dsx = daySched(); if (dsx && dsx.lunch && !noSchool && dow >= 1 && dow <= 5) { var lr = el('div', 'ks-tt lunch'); lr.appendChild(el('span', 'ks-tp', '점심')); lr.appendChild(el('span', 'ks-tm', hmStr(dsx.lunch.s) + '~' + hmStr(dsx.lunch.e))); lr.appendChild(el('span', 'ks-ts', '🍚 중식')); var rowsEl = c2.querySelectorAll('.ks-tt'), put = false; Array.prototype.forEach.call(rowsEl, function (re) { if (!put && +re.dataset.s > dsx.lunch.s) { c2.insertBefore(lr, re); put = true; } }); if (!put) c2.appendChild(lr); }
+      if (dsx && dsx.clean && !noSchool && dow >= 1 && dow <= 5) { var cr = el('div', 'ks-tt'); cr.appendChild(el('span', 'ks-tp', '청소')); cr.appendChild(el('span', 'ks-tm', hmStr(dsx.clean.s) + '~' + hmStr(dsx.clean.e))); cr.appendChild(el('span', 'ks-ts', '🧹 청소·하교')); c2.appendChild(cr); }
+      if (dsx && !noSchool && dow >= 1 && dow <= 5) { var tag = el('div', 'ks-ttnote', '⚡ 오늘은 특별 일과 · ' + dsx.title.replace(/\(.*?\)/g, '').trim() + (dsx.jong != null ? ' · 종례 ' + hmStr(dsx.jong) + ' 이후' : '')); c2.appendChild(tag); }
       todayEl.appendChild(c2);
       // 급식
       var c3 = card('오늘 급식', '🍚'); c3.classList.add('ks-c'); var meals = (D.today && D.today.date === iso ? D.today.meals : []) || [], hm = k.getUTCHours() * 60 + k.getUTCMinutes();
