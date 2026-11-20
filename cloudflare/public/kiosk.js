@@ -476,6 +476,7 @@
     function hm(ts) { var d = new Date(ts + 9 * 3600e3); return pad(d.getUTCHours()) + ':' + pad(d.getUTCMinutes()); }
     function pullOut() { outApi().then(function (j) { if (j && j.logs) { OUT = j.logs[j.today] || []; paintOut(); } }).catch(function () {}); }
     function paintOut() {
+      paintSeatMap();
       if (!outBox) return; clear(outBox);
       var h1 = el('div', 'ks-oh'); h1.appendChild(el('small', null, '🚪 교실 이탈')); var add = el('button', 'ks-chip on', '＋ 등록'); add.type = 'button'; add.addEventListener('click', openOut); h1.appendChild(add); outBox.appendChild(h1);
       var now = OUT.filter(function (e) { return !e.back; }), back = OUT.filter(function (e) { return e.back; });
@@ -488,13 +489,13 @@
       });
       if (back.length) outBox.appendChild(el('small', 'ks-oback', '오늘 다녀온 ' + back.length + '건 · ' + back.slice(-3).map(function (e) { return e.name + '(' + e.reason + ')'; }).join(', ')));
     }
-    function openOut() {
+    function openOut(pre) {   // pre: 자리표에서 누른 이름(문자열)이면 미리 선택
       var ov = el('div', 'ks-modal'), card = el('div', 'ks-mcard wide'), picked = null, reason = '';
       card.appendChild(el('h2', null, '🚪 교실 이탈 등록'));
       var grid = el('div', 'ks-ngrid'), rs = el('div', 'ks-row left'), txt = el('input', 'ks-in'), ok = el('button', 'ks-btn big', '등록'), msg = el('div', 'ks-note', '이름을 누르고 사유(밖에서 공부 / 기타)를 골라 주세요');
       txt.type = 'text'; txt.placeholder = '자세한 내용 (선택, 예: 화장실)'; txt.style.width = '16em'; txt.maxLength = 30;
       var away = {}; OUT.forEach(function (e) { if (!e.back) away[e.name] = 1; });
-      getNames(function (all) { all.slice().sort(function (a, b) { return a.n - b.n; }).forEach(function (st) { var b = el('button', 'ks-nbtn' + (away[st.name] ? ' away' : ''), st.name); b.type = 'button'; b.disabled = !!away[st.name]; b.addEventListener('click', function () { picked = st.name; Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove('sel'); }); b.classList.add('sel'); }); grid.appendChild(b); }); });
+      getNames(function (all) { all.slice().sort(function (a, b) { return a.n - b.n; }).forEach(function (st) { var b = el('button', 'ks-nbtn' + (away[st.name] ? ' away' : ''), st.name); b.type = 'button'; b.disabled = !!away[st.name]; if (typeof pre === 'string' && pre === st.name) { picked = st.name; b.classList.add('sel'); } b.addEventListener('click', function () { picked = st.name; Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove('sel'); }); b.classList.add('sel'); }); grid.appendChild(b); }); });
       REASONS.forEach(function (r) { var c = el('button', 'ks-chip', r); c.type = 'button'; c.addEventListener('click', function () { reason = r; Array.prototype.forEach.call(rs.querySelectorAll('.ks-chip'), function (x) { x.classList.remove('on'); }); c.classList.add('on'); }); rs.appendChild(c); });
       ok.addEventListener('click', function () {
         if (!picked) { msg.textContent = '먼저 이름을 눌러 주세요'; return; } if (!reason.trim()) { msg.textContent = '사유를 골라 주세요'; return; }
@@ -512,6 +513,31 @@
       for (var j = 0; j < P.length; j++) if (m < P[j].s) return { s: m, e: P[j].s, n: 0, brk: true };
       return null;
     }
+    // ---- 자습 화면 자리표: 자리에 있는 사람은 밝게, 교실을 비운 사람(이탈 등록)은 점선·흐림 + 사유·경과 시간. 자리를 누르면 이탈 등록/돌아옴 ----
+    var seatMapEl = null;
+    function paintSeatMap() {
+      if (!seatMapEl || !seatMapEl.isConnected) return; clear(seatMapEl);
+      var seats = seatsLoad(), away = {}, total = 0, out = 0; OUT.forEach(function (e) { if (!e.back) away[e.name] = e; });
+      var grid = el('div', 'ks-sgrid');
+      seats.forEach(function (col) {
+        var c = el('div', 'ks-scol');
+        col.forEach(function (row) {
+          var r = el('div', 'ks-srow');
+          row.forEach(function (v) {
+            if (!v) { r.appendChild(el('div', 'ks-sdesk empty')); return; }
+            total++; var e = away[v], d = el('button', 'ks-sdesk' + (e ? ' away' : ' here')); d.type = 'button'; d.appendChild(el('span', 'ks-dn', v));
+            if (e) { out++; var min = Math.max(0, Math.round((Date.now() - e.out) / 60000)); d.appendChild(el('small', 'ks-dr', '🚪 ' + e.reason.split(' · ')[0].replace(/^\S+\s/, '') + ' · ' + min + '분')); }
+            d.addEventListener('click', function () { if (e) { e.back = Date.now(); paintOut(); outApi({ op: 'back', id: e.id }).then(function (j) { if (j && j.list) { OUT = j.list; paintOut(); } }); } else openOut(v); });
+            r.appendChild(d);
+          });
+          c.appendChild(r);
+        });
+        grid.appendChild(c);
+      });
+      var hd = el('div', 'ks-smaph'); hd.appendChild(el('b', null, '🪑 자리표')); hd.appendChild(el('span', 'ks-smapc', '재석 ' + (total - out) + ' / ' + total + '명')); var oc = el('span', 'ks-smapc o' + (out ? ' on' : ''), out ? '🚪 이탈 ' + out + '명' : '✅ 모두 자리에 있어요'); hd.appendChild(oc);
+      var lg = el('div', 'ks-smapl', '이름을 누르면 이탈 등록, 점선(흐린) 자리는 눌러서 "돌아옴"');
+      seatMapEl.appendChild(hd); seatMapEl.appendChild(grid); seatMapEl.appendChild(el('div', 'ks-podium small', '교탁')); seatMapEl.appendChild(lg);
+    }
     function paintStudy() {
       var box = el('div', 'ks-study'), side = el('div', 'ks-side'), mainc = el('div', 'ks-smain');
       var c1 = el('div', 'ks-sbox'); c1.appendChild(el('small', null, '현재 시각')); var clk = el('b', 'ks-sclock'); c1.appendChild(clk);
@@ -519,11 +545,10 @@
       var bar = el('div', 'ks-sbar'); barEl = el('i'); bar.appendChild(barEl); c2.appendChild(bar); stRng = el('small', 'ks-srange'); c2.appendChild(stRng);
       var c3 = el('div', 'ks-sbox'); c3.appendChild(el('small', null, '내일 챙길 것')); var tm = tomorrowItems(), ul = el('ul', 'ks-slist'); (tm.length ? tm : ['특별한 일정 없음']).slice(0, 4).forEach(function (t) { ul.appendChild(el('li', null, t)); }); c3.appendChild(ul);
       outBox = el('div', 'ks-sbox ks-outbox'); side.appendChild(c1); side.appendChild(c2); side.appendChild(outBox); paintOut(); pullOut();
-      mainc.appendChild(el('div', 'ks-hero-e', '📖')); mainc.appendChild(el('div', 'ks-hero-t', SC.smsg));
-      var rules = el('div', 'ks-srules'); ['📵 휴대폰은 가방에', '🤫 대화는 쉬는 시간에', '🪑 자리를 지켜요'].forEach(function (t) { rules.appendChild(el('span', null, t)); }); mainc.appendChild(rules); c3.classList.add('ks-stm'); mainc.appendChild(c3);
+      mainc.appendChild(el('div', 'ks-smsg', SC.smsg)); seatMapEl = el('div', 'ks-smap'); mainc.appendChild(seatMapEl); paintSeatMap();   // 자리표: 빠진 사람이 한눈에
       box.appendChild(side); box.appendChild(mainc); main.appendChild(box);
       function t2() { var k = kst(); clk.textContent = pad(k.getUTCHours()) + ':' + pad(k.getUTCMinutes()) + ':' + pad(k.getUTCSeconds()); }
-      t2(); var iv = setInterval(t2, 1000), iv2 = setInterval(pullOut, 10000), iv3 = setInterval(paintOut, 30000); cleanups.push(function () { clearInterval(iv); clearInterval(iv2); clearInterval(iv3); barEl = null; stLbl = null; stRng = null; outBox = null; });
+      t2(); var iv = setInterval(t2, 1000), iv2 = setInterval(pullOut, 10000), iv3 = setInterval(paintOut, 30000); cleanups.push(function () { clearInterval(iv); clearInterval(iv2); clearInterval(iv3); seatMapEl = null; barEl = null; stLbl = null; stRng = null; outBox = null; });
     }
 
     // ---------- 자리 바꾸기 ----------

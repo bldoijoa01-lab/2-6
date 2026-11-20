@@ -1259,3 +1259,13 @@ body.kiosk{overflow:hidden}
 .ks-period.ks-examcd{background:rgba(120,200,255,.18); color:#CFE9FF; font-variant-numeric:tabular-nums; margin-top:.35em}
 
 .updbar{position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:700; border:0; border-radius:999px; padding:12px 20px; font:inherit; font-weight:800; background:#2F6BFF; color:#fff; box-shadow:0 10px 30px rgba(0,0,0,.35); cursor:pointer}
+
+/* 자습 화면 자리표 */
+.ks-smsg{font-size:1.5em; font-weight:900; margin-bottom:.4em}
+.ks-smap{display:flex; flex-direction:column; align-items:center; gap:.5em; width:100%}
+.ks-smaph{display:flex; gap:.7em; align-items:center; flex-wrap:wrap; justify-content:center} .ks-smaph b{font-size:1.15em}
+.ks-smapc{padding:.25em .8em; border-radius:99px; background:rgba(255,255,255,.12); font-weight:800} .ks-smapc.o.on{background:#e0334a; color:#fff}
+.ks-smap .ks-sgrid{gap:1.6em} .ks-smap .ks-sdesk{min-width:5.6em; min-height:3.4em; padding:.4em .3em; font-size:1.2em; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.1em; line-height:1.15}
+.ks-sdesk.here{background:rgba(120,255,170,.14); border-color:rgba(120,255,170,.45)}
+.ks-sdesk.away{background:rgba(255,100,100,.12); border:1.5px dashed rgba(255,140,140,.8); color:rgba(255,255,255,.6)} .ks-sdesk.away .ks-dn{text-decoration:line-through; opacity:.8} .ks-sdesk .ks-dr{font-size:.62em; font-weight:700; color:#FFB0B0; opacity:1}
+.ks-podium.small{padding:.3em 2em; font-size:.9em} .ks-smapl{font-size:.85em; opacity:.65}
