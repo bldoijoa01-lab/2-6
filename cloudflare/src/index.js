@@ -564,6 +564,26 @@ export default {
         return json({ ok: true, text });
       } catch (e) { return json({ error: 'ai_fail', msg: String(e && e.message || e).slice(0, 120) }, 502); }
     }
+    if (url.pathname === '/api/rank/circle' && (request.method === 'GET' || request.method === 'POST')) {   // 원 그리기 랭킹: 최고 기록을 깰 때마다 이름과 함께 기록 (로그인한 누구나 조회·기록, 초기화는 교사·관리자)
+      const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
+      const tok = await verifyToken(env, auth, 'full');
+      if (!tok) return json({ error: 'unauthorized' }, 401);
+      const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), me0 = roster.find((x) => x.n === tok.w);
+      if (!me0) return json({ error: 'unauthorized' }, 401);
+      let list = JSON.parse(await env.CLASS_KV.get('rank:circle') || '[]');
+      if (request.method === 'POST') {
+        const b = await request.json().catch(() => ({}));
+        if (b.op === 'reset') { if (!(me0.role === 'teacher' || me0.admin)) return json({ error: 'forbidden' }, 403); list = []; await env.CLASS_KV.put('rank:circle', '[]'); return json({ ok: true, list }); }
+        const acc = Math.round(Number(b.acc) * 10) / 10, name = String(b.name || '').replace(/\s+/g, ' ').trim().slice(0, 10);
+        if (!name || !(acc > 0 && acc <= 100)) return json({ error: 'bad' }, 400);
+        const best = list.length ? list[0].acc : 0;
+        if (acc <= best) return json({ error: 'not_record', list }, 409);   // 최고 기록을 깬 경우에만 기록
+        list.unshift({ name, acc, at: Date.now() }); list.sort((a, b) => b.acc - a.acc || b.at - a.at); list = list.slice(0, 30);
+        await env.CLASS_KV.put('rank:circle', JSON.stringify(list));
+        return json({ ok: true, list });
+      }
+      return json({ ok: true, list });
+    }
     if (url.pathname === '/api/pins' && request.method === 'POST') {   // 일정을 내 알림장에 담기/빼기
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
       const tok = await verifyToken(env, auth, 'full');

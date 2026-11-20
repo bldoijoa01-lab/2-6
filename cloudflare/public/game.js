@@ -211,9 +211,31 @@
     var btnX = el('button', 'gm-btn', '✕ 나가기'); btnX.type = 'button'; bar.appendChild(btnX);
     root.appendChild(cv); root.appendChild(bar); root.appendChild(bestEl); root.appendChild(msgEl); document.body.appendChild(root);
     var DPR = Math.min(2, window.devicePixelRatio || 1), SW = 0, SH = 0, pts = [], drawing = false, res = null, shown = 0, raf = 0, alive = true, tries = 0;
-    var best = 0; try { best = parseFloat(localStorage.getItem('circle_best') || '0') || 0; } catch (e) {}
-    function paintBest() { bestEl.textContent = '🏆 최고 ' + best.toFixed(1) + '%  ·  도전 ' + tries + '회'; }
-    paintBest();
+    var rank = [], best = 0, rankEl = el('div', 'cg-rank'); root.appendChild(rankEl); try { localStorage.removeItem('circle_best'); } catch (e) {}   // 예전 기기별 최고 기록은 더 이상 쓰지 않음
+    function tk() { try { return localStorage.getItem('tok26') || ''; } catch (e) { return ''; } }
+    function rapi(body) { return fetch('/api/rank/circle', { method: body ? 'POST' : 'GET', headers: { authorization: 'Bearer ' + tk(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' }).then(function (r) { return r.json().then(function (j) { j._st = r.status; return j; }); }); }
+    function paintBest() {
+      best = rank.length ? rank[0].acc : 0; bestEl.textContent = rank.length ? '🏆 최고 ' + best.toFixed(1) + '% · ' + rank[0].name + '  ·  도전 ' + tries + '회' : '🏆 아직 기록이 없어요 · 도전 ' + tries + '회';
+      clear2(rankEl); rankEl.appendChild(el('div', 'cg-rt', '🏆 랭킹'));
+      if (!rank.length) rankEl.appendChild(el('div', 'cg-rn', '첫 기록의 주인공이 되어 보세요!'));
+      rank.slice(0, 8).forEach(function (r, i) { var row = el('div', 'cg-rr' + (i === 0 ? ' top' : '')); row.appendChild(el('span', 'cg-rk', i === 0 ? '👑' : String(i + 1))); row.appendChild(el('b', null, r.name)); row.appendChild(el('span', 'cg-ra', r.acc.toFixed(1) + '%')); rankEl.appendChild(row); });
+    }
+    function clear2(e) { while (e.firstChild) e.removeChild(e.firstChild); }
+    function loadRank() { rapi().then(function (j) { if (j && j.list) { rank = j.list; paintBest(); } }).catch(function () {}); }
+    paintBest(); loadRank();
+    function askName(acc) {   // 최고 기록을 깼을 때 이름을 써서 랭킹에 기록
+      var ov = el('div', 'cg-ask'), card = el('div', 'cg-askc'); card.appendChild(el('h2', null, '🏆 새 최고 기록 ' + acc.toFixed(1) + '%!')); card.appendChild(el('div', 'cg-asks', '이름을 써서 랭킹에 남겨요'));
+      var inp = el('input', 'cg-in'); inp.type = 'text'; inp.maxLength = 10; inp.placeholder = '이름 (10자까지)'; try { inp.value = localStorage.getItem('circle_name') || ''; } catch (e) {} card.appendChild(inp);
+      var chips = el('div', 'cg-chips'); card.appendChild(chips);
+      fetch('/api/classmates', { headers: { authorization: 'Bearer ' + tk() }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { (j.students || []).forEach(function (st) { var b = el('button', 'cg-chip', st.name); b.type = 'button'; b.addEventListener('click', function () { inp.value = st.name; }); chips.appendChild(b); }); }).catch(function () {});
+      var msg = el('div', 'cg-askm'), row = el('div', 'cg-askr'), ok = el('button', 'gm-big', '기록하기'), skip = el('button', 'gm-big out', '건너뛰기'); ok.type = skip.type = 'button';
+      skip.addEventListener('click', function () { ov.remove(); });
+      ok.addEventListener('click', function () {
+        var nm = inp.value.trim(); if (!nm) { msg.textContent = '이름을 써 주세요'; return; } ok.disabled = true;
+        rapi({ name: nm, acc: acc }).then(function (j) { if (j && j.list) { rank = j.list; try { localStorage.setItem('circle_name', nm); } catch (e) {} paintBest(); ov.remove(); say('👑 ' + nm + ' 님이 랭킹 1위!', 'best'); } else { ok.disabled = false; if (j && j.list === undefined && j._st === 409) { msg.textContent = '그 사이에 더 높은 기록이 나왔어요'; loadRank(); } else msg.textContent = '기록하지 못했어요 (로그인이 필요해요)'; } }).catch(function () { ok.disabled = false; msg.textContent = '연결이 불안정해요'; });
+      });
+      row.appendChild(ok); row.appendChild(skip); card.appendChild(msg); card.appendChild(row); ov.appendChild(card); ov.addEventListener('pointerdown', function (e) { e.stopPropagation(); }); root.appendChild(ov); setTimeout(function () { try { inp.focus(); } catch (e) {} }, 100);
+    }
     function resize() { SW = window.innerWidth; SH = window.innerHeight; cv.width = Math.round(SW * DPR); cv.height = Math.round(SH * DPR); cv.style.width = SW + 'px'; cv.style.height = SH + 'px'; }
     function say(t, cls) { msgEl.textContent = t; msgEl.className = 'cg-msg' + (cls ? ' ' + cls : ''); }
     function start() { pts = []; res = null; shown = 0; say('가운데 점을 중심으로 원을 한 번에 그려 보세요 ✏️', 'hint'); }
@@ -223,9 +245,9 @@
     function up() {
       if (!drawing) return; drawing = false; tries++;
       var r = scoreCircle(pts, SW / 2, SH / 2); if (r.err) { res = null; say(r.err + ' 🙂', 'err'); paintBest(); return; }
-      res = r; shown = 0; var newBest = r.acc > best; if (newBest) { best = r.acc; try { localStorage.setItem('circle_best', String(best)); } catch (e) {} } paintBest();
+      res = r; shown = 0; var newBest = r.acc > best; paintBest();
       var a = r.acc; say(a >= 99 ? '🤯 소름… 거의 완벽한 원!' : a >= 95 ? '😲 엄청나요! 컴퍼스급' : a >= 90 ? '😎 아주 잘 그렸어요' : a >= 80 ? '👍 꽤 둥글어요' : a >= 60 ? '🙂 조금만 더!' : a >= 35 ? '🥔 감자 모양… 다시 도전' : '🎯 가운데 점이 원의 중심이에요! 점을 감싸며 그려 보세요', (newBest ? 'best' : '') + ' res');
-      if (newBest) msgEl.textContent += '  ⭐ 최고 기록!';
+      if (newBest) { msgEl.textContent += '  ⭐ 최고 기록!'; setTimeout(function () { if (alive && res && res === r) askName(r.acc); }, 1400); }
     }
     cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     function kd(e) { if (e.key === 'Escape') close(); } document.addEventListener('keydown', kd); window.addEventListener('resize', resize);
@@ -251,17 +273,161 @@
     window.Game26._debugC = { score: scoreCircle, state: function () { return { res: res, best: best, tries: tries }; } };
   }
 
+  // ================= 포트리스 (턴제 대포 게임) =================
+  // 한 화면에서 좌(1P)·우(2P)가 번갈아: 손가락을 '당겼다 놓으면' 당긴 반대 방향으로 발사 (각도=당긴 방향, 파워=당긴 길이). 바람·지형 파괴·체력 100
+  var curF = null;
+  function fortress(opts) {
+    if (curF) return; opts = opts || {};
+    var root = el('div', 'gm-root fg-root'), cv = el('canvas', 'gm-cv'), ctx = cv.getContext('2d'), bar = el('div', 'gm-bar');
+    var btnR = el('button', 'gm-btn', '🔁 다시'), btnS = el('button', 'gm-btn', '🔇 소리 꺼짐'), btnX = el('button', 'gm-btn', '✕ 나가기'); [btnR, btnS, btnX].forEach(function (b) { b.type = 'button'; bar.appendChild(b); });
+    root.appendChild(cv); root.appendChild(bar); document.body.appendChild(root);
+    var DPR = Math.min(2, window.devicePixelRatio || 1), SW = 0, SH = 0, FW = 1600, FH = 800, sc = 1, ox = 0, oy = 0, alive = true, raf = 0, last = 0, sound = false, ac = null, wins = [0, 0], g, aim = null, T;
+    var CR = 40, GRAV = 620, MAXV = 1050, MOVE = 160;
+    function beep(f, d, v) { if (!sound) return; try { ac = ac || new (window.AudioContext || window.webkitAudioContext)(); var o = ac.createOscillator(), gn = ac.createGain(); o.type = 'sawtooth'; o.frequency.value = f; o.connect(gn); gn.connect(ac.destination); var t = ac.currentTime; gn.gain.setValueAtTime(v || 0.04, t); gn.gain.exponentialRampToValueAtTime(0.0001, t + d); o.start(t); o.stop(t + d + 0.02); } catch (e) {} }
+    function topAt(x) { x = Math.max(0, Math.min(FW - 1, Math.round(x))); return g.h[x]; }
+    function newGame() {
+      var h = [], ph = [Math.random() * 6, Math.random() * 6, Math.random() * 6], base = FH * 0.62;
+      for (var x = 0; x < FW; x++) { var u = x / FW, hill = Math.sin(u * 6.28 + ph[0]) * 60 + Math.sin(u * 14 + ph[1]) * 30 + Math.sin(u * 31 + ph[2]) * 9; hill += -Math.cos(u * 6.28 * 1) * 0; h.push(base + hill + Math.sin(u * 3.14) * -50); }
+      g = { h: h, phase: 'aim', turn: Math.floor(Math.random() * 2), wind: 0, tanks: [{ x: FW * 0.13, y: 0, hp: 100, a: 45, p: 0.6, fuel: MOVE, drop: 0 }, { x: FW * 0.87, y: 0, hp: 100, a: 135, p: 0.6, fuel: MOVE, drop: 0 }], shot: null, parts: [], expl: [], msg: '', msgT: 0, over: 0, winner: -1, trail: [], t: 0 };
+      g.tanks.forEach(function (t) { t.y = topAt(t.x); }); newWind(); say('1P'.replace('1', g.turn + 1) + ' 차례');
+    }
+    function newWind() { g.wind = Math.round((Math.random() * 2 - 1) * 8); }
+    function say(t) { g.msg = t; g.msgT = 1.6; }
+    function resize() { SW = window.innerWidth; SH = window.innerHeight; cv.width = Math.round(SW * DPR); cv.height = Math.round(SH * DPR); cv.style.width = SW + 'px'; cv.style.height = SH + 'px'; sc = Math.min(SW / FW, (SH - 70) / FH); ox = (SW - FW * sc) / 2; oy = Math.max(60, (SH - FH * sc) / 2 + 20); }
+    function toW(px, py) { return [(px - ox) / sc, (py - oy) / sc]; }
+    // 입력: 현재 차례인 사람의 칸(좌/우 절반)에서 당겼다 놓기
+    var drag = null;
+    function down(e) {
+      if (g.phase !== 'aim') { if (g.phase === 'over' && g.over > 1.2) newGame(); return; }
+      var side = e.clientX < SW / 2 ? 0 : 1; if (side !== g.turn) { say((g.turn + 1) + 'P 차례예요!'); return; }
+      var bt = moveBtnAt(e.clientX, e.clientY); if (bt) { drag = { id: e.pointerId, move: bt }; try { cv.setPointerCapture(e.pointerId); } catch (x) {} return; }
+      drag = { id: e.pointerId, sx: e.clientX, sy: e.clientY, cx: e.clientX, cy: e.clientY }; try { cv.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault();
+    }
+    function move(e) { if (drag && drag.id === e.pointerId && !drag.move) { drag.cx = e.clientX; drag.cy = e.clientY; applyAim(); } }
+    function up(e) {
+      if (!drag || drag.id !== e.pointerId) return; var d = drag; drag = null; if (d.move) return;
+      var t = g.tanks[g.turn]; if (g.phase !== 'aim') return;
+      if (t.p < 0.14) { say('더 길게 당겨요!'); return; } fire();
+    }
+    function applyAim() {
+      var t = g.tanks[g.turn], dx = (drag.sx - drag.cx) / sc, dy = (drag.sy - drag.cy) / sc, L = Math.hypot(dx, dy);
+      t.p = Math.min(1, L / 260); if (L > 6) { var ang = Math.atan2(-dy, dx) * 180 / Math.PI; t.a = (ang + 360) % 360; if (t.a > 180 && t.a < 270) t.a = 180; else if (t.a >= 270) t.a = 0; }
+    }
+    cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+    var keys = {};
+    function kd(e) { if (e.key === 'Escape') close(); keys[e.key.toLowerCase()] = true; }
+    function ku(e) { keys[e.key.toLowerCase()] = false; }
+    document.addEventListener('keydown', kd); document.addEventListener('keyup', ku); window.addEventListener('resize', resize);
+    // 이동 버튼(차례인 쪽 아래): ◀ ▶ 누르고 있으면 연료만큼 이동
+    function moveBtnRects() { var base = g.turn === 0 ? 40 : SW - 40 - 150; return [{ x: base, y: SH - 90, w: 70, h: 56, d: -1 }, { x: base + 80, y: SH - 90, w: 70, h: 56, d: 1 }]; }
+    function moveBtnAt(px, py) { var r = moveBtnRects(); for (var i = 0; i < r.length; i++) if (px >= r[i].x && px <= r[i].x + r[i].w && py >= r[i].y && py <= r[i].y + r[i].h) return r[i].d; return 0; }
+
+    function fire() {
+      var t = g.tanks[g.turn], rad = t.a * Math.PI / 180, v = t.p * MAXV, bx = t.x + Math.cos(rad) * 28, by = t.y - 16 - Math.sin(rad) * 28;
+      g.shot = { x: bx, y: by, vx: Math.cos(rad) * v, vy: -Math.sin(rad) * v, o: g.turn, age: 0 }; g.trail = []; g.phase = 'fly'; beep(200, 0.2, 0.06);
+    }
+    function explode(x, y, owner) {
+      for (var cx = Math.max(0, Math.floor(x - CR)); cx <= Math.min(FW - 1, Math.ceil(x + CR)); cx++) { var dx = cx - x, dy = Math.sqrt(Math.max(0, CR * CR - dx * dx)); if (g.h[cx] >= y - dy) g.h[cx] = Math.max(g.h[cx], Math.min(FH, y + dy)); }
+      g.expl.push({ x: x, y: y, t: 0 }); for (var k = 0; k < 30; k++) { var a = Math.random() * 6.28, sp = 80 + Math.random() * 320; g.parts.push({ x: x, y: y, vx: Math.cos(a) * sp, vy: Math.sin(a) * sp - 80, life: 0.5 + Math.random() * 0.5, c: Math.random() < 0.5 ? '#FFB347' : '#7A5B3A' }); }
+      g.tanks.forEach(function (t, i) { var d = Math.hypot(t.x - x, t.y - 14 - y); if (d < CR * 1.9) { var dm = Math.round(Math.max(4, 46 * (1 - d / (CR * 1.9)))); t.hp = Math.max(0, t.hp - dm); t.hit = { v: dm, t: 1.2 }; } });
+      beep(90, 0.35, 0.08); g.settle = 0.9;
+    }
+    function nextTurn() {
+      var dead = g.tanks.filter(function (t) { return t.hp <= 0; });
+      if (dead.length) { g.phase = 'over'; g.over = 0; g.winner = g.tanks[0].hp > 0 ? 0 : g.tanks[1].hp > 0 ? 1 : -1; if (g.winner >= 0) wins[g.winner]++; return; }
+      g.turn = 1 - g.turn; g.tanks[g.turn].fuel = MOVE; newWind(); g.phase = 'aim'; say((g.turn + 1) + 'P 차례');
+    }
+    function update(dt) {
+      g.t += dt; g.msgT = Math.max(0, g.msgT - dt); if (g.phase === 'over') g.over += dt;
+      var i; for (i = g.expl.length - 1; i >= 0; i--) { g.expl[i].t += dt; if (g.expl[i].t > 0.5) g.expl.splice(i, 1); }
+      for (i = g.parts.length - 1; i >= 0; i--) { var p = g.parts[i]; p.x += p.vx * dt; p.y += p.vy * dt; p.vy += 500 * dt; p.life -= dt; if (p.life <= 0) g.parts.splice(i, 1); }
+      g.tanks.forEach(function (t) { if (t.hit) { t.hit.t -= dt; if (t.hit.t <= 0) t.hit = null; } var gy = topAt(t.x); if (t.y < gy) { t.y = Math.min(gy, t.y + 500 * dt); } else t.y = gy; });   // 땅이 사라지면 떨어짐
+      if (g.phase === 'aim') {   // 이동
+        var tk = g.tanks[g.turn], dir = 0; if (drag && drag.move) dir = drag.move; if (g.turn === 0) { if (keys.a) dir = -1; if (keys.d) dir = 1; } else { if (keys.arrowleft) dir = -1; if (keys.arrowright) dir = 1; }
+        if (dir && tk.fuel > 0) { var nx = Math.max(30, Math.min(FW - 30, tk.x + dir * 90 * dt)), slope = Math.abs(topAt(nx) - topAt(tk.x)); if (slope < 12) { tk.fuel -= Math.abs(nx - tk.x); tk.x = nx; } }
+        if (g.turn === 0) { if (keys.w) { tk.a = Math.min(180, tk.a + 40 * dt); } } 
+      }
+      if (g.phase === 'fly' && g.shot) {
+        var s = g.shot, steps = 4;
+        for (var k = 0; k < steps; k++) {
+          var h = dt / steps; s.vx += g.wind * 30 * h; s.vy += GRAV * h; s.x += s.vx * h; s.y += s.vy * h; s.age += h;
+          if (g.trail.length === 0 || Math.hypot(s.x - g.trail[g.trail.length - 1][0], s.y - g.trail[g.trail.length - 1][1]) > 10) g.trail.push([s.x, s.y]);
+          var hitT = -1; g.tanks.forEach(function (t, ti) { if (s.age > 0.12 && Math.hypot(s.x - t.x, s.y - 14 - t.y) < 24) hitT = ti; });
+          if (s.x < -60 || s.x > FW + 60 || s.y > FH + 40) { g.shot = null; g.phase = 'wait'; g.waitT = 0.9; say('빗나감!'); break; }
+          if (hitT >= 0 || (s.y >= topAt(s.x) && s.x >= 0 && s.x < FW)) { explode(s.x, s.y, s.o); g.shot = null; g.phase = 'settle'; g.waitT = 1.2; break; }
+        }
+      } else if (g.phase === 'wait' || g.phase === 'settle') { g.waitT -= dt; if (g.waitT <= 0) nextTurn(); }
+    }
+    // ---------- 그리기 ----------
+    function draw() {
+      ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+      var sky = ctx.createLinearGradient(0, 0, 0, SH); sky.addColorStop(0, '#16296b'); sky.addColorStop(1, '#6b8fd8'); ctx.fillStyle = sky; ctx.fillRect(0, 0, SW, SH);
+      ctx.save(); ctx.translate(ox, oy); ctx.scale(sc, sc);
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; [[300, 120, 70], [820, 80, 50], [1280, 150, 80]].forEach(function (c) { ctx.beginPath(); ctx.ellipse(c[0] + Math.sin(g.t * 0.1 + c[0]) * 10, c[1], c[2], c[2] * 0.4, 0, 0, 6.28); ctx.fill(); });
+      // 지형
+      var gr = ctx.createLinearGradient(0, FH * 0.4, 0, FH); gr.addColorStop(0, '#5a8f3a'); gr.addColorStop(0.15, '#6b4f2d'); gr.addColorStop(1, '#3a2a18'); ctx.fillStyle = gr; ctx.beginPath(); ctx.moveTo(0, FH); for (var x = 0; x < FW; x += 2) ctx.lineTo(x, g.h[x]); ctx.lineTo(FW, FH); ctx.closePath(); ctx.fill();
+      ctx.strokeStyle = '#8fd15a'; ctx.lineWidth = 4; ctx.beginPath(); for (var x2 = 0; x2 < FW; x2 += 2) { if (x2 === 0) ctx.moveTo(0, g.h[0]); else ctx.lineTo(x2, g.h[x2]); } ctx.stroke();
+      // 탱크
+      g.tanks.forEach(function (t, i) {
+        var col = COL[i][0], ang = t.a * Math.PI / 180; ctx.save(); ctx.translate(t.x, t.y);
+        if (t.hit && Math.floor(t.hit.t * 20) % 2 === 0) ctx.globalAlpha = 0.5;
+        ctx.strokeStyle = '#222'; ctx.lineWidth = 9; ctx.lineCap = 'round'; ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(Math.cos(ang) * 30, -16 - Math.sin(ang) * 30); ctx.stroke();
+        ctx.strokeStyle = col; ctx.lineWidth = 5; ctx.beginPath(); ctx.moveTo(0, -16); ctx.lineTo(Math.cos(ang) * 30, -16 - Math.sin(ang) * 30); ctx.stroke();
+        ctx.fillStyle = col; ctx.beginPath(); ctx.moveTo(-26, 0); ctx.lineTo(26, 0); ctx.lineTo(20, -14); ctx.lineTo(-20, -14); ctx.closePath(); ctx.fill(); ctx.fillStyle = '#222'; ctx.fillRect(-28, -2, 56, 6);
+        ctx.fillStyle = col; ctx.beginPath(); ctx.arc(0, -16, 11, Math.PI, 0); ctx.fill();
+        ctx.restore();
+        // 체력 막대 + 이름
+        var bw = 70; ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(t.x - bw / 2, t.y - 58, bw, 9); ctx.fillStyle = t.hp > 50 ? '#7CFF8A' : t.hp > 25 ? '#FFD36B' : '#FF6B6B'; ctx.fillRect(t.x - bw / 2, t.y - 58, bw * t.hp / 100, 9);
+        ctx.fillStyle = '#fff'; ctx.font = '700 15px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.fillText((i + 1) + 'P ' + t.hp, t.x, t.y - 64);
+        if (t.hit) { ctx.fillStyle = '#FFE08A'; ctx.font = '900 22px system-ui,sans-serif'; ctx.fillText('-' + t.hit.v, t.x, t.y - 86 - (1.2 - t.hit.t) * 30); }
+        if (g.phase === 'aim' && g.turn === i) { ctx.fillStyle = '#FFE08A'; ctx.beginPath(); ctx.moveTo(t.x, t.y - 100); ctx.lineTo(t.x - 9, t.y - 114); ctx.lineTo(t.x + 9, t.y - 114); ctx.closePath(); ctx.fill(); }
+      });
+      // 조준 선(가이드: 짧게)과 파워
+      if (g.phase === 'aim') {
+        var t0 = g.tanks[g.turn], rad = t0.a * Math.PI / 180, v0 = t0.p * MAXV, px = t0.x + Math.cos(rad) * 28, py = t0.y - 16 - Math.sin(rad) * 28, vx = Math.cos(rad) * v0, vy = -Math.sin(rad) * v0;
+        if (t0.p > 0.05) { ctx.fillStyle = 'rgba(255,255,255,.8)'; for (var n = 1; n <= 9; n++) { var tt = n * 0.07, qx = px + vx * tt + 0.5 * g.wind * 30 * tt * tt, qy = py + vy * tt + 0.5 * GRAV * tt * tt; ctx.beginPath(); ctx.arc(qx, qy, 3.2 - n * 0.2, 0, 6.28); ctx.fill(); } }
+      }
+      if (g.shot) { ctx.strokeStyle = 'rgba(255,255,255,.4)'; ctx.lineWidth = 2; ctx.beginPath(); g.trail.forEach(function (q, i) { if (!i) ctx.moveTo(q[0], q[1]); else ctx.lineTo(q[0], q[1]); }); ctx.stroke(); ctx.fillStyle = '#222'; ctx.beginPath(); ctx.arc(g.shot.x, g.shot.y, 7, 0, 6.28); ctx.fill(); ctx.fillStyle = COL[g.shot.o][0]; ctx.beginPath(); ctx.arc(g.shot.x, g.shot.y, 4.5, 0, 6.28); ctx.fill(); }
+      g.expl.forEach(function (e) { var r = CR * (0.5 + e.t * 2.2); ctx.globalAlpha = Math.max(0, 1 - e.t * 2); ctx.fillStyle = '#FFD36B'; ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, 6.28); ctx.fill(); ctx.fillStyle = '#FF7A3D'; ctx.beginPath(); ctx.arc(e.x, e.y, r * 0.6, 0, 6.28); ctx.fill(); ctx.globalAlpha = 1; });
+      g.parts.forEach(function (p) { ctx.globalAlpha = Math.max(0, Math.min(1, p.life * 2)); ctx.fillStyle = p.c; ctx.fillRect(p.x - 2, p.y - 2, 4, 4); }); ctx.globalAlpha = 1;
+      ctx.restore();
+      ctx.fillStyle = '#3a2a18'; ctx.fillRect(0, oy + FH * sc - 1, SW, SH);   // 지형 아래 빈 띠 메우기
+      // HUD (화면 좌표)
+      ctx.textBaseline = 'middle'; ctx.textAlign = 'center';
+      ctx.fillStyle = 'rgba(0,0,0,.35)'; ctx.fillRect(SW / 2 - 130, 52, 260, 46); ctx.fillStyle = '#fff'; ctx.font = '800 18px system-ui,sans-serif';
+      var wtxt = g.wind === 0 ? '바람 없음' : (g.wind < 0 ? '◀ ' : '') + '바람 ' + Math.abs(g.wind) + (g.wind > 0 ? ' ▶' : ''); ctx.fillText(wtxt, SW / 2, 75);
+      ctx.font = '700 15px system-ui,sans-serif'; ctx.fillStyle = COL[0][0]; ctx.textAlign = 'left'; ctx.fillText('1P ' + wins[0] + '승', 20, 76); ctx.fillStyle = COL[1][0]; ctx.textAlign = 'right'; ctx.fillText('2P ' + wins[1] + '승', SW - 20, 76);
+      if (g.phase === 'aim') {
+        var tk = g.tanks[g.turn], bx = g.turn === 0 ? 40 : SW - 40 - 150, rr = moveBtnRects();
+        ctx.textAlign = 'center'; rr.forEach(function (r) { ctx.fillStyle = 'rgba(255,255,255,.18)'; ctx.fillRect(r.x, r.y, r.w, r.h); ctx.strokeStyle = 'rgba(255,255,255,.5)'; ctx.strokeRect(r.x, r.y, r.w, r.h); ctx.fillStyle = '#fff'; ctx.font = '900 26px system-ui,sans-serif'; ctx.fillText(r.d < 0 ? '◀' : '▶', r.x + r.w / 2, r.y + r.h / 2); });
+        ctx.font = '700 14px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.85)'; ctx.fillText('이동 ' + Math.round(tk.fuel / MOVE * 100) + '%', bx + 75, SH - 100);
+        var ang = tk.a > 90 ? 180 - tk.a : tk.a; ctx.textAlign = g.turn === 0 ? 'left' : 'right'; ctx.font = '800 20px system-ui,sans-serif'; ctx.fillStyle = '#fff'; var tx = g.turn === 0 ? 40 : SW - 40;
+        ctx.fillText('각도 ' + Math.round(ang) + '° · 파워 ' + Math.round(tk.p * 100) + '%', tx, SH - 120);
+        ctx.fillStyle = 'rgba(255,255,255,.2)'; ctx.fillRect(g.turn === 0 ? 40 : SW - 40 - 220, SH - 136 - 18, 220, 8); ctx.fillStyle = '#FFE08A'; ctx.fillRect(g.turn === 0 ? 40 : SW - 40 - 220, SH - 154, 220 * tk.p, 8);
+        ctx.textAlign = 'center'; ctx.font = '700 16px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.75)'; ctx.fillText('내 쪽 화면을 손가락으로 당겼다가 놓으면 발사! (당긴 반대 방향으로 날아가요)', SW / 2, SH - 24);
+      }
+      if (g.msgT > 0 && g.phase !== 'over') { ctx.globalAlpha = Math.min(1, g.msgT * 2); ctx.fillStyle = '#fff'; ctx.font = '900 44px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.fillText(g.msg, SW / 2, SH * 0.3); ctx.globalAlpha = 1; }
+      if (g.phase === 'over') { ctx.fillStyle = 'rgba(0,0,0,.5)'; ctx.fillRect(0, 0, SW, SH); ctx.fillStyle = '#FFE08A'; ctx.font = '900 64px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.fillText(g.winner < 0 ? '무승부!' : '🏆 ' + (g.winner + 1) + 'P 승리!', SW / 2, SH / 2 - 20); if (g.over > 1.2) { ctx.fillStyle = '#fff'; ctx.font = '700 24px system-ui,sans-serif'; ctx.fillText('화면을 눌러 다시 하기', SW / 2, SH / 2 + 40); } }
+    }
+    function frame(now) { raf = 0; if (!alive) return; var dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now; update(dt); draw(); raf = requestAnimationFrame(frame); }
+    function close() { if (!alive) return; alive = false; cancelAnimationFrame(raf); document.removeEventListener('keydown', kd); document.removeEventListener('keyup', ku); window.removeEventListener('resize', resize); root.remove(); curF = null; if (opts.onExit) opts.onExit(); }
+    btnX.addEventListener('click', close); btnR.addEventListener('click', newGame);
+    btnS.addEventListener('click', function () { sound = !sound; btnS.textContent = sound ? '🔊 소리 켜짐' : '🔇 소리 꺼짐'; if (sound) beep(500, 0.08, 0.04); });
+    resize(); newGame(); curF = { close: close }; raf = requestAnimationFrame(frame);
+    window.Game26._debugF = { state: function () { return g; }, aimTo: function (a, p) { var t = g.tanks[g.turn]; t.a = a; t.p = p; }, fire: fire, wins: wins };
+  }
+
   // ================= 게임 고르기 =================
   var hubOpen = null;
   function hub(opts) {
     if (hubOpen) return; opts = opts || {};
     var root = el('div', 'gm-hub'), card = el('div', 'gm-hubc'); card.appendChild(el('h2', null, '🎮 미니게임'));
     var row = el('div', 'gm-hubrow');
-    [['⚔️', '2인 대전', '한 화면을 반으로 나눠 마주 보고 결투 (🔥 눌러서 발사)', function () { show({}); }], ['⭕', '원 그리기', '한 번에 원을 그려 정확도(%) 도전!', function () { circle({}); }]].forEach(function (g) {
+    [['⚔️', '2인 대전', '한 화면을 반으로 나눠 마주 보고 결투 (🔥 눌러서 발사)', function () { show({}); }], ['⭕', '원 그리기', '한 번에 원을 그려 정확도(%) 도전!', function () { circle({}); }], ['💣', '포트리스', '번갈아 대포를 쏴서 상대 탱크를 맞혀요 (바람·지형 파괴)', function () { fortress({}); }]].forEach(function (g) {
       var b = el('button', 'gm-hubb'); b.type = 'button'; b.appendChild(el('div', 'gm-hube', g[0])); b.appendChild(el('b', null, g[1])); b.appendChild(el('small', null, g[2])); b.addEventListener('click', g[3]); row.appendChild(b);
     });
     var x = el('button', 'gm-btn', '✕ 닫기'); x.type = 'button'; x.addEventListener('click', function () { root.remove(); hubOpen = null; if (opts.onExit) opts.onExit(); });
     card.appendChild(row); card.appendChild(x); root.appendChild(card); document.body.appendChild(root); hubOpen = root;
   }
-  window.Game26 = { show: show, circle: circle, hub: hub };
+  window.Game26 = { show: show, circle: circle, fortress: fortress, hub: hub };
 })();
