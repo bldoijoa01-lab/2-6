@@ -478,31 +478,48 @@
     function paintOut() {
       paintSeatMap();
       if (!outBox) return; clear(outBox);
-      var h1 = el('div', 'ks-oh'); h1.appendChild(el('small', null, '🚪 교실 이탈')); var add = el('button', 'ks-chip on', '＋ 등록'); add.type = 'button'; add.addEventListener('click', openOut); h1.appendChild(add); outBox.appendChild(h1);
       var now = OUT.filter(function (e) { return !e.back; }), back = OUT.filter(function (e) { return e.back; });
+      var h1 = el('div', 'ks-oh'), tt = el('div', 'ks-ott'); tt.appendChild(el('b', null, '🚪 교실 이탈')); tt.appendChild(el('span', 'ks-ocnt' + (now.length ? ' on' : ''), now.length + '명')); h1.appendChild(tt);
+      var tl = el('div', 'ks-otl'), add = el('button', 'ks-chip on', '＋ 등록'); add.type = 'button'; add.addEventListener('click', function () { openOut(); }); tl.appendChild(add);
+      if (now.length > 1) { var all = el('button', 'ks-chip', '모두 돌아옴'); all.type = 'button'; all.addEventListener('click', function () { OUT.forEach(function (e) { if (!e.back) e.back = Date.now(); }); paintOut(); outApi({ op: 'backall' }).then(function (j) { if (j && j.list) { OUT = j.list; paintOut(); } }); }); tl.appendChild(all); }
+      h1.appendChild(tl); outBox.appendChild(h1);
       if (!now.length) outBox.appendChild(el('div', 'ks-onone', '지금 자리를 비운 사람이 없어요 ✅'));
-      now.forEach(function (e) {
-        var r = el('div', 'ks-orow'), t = el('div', 'ks-otx'), min = Math.max(0, Math.round((Date.now() - e.out) / 60000));
-        t.appendChild(el('b', null, e.name)); t.appendChild(el('span', null, e.reason)); t.appendChild(el('small', null, hm(e.out) + '부터 · ' + min + '분째'));
-        var bk = el('button', 'ks-chip', '돌아옴'); bk.type = 'button'; bk.addEventListener('click', function () { e.back = Date.now(); paintOut(); outApi({ op: 'back', id: e.id }).then(function (j) { if (j && j.list) { OUT = j.list; paintOut(); } }); });
-        r.appendChild(t); r.appendChild(bk); outBox.appendChild(r);
+      // 사유별로 묶어 이름 칩으로 (많아져도 한눈에). 칩을 누르면 돌아옴
+      var groups = {}; now.forEach(function (e) { var k = e.reason.split(' · ')[0]; (groups[k] = groups[k] || []).push(e); });
+      Object.keys(groups).forEach(function (k) {
+        var g = el('div', 'ks-og'), gh = el('div', 'ks-ogh', k + ' · ' + groups[k].length + '명'); g.appendChild(gh); var chips = el('div', 'ks-ochips');
+        groups[k].sort(function (a, b) { return a.out - b.out; }).forEach(function (e) {
+          var min = Math.max(0, Math.round((Date.now() - e.out) / 60000)), c = el('button', 'ks-ochip' + (min >= 15 ? ' long' : '')); c.type = 'button'; c.title = e.reason + ' · ' + hm(e.out) + '부터';
+          c.appendChild(el('b', null, e.name)); c.appendChild(el('small', null, min + '분')); if (e.reason.indexOf(' · ') > -1) c.appendChild(el('i', null, e.reason.split(' · ').slice(1).join(' · ')));
+          c.addEventListener('click', function () { e.back = Date.now(); paintOut(); outApi({ op: 'back', id: e.id }).then(function (j) { if (j && j.list) { OUT = j.list; paintOut(); } }); });
+          chips.appendChild(c);
+        });
+        g.appendChild(chips); outBox.appendChild(g);
       });
-      if (back.length) outBox.appendChild(el('small', 'ks-oback', '오늘 다녀온 ' + back.length + '건 · ' + back.slice(-3).map(function (e) { return e.name + '(' + e.reason + ')'; }).join(', ')));
+      if (now.length) outBox.appendChild(el('small', 'ks-oback', '이름을 누르면 "돌아옴"'));
+      if (back.length) outBox.appendChild(el('small', 'ks-oback', '오늘 다녀온 ' + back.length + '건'));
     }
-    function openOut(pre) {   // pre: 자리표에서 누른 이름(문자열)이면 미리 선택
-      var ov = el('div', 'ks-modal'), card = el('div', 'ks-mcard wide'), picked = null, reason = '';
+    function openOut(pre) {   // pre: 자리표에서 누른 이름(문자열)이면 미리 선택. 여러 명을 골라 한 번에 등록
+      var ov = el('div', 'ks-modal'), card = el('div', 'ks-mcard wide'), picked = {}, reason = '';
       card.appendChild(el('h2', null, '🚪 교실 이탈 등록'));
-      var grid = el('div', 'ks-ngrid'), rs = el('div', 'ks-row left'), txt = el('input', 'ks-in'), ok = el('button', 'ks-btn big', '등록'), msg = el('div', 'ks-note', '이름을 누르고 사유(밖에서 공부 / 기타)를 골라 주세요');
+      var grid = el('div', 'ks-ngrid'), rs = el('div', 'ks-row left'), txt = el('input', 'ks-in'), ok = el('button', 'ks-btn big', '등록'), msg = el('div', 'ks-note', '이름을 여러 명 눌러 고르고, 사유(밖에서 공부 / 기타)를 골라 주세요');
       txt.type = 'text'; txt.placeholder = '자세한 내용 (선택, 예: 화장실)'; txt.style.width = '16em'; txt.maxLength = 30;
+      function cnt() { var n = Object.keys(picked).length; ok.textContent = n ? n + '명 등록' : '등록'; }
       var away = {}; OUT.forEach(function (e) { if (!e.back) away[e.name] = 1; });
-      getNames(function (all) { all.slice().sort(function (a, b) { return a.n - b.n; }).forEach(function (st) { var b = el('button', 'ks-nbtn' + (away[st.name] ? ' away' : ''), st.name); b.type = 'button'; b.disabled = !!away[st.name]; if (typeof pre === 'string' && pre === st.name) { picked = st.name; b.classList.add('sel'); } b.addEventListener('click', function () { picked = st.name; Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove('sel'); }); b.classList.add('sel'); }); grid.appendChild(b); }); });
+      getNames(function (all) { all.slice().sort(function (a, b) { return a.n - b.n; }).forEach(function (st) {
+        var b = el('button', 'ks-nbtn' + (away[st.name] ? ' away' : ''), st.name); b.type = 'button'; b.disabled = !!away[st.name];
+        if (typeof pre === 'string' && pre === st.name) { picked[st.name] = 1; b.classList.add('sel'); }
+        b.addEventListener('click', function () { if (picked[st.name]) { delete picked[st.name]; b.classList.remove('sel'); } else { picked[st.name] = 1; b.classList.add('sel'); } cnt(); });
+        grid.appendChild(b); }); cnt(); });
       REASONS.forEach(function (r) { var c = el('button', 'ks-chip', r); c.type = 'button'; c.addEventListener('click', function () { reason = r; Array.prototype.forEach.call(rs.querySelectorAll('.ks-chip'), function (x) { x.classList.remove('on'); }); c.classList.add('on'); }); rs.appendChild(c); });
+      var clr = el('button', 'ks-chip', '선택 해제'); clr.type = 'button'; clr.addEventListener('click', function () { picked = {}; Array.prototype.forEach.call(grid.children, function (x) { x.classList.remove('sel'); }); cnt(); });
       ok.addEventListener('click', function () {
-        if (!picked) { msg.textContent = '먼저 이름을 눌러 주세요'; return; } if (!reason.trim()) { msg.textContent = '사유를 골라 주세요'; return; }
-        ok.disabled = true; outApi({ op: 'out', name: picked, reason: reason + (txt.value.trim() ? ' · ' + txt.value.trim() : '') }).then(function (j) { if (j && j.list) { OUT = j.list; paintOut(); ov.remove(); } else { ok.disabled = false; msg.textContent = j && j.error === 'already' ? '이미 나가 있는 사람이에요' : '등록하지 못했어요'; } }).catch(function () { ok.disabled = false; msg.textContent = '연결이 불안정해요'; });
+        var names = Object.keys(picked); if (!names.length) { msg.textContent = '먼저 이름을 눌러 주세요 (여러 명 가능)'; return; } if (!reason.trim()) { msg.textContent = '사유를 골라 주세요'; return; }
+        ok.disabled = true; outApi({ op: 'out', names: names, reason: reason + (txt.value.trim() ? ' · ' + txt.value.trim() : '') }).then(function (j) { if (j && j.list) { OUT = j.list; paintOut(); ov.remove(); } else { ok.disabled = false; msg.textContent = j && j.error === 'already' ? '이미 나가 있는 사람들이에요' : '등록하지 못했어요'; } }).catch(function () { ok.disabled = false; msg.textContent = '연결이 불안정해요'; });
       });
       var cancel = el('button', 'ks-btn', '닫기'); cancel.addEventListener('click', function () { ov.remove(); }); var row = el('div', 'ks-row'); row.appendChild(ok); row.appendChild(cancel);
-      card.appendChild(grid); card.appendChild(rs); var tr = el('div', 'ks-row left'); tr.appendChild(txt); card.appendChild(tr); card.appendChild(msg); card.appendChild(row);
+      var tr = el('div', 'ks-row left'); tr.appendChild(txt); tr.appendChild(clr);
+      card.appendChild(grid); card.appendChild(rs); card.appendChild(tr); card.appendChild(msg); card.appendChild(row);
       ov.appendChild(card); ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); }); root.appendChild(ov);
     }
 
@@ -535,7 +552,7 @@
         grid.appendChild(c);
       });
       var hd = el('div', 'ks-smaph'); hd.appendChild(el('b', null, '🪑 자리표')); hd.appendChild(el('span', 'ks-smapc', '재석 ' + (total - out) + ' / ' + total + '명')); var oc = el('span', 'ks-smapc o' + (out ? ' on' : ''), out ? '🚪 이탈 ' + out + '명' : '✅ 모두 자리에 있어요'); hd.appendChild(oc);
-      var lg = el('div', 'ks-smapl', '이름을 누르면 이탈 등록, 점선(흐린) 자리는 눌러서 "돌아옴"');
+      var lg = el('div', 'ks-smapl', '이름을 누르면 이탈 등록 · 빨간 자리(나간 사람)를 누르면 "돌아옴"');
       seatMapEl.appendChild(hd); seatMapEl.appendChild(grid); seatMapEl.appendChild(el('div', 'ks-podium small', '교탁')); seatMapEl.appendChild(lg);
     }
     function paintStudy() {

@@ -475,14 +475,18 @@ export default {
       const today = env.TODAY_OVERRIDE || kstISO(), key = 'outlog:' + today;
       if (request.method === 'POST') {
         const b = await request.json().catch(() => ({})), list = JSON.parse(await env.CLASS_KV.get(key) || '[]');
-        if (b.op === 'out') {
-          const st = roster.find((x) => isStu(x) && x.name === b.name); if (!st) return json({ error: 'bad' }, 400);
-          if (list.some((e) => e.n === st.n && !e.back)) return json({ error: 'already' }, 409);
-          list.push({ id: Date.now() % 1e9 * 10 + list.length % 10, n: st.n, name: st.name, reason: String(b.reason || '').replace(/\s+/g, ' ').trim().slice(0, 40) || '사유 없음', out: Date.now(), back: null, by: me0.name });
-        } else if (b.op === 'back') { const e = list.find((x) => x.id === b.id); if (!e) return json({ error: 'bad' }, 400); if (!e.back) e.back = Date.now(); }
+        if (b.op === 'out') {   // 여러 명을 한 번에(names) 또는 한 명(name)
+          const names = Array.isArray(b.names) ? b.names.slice(0, 40) : [b.name], reason = String(b.reason || '').replace(/\s+/g, ' ').trim().slice(0, 40) || '사유 없음', now = Date.now();
+          const sts = names.map((nm) => roster.find((x) => isStu(x) && x.name === nm)).filter(Boolean);
+          if (!sts.length) return json({ error: 'bad' }, 400);
+          let added = 0;
+          sts.forEach((st, k) => { if (list.some((e) => e.n === st.n && !e.back)) return; list.push({ id: (now % 1e8) * 100 + ((list.length + k) % 100), n: st.n, name: st.name, reason, out: now, back: null, by: me0.name }); added++; });
+          if (!added) return json({ error: 'already' }, 409);
+        } else if (b.op === 'backall') { const now = Date.now(); list.forEach((e) => { if (!e.back) e.back = now; }); }
+        else if (b.op === 'back') { const e = list.find((x) => x.id === b.id); if (!e) return json({ error: 'bad' }, 400); if (!e.back) e.back = Date.now(); }
         else if (b.op === 'del') { const i = list.findIndex((x) => x.id === b.id); if (i < 0) return json({ error: 'bad' }, 400); list.splice(i, 1); }
         else return json({ error: 'bad' }, 400);
-        await env.CLASS_KV.put(key, JSON.stringify(list.slice(-80)), { expirationTtl: 120 * 86400 });
+        await env.CLASS_KV.put(key, JSON.stringify(list.slice(-300)), { expirationTtl: 120 * 86400 });
         return json({ ok: true, today, list });
       }
       const days = me0.role === 'board' ? 1 : Math.min(31, Math.max(1, parseInt(url.searchParams.get('days'), 10) || 14)), logs = {};

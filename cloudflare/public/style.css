@@ -1269,3 +1269,16 @@ body.kiosk{overflow:hidden}
 .ks-sdesk.here{background:rgba(120,255,170,.14); border-color:rgba(120,255,170,.45)}
 .ks-sdesk.away{background:rgba(255,100,100,.12); border:1.5px dashed rgba(255,140,140,.8); color:rgba(255,255,255,.6)} .ks-sdesk.away .ks-dn{text-decoration:line-through; opacity:.8} .ks-sdesk .ks-dr{font-size:.62em; font-weight:700; color:#FFB0B0; opacity:1}
 .ks-podium.small{padding:.3em 2em; font-size:.9em} .ks-smapl{font-size:.85em; opacity:.65}
+
+/* 이탈: 사유별 이름 칩 + 자리표 강조 */
+.ks-ott{display:flex; align-items:center; gap:.5em} .ks-ocnt{padding:.1em .7em; border-radius:99px; background:rgba(255,255,255,.14); font-weight:900} .ks-ocnt.on{background:#e0334a; color:#fff}
+.ks-otl{display:flex; gap:.4em; flex-wrap:wrap; justify-content:flex-end}
+.ks-og{margin-top:.5em} .ks-ogh{font-size:.85em; opacity:.8; font-weight:800; margin-bottom:.25em}
+.ks-ochips{display:flex; flex-wrap:wrap; gap:.3em}
+.ks-ochip{display:inline-flex; align-items:baseline; gap:.3em; padding:.25em .65em; border-radius:99px; border:1px solid rgba(255,140,140,.7); background:rgba(255,100,100,.18); color:#fff; font:inherit; font-size:.95em; cursor:pointer} .ks-ochip b{font-weight:900} .ks-ochip small{opacity:.75} .ks-ochip i{font-style:normal; font-size:.8em; opacity:.8}
+.ks-ochip.long{background:#e0334a; border-color:#ff9a9a; animation:ksBlink 1.6s ease-in-out infinite}
+.ks-outbox{max-height:44vh; overflow:auto}
+.ks-sdesk.away{background:#c8334a !important; border:2px solid #ff9a9a !important; color:#fff !important; box-shadow:0 0 0 2px rgba(255,90,90,.25)} .ks-sdesk.away .ks-dn{text-decoration:none; opacity:1; font-weight:900} .ks-sdesk .ks-dr{color:#fff !important}
+.ks-sdesk.nbtn.sel,.ks-nbtn.sel{background:#FFE08A; color:#3a2a00}
+
+.ks-oh{flex-wrap:wrap; gap:.4em} .ks-ott b{white-space:nowrap}
