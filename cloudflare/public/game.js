@@ -286,8 +286,8 @@
     var DPR = Math.min(2, window.devicePixelRatio || 1), SW = 0, SH = 0, FW = 1600, FH = 800, alive = true, raf = 0, last = 0, sound = false, ac = null, wins = [0, 0], g;
     var CR = 46, GRAV = 620, MAXV = 1120, MOVE = 170, BEDROCK = 24, MS = 2;
     var CW = 512, PAD = 2, CWP = CW + PAD * 2, CMW = CW / MS, CMH = FH / MS;
-    var ZOOM_INTRO = 0.90, ZOOM_AIM = 1.95, ZOOM_FLY = 1.32, ZOOM_SETTLE = 1.48, INTRO_DUR = 3.1;
-    var AIM_RING_R = 76, AIM_RING_HIT = 104;
+    var ZOOM_INTRO = 0.88, ZOOM_AIM = 1.50, ZOOM_FLY = 1.08, ZOOM_SETTLE = 1.24, INTRO_DUR = 3.1;
+    var AIM_RING_R = 64, AIM_RING_HIT = 92;
     var TCOL = [['#38BDF8', '#0284C7', '#BAE6FD'], ['#FB7185', '#E11D48', '#FECDD3']];
     var chunks = Object.create(null), mapIdx = -1;
     var baseSc = 1, cam = { x: 800, y: 415, z: ZOOM_INTRO, tx: 800, ty: 415, tz: ZOOM_INTRO, manual: false };
@@ -639,7 +639,7 @@
 
     function aimCamTarget(turnIdx) {
       var tk = g.tanks[turnIdx], opp = g.tanks[1 - turnIdx], dir = opp.x >= tk.x ? 1 : -1;
-      return { x: tk.x + dir * 110, y: clampCamY(tk.y - 45, ZOOM_AIM), z: ZOOM_AIM };
+      return { x: tk.x + dir * 135, y: clampCamY(tk.y - 75, ZOOM_AIM), z: ZOOM_AIM };
     }
 
     function finishIntro() {
@@ -957,7 +957,7 @@
           }
           posRate = 5.8; zoomRate = 4.4;
         } else if (g.phase === 'fly' && g.shot) {
-          var sh = g.shot, flyZ = clamp(ZOOM_FLY - Math.max(0, 120 - sh.y) * 0.00045, 0.96, ZOOM_FLY);
+          var sh = g.shot, flyZ = clamp(ZOOM_FLY - Math.max(0, 120 - sh.y) * 0.00045, 0.84, ZOOM_FLY);
           var rawY = sh.y < 240 ? sh.y * 0.78 + 340 * 0.22 : sh.y * 0.65 + 430 * 0.35;
           var topSafeY = sh.y + (SH * 0.54 - 90) / Math.max(0.15, baseSc * flyZ);
           cam.tx = sh.x + clamp(sh.vx * 0.14, -140, 140);
