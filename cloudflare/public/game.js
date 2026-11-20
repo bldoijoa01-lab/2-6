@@ -279,8 +279,8 @@
   function fortress(opts) {
     if (curF) return; opts = opts || {};
     var root = el('div', 'gm-root fg-root'), cv = el('canvas', 'gm-cv'), ctx = cv.getContext('2d'), bar = el('div', 'gm-bar');
-    var btnM = el('button', 'gm-btn', '🗺 맵 변경'), btnR = el('button', 'gm-btn', '🔁 다시'), btnS = el('button', 'gm-btn', '🔇 소리 꺼짐'), btnX = el('button', 'gm-btn', '✕ 나가기');
-    [btnM, btnR, btnS, btnX].forEach(function (b) { b.type = 'button'; bar.appendChild(b); });
+    var btnR = el('button', 'gm-btn', '🔁 다시'), btnS = el('button', 'gm-btn', '🔇 소리 꺼짐'), btnX = el('button', 'gm-btn', '✕ 나가기');
+    [btnR, btnS, btnX].forEach(function (b) { b.type = 'button'; bar.appendChild(b); });
     root.appendChild(cv); root.appendChild(bar); document.body.appendChild(root);
 
     var DPR = Math.min(2, window.devicePixelRatio || 1), SW = 0, SH = 0, FW = 1600, FH = 800, alive = true, raf = 0, last = 0, sound = false, ac = null, wins = [0, 0], g;
@@ -301,6 +301,61 @@
     }
     function roundRect(c, x, y, w, h, r) {
       r = Math.min(r, w / 2, h / 2); c.beginPath(); c.moveTo(x + r, y); c.arcTo(x + w, y, x + w, y + h, r); c.arcTo(x + w, y + h, x, y + h, r); c.arcTo(x, y + h, x, y, r); c.arcTo(x, y, x + w, y, r); c.closePath();
+    }
+    function dispAng(a) { return Math.round(a > 90 ? 180 - a : a); }
+    function windMeta(w) {
+      var a = Math.abs(w), dir = w === 0 ? 0 : (w > 0 ? 1 : -1);
+      if (a === 0) return { abs: 0, dir: 0, tier: '무풍', col: '#94A3B8', bg: 'rgba(148,163,184,.18)', chev: 0 };
+      if (a <= 2) return { abs: a, dir: dir, tier: '약풍', col: '#7FE0FF', bg: 'rgba(127,224,255,.18)', chev: 1 };
+      if (a <= 5) return { abs: a, dir: dir, tier: '중풍', col: '#FBBF24', bg: 'rgba(251,191,36,.20)', chev: 2 };
+      return { abs: a, dir: dir, tier: '강풍', col: '#FB7185', bg: 'rgba(251,113,133,.24)', chev: 3 };
+    }
+    function drawWindsock(c, x, y, poleH, scale, w, t, wm) {
+      c.save();
+      c.strokeStyle = '#E2E8F0'; c.lineWidth = Math.max(1.3, 1.9 * scale); c.lineCap = 'round';
+      c.beginPath(); c.moveTo(x, y); c.lineTo(x, y - poleH); c.stroke();
+      c.fillStyle = '#FFFFFF'; c.beginPath(); c.arc(x, y - poleH, 1.8 * scale, 0, Math.PI * 2); c.fill();
+      var tx = x, ty = y - poleH + 1 * scale;
+      if (wm.abs === 0) {
+        var sw0 = Math.sin(t * 2.2) * 1.4 * scale;
+        c.fillStyle = wm.col;
+        c.beginPath(); c.moveTo(tx, ty); c.lineTo(tx + 4.5 * scale + sw0, ty + 7.5 * scale); c.lineTo(tx - 1 * scale + sw0, ty + 10 * scale); c.closePath(); c.fill();
+      } else {
+        var d = wm.dir, len = (10 + wm.abs * 1.75) * scale, droop = Math.max(1.2, (9 - wm.abs) * 1.1) * scale;
+        var phase = t * (5 + wm.abs * 2.1), segs = 4;
+        for (var i = 0; i < segs; i++) {
+          var u0 = i / segs, u1 = (i + 1) / segs;
+          var f0 = Math.sin(phase - u0 * 1.8) * (0.6 + wm.abs * 0.25) * u0 * scale;
+          var f1 = Math.sin(phase - u1 * 1.8) * (0.6 + wm.abs * 0.25) * u1 * scale;
+          var x0 = tx + d * len * u0, x1 = tx + d * len * u1;
+          var y0 = ty + droop * u0 * u0 + f0, y1 = ty + droop * u1 * u1 + f1;
+          var h0 = (5.4 - u0 * 2.8) * scale, h1 = (5.4 - u1 * 2.8) * scale;
+          c.fillStyle = i % 2 === 0 ? wm.col : '#F8FAFC';
+          c.beginPath(); c.moveTo(x0, y0); c.lineTo(x1, y1); c.lineTo(x1, y1 + h1); c.lineTo(x0, y0 + h0); c.closePath(); c.fill();
+        }
+      }
+      c.restore();
+    }
+    function drawWindWaveIcon(c, x, y, w, t, wm) {
+      c.save(); c.lineCap = 'round';
+      var d = wm.abs === 0 ? 1 : wm.dir;
+      var sh = wm.abs === 0 ? 0 : Math.sin(t * (3.5 + wm.abs * 1.1)) * 1.8 * d;
+      [[-4.5, 11, 0], [0, 14, 1], [4.5, 10, 2]].forEach(function (ln, idx) {
+        var ly = y + ln[0], xTail = x - d * (ln[1] * 0.52) + sh, xHead = x + d * (ln[1] * 0.48) + sh;
+        c.strokeStyle = wm.abs === 0 ? 'rgba(203,213,225,.55)' : (idx === 1 ? '#FFFFFF' : wm.col);
+        c.lineWidth = wm.abs === 0 ? 1.4 : (idx === 1 ? 2.1 : 1.7);
+        c.beginPath(); c.moveTo(xTail, ly);
+        c.quadraticCurveTo((xTail + xHead) / 2, ly + (idx === 1 ? -1.8 : 1.5), xHead, ly);
+        c.stroke();
+        if (wm.abs > 0) {
+          var cyC = idx === 2 ? ly + 2.4 : ly - 2.4;
+          c.beginPath();
+          if (idx === 2) c.arc(xHead, cyC, 2.4, -Math.PI / 2, d > 0 ? Math.PI * 0.65 : -Math.PI * 1.65, d < 0);
+          else c.arc(xHead, cyC, 2.4, Math.PI / 2, d > 0 ? -Math.PI * 0.65 : Math.PI * 1.65, d > 0);
+          c.stroke();
+        }
+      });
+      c.restore();
     }
 
     function effSc(z) { return baseSc * (typeof z === 'number' ? z : cam.z); }
@@ -606,14 +661,14 @@
 
       var clouds = []; for (var i = 0; i < 10; i++) clouds.push({ x: -300 + Math.random() * 2200, y: 65 + Math.random() * 165, s: 0.75 + Math.random() * 0.65, spd: 8 + Math.random() * 10 });
       var stars = []; for (var j = 0; j < 75; j++) stars.push([Math.random() * FW, Math.random() * FH * 0.62, Math.random() * 1.6 + 0.5, Math.random() * 6.28]);
-      var windPts = []; for (var w = 0; w < 30; w++) windPts.push([-200 + Math.random() * 2000, Math.random() * FH * 0.78, 18 + Math.random() * 26]);
+      var windPts = []; for (var w = 0; w < 48; w++) windPts.push([-300 + Math.random() * 2200, Math.random() * FH * 0.78, 22 + Math.random() * 28, Math.random() * 6.28, Math.random()]);
 
       g = {
         seed: seed, ph: ph, sp1: sp1, sp2: sp2, map: map, geo: geo, clouds: clouds, stars: stars, windPts: windPts,
         phase: 'intro', introT: 0, turn: Math.floor(Math.random() * 2), wind: 0, shake: 0,
         tanks: [
-          { x: sp1, y: 0, vy: 0, tilt: 0, wheelRot: 0, recoil: 0, hp: 100, a: 55, p: 0.68, lastA: null, lastP: null, fuel: MOVE, hit: null, smokeT: 0 },
-          { x: sp2, y: 0, vy: 0, tilt: 0, wheelRot: 0, recoil: 0, hp: 100, a: 125, p: 0.68, lastA: null, lastP: null, fuel: MOVE, hit: null, smokeT: 0 }
+          { x: sp1, y: 0, vy: 0, tilt: 0, wheelRot: 0, recoil: 0, hp: 100, a: 55, p: 0.68, lastA: null, lastP: null, lastTrail: null, lastHit: null, fuel: MOVE, hit: null, smokeT: 0 },
+          { x: sp2, y: 0, vy: 0, tilt: 0, wheelRot: 0, recoil: 0, hp: 100, a: 125, p: 0.68, lastA: null, lastP: null, lastTrail: null, lastHit: null, fuel: MOVE, hit: null, smokeT: 0 }
         ],
         shot: null, lastHit: null, mmSpan: { min: -260, max: 1860 }, parts: [], expl: [], msg: '', msgT: 0, over: 0, winner: -1, trail: [], t: 0
       };
@@ -723,7 +778,7 @@
 
     function fire() {
       var t = g.tanks[g.turn], rad = t.a * Math.PI / 180, v = t.p * MAXV, bx = t.x + Math.cos(rad) * 32, by = t.y - 16 - Math.sin(rad) * 32;
-      t.lastA = t.a; t.lastP = t.p; t.recoil = 1; cam.manual = false;
+      t.lastA = t.a; t.lastP = t.p; t.lastTrail = null; t.lastHit = null; t.recoil = 1; cam.manual = false;
       g.shot = { x: bx, y: by, vx: Math.cos(rad) * v, vy: -Math.sin(rad) * v, o: g.turn, age: 0, smT: 0 };
       g.trail = [[bx, by]]; g.phase = 'fly';
       for (var m = 0; m < 10; m++) {
@@ -761,6 +816,10 @@
       }
 
       g.lastHit = { x: x, y: y };
+      if (typeof owner === 'number' && g.tanks[owner]) {
+        g.tanks[owner].lastHit = { x: x, y: y };
+        g.tanks[owner].lastTrail = g.trail.slice();
+      }
       g.shake = Math.min(18, g.shake + 12);
       g.expl.push({ x: x, y: y, t: 0, r: CR });
       var dc = g.map.dirt;
@@ -797,8 +856,11 @@
         if (c.x > visR) c.x -= visSpan; else if (c.x < visL) c.x += visSpan;
       });
       g.windPts.forEach(function (w) {
-        w[0] += g.wind * 24 * dt;
+        var spd = g.wind === 0 ? 5 : Math.sign(g.wind) * (36 + Math.abs(g.wind) * 32);
+        w[0] += spd * (0.65 + w[4] * 0.55) * dt;
+        w[1] += Math.sin(g.t * 2.2 + w[3]) * 10 * dt;
         if (w[0] > visR) w[0] -= visSpan; else if (w[0] < visL) w[0] += visSpan;
+        if (w[1] < 24) w[1] = FH * 0.72; else if (w[1] > FH * 0.8) w[1] = 30;
       });
 
       var i;
@@ -951,6 +1013,9 @@
       }
       ctx.restore();
 
+      var mastX = t.x + Math.sin(t.tilt) * 30, mastY = t.y - Math.cos(t.tilt) * 30;
+      drawWindsock(ctx, mastX, mastY, 16, 0.72, g.wind, g.t, windMeta(g.wind));
+
       var bw = 72; ctx.fillStyle = 'rgba(10,14,32,.68)'; roundRect(ctx, t.x - bw / 2 - 2, t.y - 62, bw + 4, 12, 6); ctx.fill();
       ctx.fillStyle = t.hp > 50 ? '#4ADE80' : t.hp > 25 ? '#FBBF24' : '#F87171';
       if (t.hp > 0) { roundRect(ctx, t.x - bw / 2, t.y - 60, Math.max(6, bw * t.hp / 100), 8, 4); ctx.fill(); }
@@ -968,7 +1033,7 @@
     // ---------- 그리기 ----------
     function draw() {
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-      var m = g.map, es = effSc(), sxOff = g.shake > 0 ? (Math.random() - 0.5) * g.shake : 0, syOff = g.shake > 0 ? (Math.random() - 0.5) * g.shake : 0;
+      var m = g.map, wm = windMeta(g.wind), es = effSc(), sxOff = g.shake > 0 ? (Math.random() - 0.5) * g.shake : 0, syOff = g.shake > 0 ? (Math.random() - 0.5) * g.shake : 0;
 
       // 1. 하늘 그라데이션 & 무한 패럴랙스 별/천체 (스크린 좌표)
       var sky = ctx.createLinearGradient(0, 0, 0, SH);
@@ -1013,7 +1078,7 @@
       }
       ctx.lineTo(fEnd, FH + 600); ctx.closePath(); ctx.fill();
 
-      // 구름 & 바람 줄기
+      // 구름 & 바람 띠/미립자 연출
       g.clouds.forEach(function (c) {
         if (c.x < visL - 120 || c.x > visR + 120) return;
         ctx.save(); ctx.translate(c.x, c.y); ctx.scale(c.s, c.s);
@@ -1021,25 +1086,45 @@
         [[0, 0, 32], [-28, 6, 22], [30, 8, 24], [10, -10, 26]].forEach(function (a) { ctx.moveTo(a[0] + a[2], a[1]); ctx.arc(a[0], a[1], a[2], 0, Math.PI * 2); });
         ctx.fill(); ctx.restore();
       });
-      if (Math.abs(g.wind) > 0) {
-        ctx.strokeStyle = 'rgba(255,255,255,.24)'; ctx.lineWidth = 1.6;
+      if (wm.abs === 0) {
+        ctx.fillStyle = 'rgba(255,255,255,.22)';
         g.windPts.forEach(function (w) {
-          if (w[0] < visL - 60 || w[0] > visR + 60) return;
-          ctx.beginPath(); ctx.moveTo(w[0], w[1]); ctx.lineTo(w[0] + Math.sign(g.wind) * (w[2] + Math.abs(g.wind) * 3), w[1]); ctx.stroke();
+          if (w[0] < visL - 40 || w[0] > visR + 40) return;
+          ctx.beginPath(); ctx.arc(w[0], w[1], 1.5, 0, Math.PI * 2); ctx.fill();
         });
+      } else {
+        ctx.lineCap = 'round';
+        g.windPts.forEach(function (w, wi) {
+          if (w[0] < visL - 140 || w[0] > visR + 140) return;
+          var wLen = (22 + wm.abs * 9) * (0.75 + w[4] * 0.45), xHead = w[0] + wm.dir * wLen;
+          var wAlpha = (0.16 + wm.abs * 0.04) * (0.65 + w[4] * 0.35);
+          var rg = ctx.createLinearGradient(w[0], w[1], xHead, w[1]);
+          rg.addColorStop(0, 'rgba(255,255,255,0)'); rg.addColorStop(0.55, '#FFFFFF'); rg.addColorStop(1, wm.col);
+          ctx.globalAlpha = wAlpha;
+          ctx.strokeStyle = rg; ctx.lineWidth = 1.3 + wm.abs * 0.14;
+          var waveY = w[1] + Math.sin(g.t * 4 + w[3]) * (2.5 + wm.abs * 0.25);
+          ctx.beginPath(); ctx.moveTo(w[0], w[1]); ctx.quadraticCurveTo((w[0] + xHead) / 2, waveY, xHead, w[1]); ctx.stroke();
+          if (wm.abs >= 4 && wi % 4 === 0) {
+            ctx.strokeStyle = wm.col; ctx.beginPath();
+            ctx.arc(xHead, w[1] - 3.2, 3.2, Math.PI * 0.5, wm.dir > 0 ? -Math.PI * 0.7 : Math.PI * 1.7, wm.dir > 0);
+            ctx.stroke();
+          }
+        });
+        ctx.globalAlpha = 1;
       }
 
-      // 가시 청크 2D 파괴 지형 + 장식 + 심부 기저암 확장
+      // 가시 청크 2D 파괴 지형 + 바람에 흔들리는 장식 + 심부 기저암 확장
       var cStart = Math.floor(visL / CW), cEnd = Math.floor(visR / CW);
       for (var ci = cStart; ci <= cEnd; ci++) {
         var ch = getChunk(ci);
         ctx.drawImage(ch.cv, PAD, 0, CW + 1, FH, ch.x0, 0, CW + 1, FH);
         ch.props.forEach(function (pr) {
+          var sway = g.wind === 0 ? Math.sin(g.t * 1.5 + pr.x * 0.04) * 0.5 : g.wind * (0.65 + 0.35 * Math.sin(g.t * (2.2 + wm.abs * 0.6) + pr.x * 0.04));
           if (pr.kind === 'tree') {
             ctx.fillStyle = '#4E342E'; ctx.fillRect(pr.x - 2, pr.y - 8, 4, 9);
-            ctx.fillStyle = m.crust; ctx.beginPath(); ctx.moveTo(pr.x, pr.y - pr.h - 6); ctx.lineTo(pr.x - 10, pr.y - 6); ctx.lineTo(pr.x + 10, pr.y - 6); ctx.closePath(); ctx.fill();
+            ctx.fillStyle = m.crust; ctx.beginPath(); ctx.moveTo(pr.x + sway * 0.85, pr.y - pr.h - 6); ctx.lineTo(pr.x - 10, pr.y - 6); ctx.lineTo(pr.x + 10, pr.y - 6); ctx.closePath(); ctx.fill();
           } else {
-            ctx.strokeStyle = m.crustHi; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(pr.x, pr.y); ctx.lineTo(pr.x - 4, pr.y - 8); ctx.moveTo(pr.x, pr.y); ctx.lineTo(pr.x + 4, pr.y - 7); ctx.stroke();
+            ctx.strokeStyle = m.crustHi; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(pr.x, pr.y); ctx.lineTo(pr.x - 4 + sway * 0.7, pr.y - 8); ctx.moveTo(pr.x, pr.y); ctx.lineTo(pr.x + 4 + sway * 0.55, pr.y - 7); ctx.stroke();
           }
         });
       }
@@ -1062,9 +1147,54 @@
         });
       }
 
-      // 조준 링 & 예상 탄도 점선
+      // 조준 링 · 2턴 이후 이전 발사 시각 보조 · 예상 탄도 점선
       if (g.phase === 'aim') {
         var t0 = g.tanks[g.turn], rad = t0.a * Math.PI / 180, v0 = t0.p * MAXV, px = t0.x + Math.cos(rad) * 32, py = t0.y - 16 - Math.sin(rad) * 32, vx = Math.cos(rad) * v0, vy = -Math.sin(rad) * v0;
+        var hasLast = t0.lastA != null && t0.lastP != null;
+
+        if (hasLast) {
+          if (t0.lastTrail && t0.lastTrail.length > 1) {
+            ctx.save();
+            ctx.strokeStyle = 'rgba(147,210,255,.32)'; ctx.lineWidth = 2.2 / es; ctx.setLineDash([7 / es, 6 / es]);
+            ctx.beginPath(); t0.lastTrail.forEach(function (q, idx) { if (!idx) ctx.moveTo(q[0], q[1]); else ctx.lineTo(q[0], q[1]); });
+            ctx.stroke(); ctx.setLineDash([]); ctx.restore();
+          }
+          if (t0.lastHit) {
+            var lh = t0.lastHit;
+            ctx.save();
+            ctx.fillStyle = 'rgba(10,14,32,.45)'; ctx.strokeStyle = 'rgba(147,210,255,.55)'; ctx.lineWidth = 1.6;
+            ctx.beginPath(); ctx.arc(lh.x, lh.y, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+            ctx.strokeStyle = '#93D2FF'; ctx.lineWidth = 2.4;
+            ctx.beginPath(); ctx.moveTo(lh.x - 5.5, lh.y - 5.5); ctx.lineTo(lh.x + 5.5, lh.y + 5.5); ctx.moveTo(lh.x + 5.5, lh.y - 5.5); ctx.lineTo(lh.x - 5.5, lh.y + 5.5); ctx.stroke();
+            ctx.fillStyle = 'rgba(10,14,32,.75)'; roundRect(ctx, lh.x - 27, lh.y - 31, 54, 17, 8); ctx.fill();
+            ctx.strokeStyle = 'rgba(147,210,255,.5)'; ctx.lineWidth = 1; ctx.stroke();
+            ctx.fillStyle = '#93D2FF'; ctx.font = '800 10px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('이전 착탄', lh.x, lh.y - 22.5);
+            ctx.restore();
+          }
+
+          var lRad = t0.lastA * Math.PI / 180, lv0 = t0.lastP * MAXV;
+          var lpx = t0.x + Math.cos(lRad) * 32, lpy = t0.y - 16 - Math.sin(lRad) * 32, lvx = Math.cos(lRad) * lv0, lvy = -Math.sin(lRad) * lv0;
+          ctx.save();
+          if (Math.abs(t0.a - t0.lastA) > 1.2) {
+            ctx.fillStyle = 'rgba(147,210,255,.16)';
+            ctx.beginPath(); ctx.moveTo(t0.x, t0.y - 16);
+            ctx.arc(t0.x, t0.y - 16, 58, -lRad, -rad, t0.a > t0.lastA);
+            ctx.closePath(); ctx.fill();
+          }
+          var rx1 = t0.x + Math.cos(lRad) * 74, ry1 = t0.y - 16 - Math.sin(lRad) * 74;
+          ctx.strokeStyle = 'rgba(147,210,255,.82)'; ctx.lineWidth = 2; ctx.setLineDash([5, 4]);
+          ctx.beginPath(); ctx.moveTo(t0.x, t0.y - 16); ctx.lineTo(rx1, ry1); ctx.stroke(); ctx.setLineDash([]);
+          ctx.fillStyle = '#93D2FF'; ctx.beginPath(); ctx.arc(rx1, ry1, 3, 0, Math.PI * 2); ctx.fill();
+
+          for (var gn = 1; gn <= 10; gn++) {
+            var gtt = gn * 0.068, gqx = lpx + lvx * gtt + 0.5 * g.wind * 32 * gtt * gtt, gqy = lpy + lvy * gtt + 0.5 * GRAV * gtt * gtt;
+            ctx.fillStyle = 'rgba(147,210,255,' + (0.72 - gn * 0.05) + ')';
+            ctx.beginPath(); ctx.arc(gqx, gqy, 3.0 - gn * 0.16, 0, Math.PI * 2); ctx.fill();
+          }
+          ctx.restore();
+        }
+
         var ringW = AIM_RING_R / es;
         ctx.save();
         ctx.strokeStyle = 'rgba(255,224,138,' + (0.35 + 0.2 * Math.sin(g.t * 4)) + ')';
@@ -1083,6 +1213,18 @@
             ctx.fillStyle = 'rgba(255,248,210,' + (0.9 - n * 0.075) + ')';
             ctx.beginPath(); ctx.arc(qx, qy, 3.6 - n * 0.22, 0, 6.283); ctx.fill();
           }
+        }
+        if (hasLast) {
+          var lRad2 = t0.lastA * Math.PI / 180, rx2 = t0.x + Math.cos(lRad2) * 74, ry2 = t0.y - 16 - Math.sin(lRad2) * 74;
+          var sideL = Math.cos(lRad2) >= 0 ? 1 : -1, lxLbl = rx2 + sideL * 44, lyLbl = Math.min(t0.y - 36, ry2 + 12);
+          ctx.save();
+          ctx.strokeStyle = 'rgba(147,210,255,.55)'; ctx.lineWidth = 1.4;
+          ctx.beginPath(); ctx.moveTo(rx2, ry2); ctx.lineTo(lxLbl - sideL * 36, lyLbl); ctx.stroke();
+          ctx.fillStyle = 'rgba(10,14,32,.84)'; roundRect(ctx, lxLbl - 36, lyLbl - 9, 72, 18, 9); ctx.fill();
+          ctx.strokeStyle = 'rgba(147,210,255,.55)'; ctx.lineWidth = 1; ctx.stroke();
+          ctx.fillStyle = '#93D2FF'; ctx.font = '800 10px system-ui,sans-serif'; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+          ctx.fillText('이전 ' + dispAng(t0.lastA) + '°·' + Math.round(t0.lastP * 100) + '%', lxLbl, lyLbl);
+          ctx.restore();
         }
       }
 
@@ -1143,7 +1285,7 @@
           ctx.fillStyle = '#FFE08A'; ctx.font = '800 11px system-ui,sans-serif'; ctx.fillText('BATTLEFIELD BRIEFING', SW / 2, cy0 + 22);
           ctx.fillStyle = '#fff'; ctx.font = '900 26px system-ui,sans-serif'; ctx.fillText(g.map.name, SW / 2, cy0 + 52);
           ctx.fillStyle = '#CBD5E1'; ctx.font = '700 13px system-ui,sans-serif';
-          var wSummary = g.wind === 0 ? '바람 없음' : (g.wind < 0 ? '◀ ' : '') + '바람 ' + Math.abs(g.wind) + (g.wind > 0 ? ' ▶' : '');
+          var wSummary = wm.abs === 0 ? '무풍 0' : (wm.dir < 0 ? '◀ ' : '') + wm.tier + ' ' + wm.abs + (wm.dir > 0 ? ' ▶' : '');
           ctx.fillText('1P vs 2P · ' + (g.turn + 1) + 'P 선공 · ' + wSummary, SW / 2, cy0 + 84);
           ctx.restore();
         }
@@ -1152,15 +1294,57 @@
         return;
       }
 
-      // 상단 중앙 맵·바람 카드
-      ctx.fillStyle = 'rgba(10,14,32,.62)'; roundRect(ctx, SW / 2 - 140, 48, 280, 54, 16); ctx.fill();
-      ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.lineWidth = 1; ctx.stroke();
-      ctx.textAlign = 'center'; ctx.fillStyle = '#CBD5E1'; ctx.font = '700 12px system-ui,sans-serif'; ctx.fillText(g.map.name, SW / 2, 62);
-      ctx.fillStyle = '#fff'; ctx.font = '800 16px system-ui,sans-serif';
-      var wtxt = g.wind === 0 ? '바람 없음' : (g.wind < 0 ? '◀ ' : '') + '바람 ' + Math.abs(g.wind) + (g.wind > 0 ? ' ▶' : '');
-      ctx.fillText(wtxt, SW / 2, 81);
-      ctx.fillStyle = 'rgba(255,255,255,.16)'; roundRect(ctx, SW / 2 - 80, 93, 160, 4, 2); ctx.fill();
-      if (g.wind !== 0) { var ww = (g.wind / 8) * 80; ctx.fillStyle = '#7FE0FF'; roundRect(ctx, ww > 0 ? SW / 2 : SW / 2 + ww, 93, Math.abs(ww), 4, 2); ctx.fill(); }
+      // 상단 중앙 맵 · 직관적 바람 아이콘/게이지 카드
+      var cwW = Math.min(316, Math.max(230, SW - 468)), cwX = SW / 2 - cwW / 2;
+      ctx.save();
+      if (wm.abs >= 6) { ctx.shadowColor = wm.col; ctx.shadowBlur = 10 + 4 * Math.sin(g.t * 5); }
+      ctx.fillStyle = 'rgba(10,14,32,.68)'; roundRect(ctx, cwX, 48, cwW, 68, 18); ctx.fill();
+      ctx.shadowBlur = 0;
+      ctx.strokeStyle = wm.abs >= 6 ? wm.col : 'rgba(255,255,255,.22)'; ctx.lineWidth = wm.abs >= 6 ? 1.8 : 1.1; ctx.stroke();
+      ctx.restore();
+
+      ctx.textAlign = 'center'; ctx.fillStyle = '#CBD5E1'; ctx.font = '700 11px system-ui,sans-serif'; ctx.fillText(g.map.name, SW / 2, 60);
+
+      var bL = cwX + 28, bR = cwX + cwW - 28;
+      ctx.fillStyle = wm.bg;
+      ctx.beginPath(); ctx.arc(bL, 83, 16, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.arc(bR, 83, 16, 0, Math.PI * 2); ctx.fill();
+      drawWindsock(ctx, bL - (wm.abs > 0 ? wm.dir * 6 : 0), 93, 19, 0.80, g.wind, g.t, wm);
+      drawWindWaveIcon(ctx, bR, 83, g.wind, g.t, wm);
+
+      if (wm.abs === 0) {
+        ctx.fillStyle = '#CBD5E1'; ctx.font = '800 16px system-ui,sans-serif'; ctx.textAlign = 'center';
+        ctx.fillText('무풍  0', SW / 2, 83);
+      } else {
+        var phaseI = Math.floor(g.t * (4 + wm.abs)), labelTxt = wm.tier + ' ' + wm.abs;
+        ctx.font = '900 17px system-ui,sans-serif'; ctx.textAlign = 'center';
+        var txtW = ctx.measureText(labelTxt).width, chevStep = 11, chevW = (wm.chev - 1) * chevStep + 12, gapT = 8;
+        var totalW = txtW + gapT + chevW;
+        var labelX = wm.dir > 0 ? SW / 2 - totalW / 2 + txtW / 2 : SW / 2 + totalW / 2 - txtW / 2;
+        var chevStart = wm.dir > 0 ? SW / 2 - totalW / 2 + txtW + gapT + 6 : SW / 2 + totalW / 2 - txtW - gapT - 6;
+        ctx.fillStyle = '#FFFFFF'; ctx.fillText(labelTxt, labelX, 83);
+        ctx.font = '900 13px system-ui,sans-serif';
+        for (var ciC = 0; ciC < wm.chev; ciC++) {
+          var pulseC = (phaseI % wm.chev) === ciC ? 1 : 0.38;
+          ctx.fillStyle = wm.col; ctx.globalAlpha = pulseC;
+          ctx.fillText(wm.dir > 0 ? '▶' : '◀', chevStart + wm.dir * ciC * chevStep, 83);
+        }
+        ctx.globalAlpha = 1;
+      }
+
+      // 8칸 대칭 바람 세기 게이지
+      var segW = cwW < 270 ? 6 : 8, segGap = 2, centerGap = 6, activePulse = wm.abs > 0 ? (Math.floor(g.t * (4 + wm.abs)) % wm.abs) + 1 : 0;
+      ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(SW / 2 - 1, 100, 2, 9);
+      for (var sgI = 1; sgI <= 8; sgI++) {
+        var tierCol = sgI <= 2 ? '#7FE0FF' : sgI <= 5 ? '#FBBF24' : '#FB7185';
+        var lxS = SW / 2 - centerGap / 2 - sgI * segW - (sgI - 1) * segGap;
+        var rxS = SW / 2 + centerGap / 2 + (sgI - 1) * (segW + segGap);
+        var lOn = wm.dir < 0 && sgI <= wm.abs, rOn = wm.dir > 0 && sgI <= wm.abs;
+        ctx.fillStyle = lOn ? (sgI === activePulse ? '#FFFFFF' : tierCol) : 'rgba(255,255,255,.14)';
+        roundRect(ctx, lxS, 102, segW, 5, 2); ctx.fill();
+        ctx.fillStyle = rOn ? (sgI === activePulse ? '#FFFFFF' : tierCol) : 'rgba(255,255,255,.14)';
+        roundRect(ctx, rxS, 102, segW, 5, 2); ctx.fill();
+      }
 
       // 상단 좌우 체력·승수 카드
       [[0, 18], [1, SW - 228]].forEach(function (pair) {
@@ -1187,6 +1371,22 @@
         ctx.drawImage(mch.cv, PAD, 0, CW + 1, FH, mm.x + (mch.x0 - spanMin) * mmSX, mm.y, (CW + 1) * mmSX, mm.h);
       }
       ctx.fillStyle = '#262333'; ctx.fillRect(mm.x, mm.y + (FH - BEDROCK) * mmSY, mm.w, BEDROCK * mmSY + 2);
+      if (g.phase === 'aim') {
+        var mmTk = g.tanks[g.turn];
+        if (mmTk.lastTrail && mmTk.lastTrail.length > 1) {
+          ctx.strokeStyle = 'rgba(147,210,255,.72)'; ctx.lineWidth = 1.2; ctx.setLineDash([3, 3]); ctx.beginPath();
+          mmTk.lastTrail.forEach(function (q, idx) {
+            var qx = mm.x + (q[0] - spanMin) * mmSX, qy = mm.y + q[1] * mmSY;
+            if (!idx) ctx.moveTo(qx, qy); else ctx.lineTo(qx, qy);
+          });
+          ctx.stroke(); ctx.setLineDash([]);
+        }
+        if (mmTk.lastHit) {
+          var mhx = mm.x + (mmTk.lastHit.x - spanMin) * mmSX, mhy = mm.y + clamp(mmTk.lastHit.y, 4, FH) * mmSY;
+          ctx.strokeStyle = '#93D2FF'; ctx.lineWidth = 1.6;
+          ctx.beginPath(); ctx.moveTo(mhx - 3, mhy - 3); ctx.lineTo(mhx + 3, mhy + 3); ctx.moveTo(mhx + 3, mhy - 3); ctx.lineTo(mhx - 3, mhy + 3); ctx.stroke();
+        }
+      }
       if (g.shot && g.trail.length > 1) {
         ctx.strokeStyle = 'rgba(255,224,138,.65)'; ctx.lineWidth = 1.4; ctx.beginPath();
         g.trail.forEach(function (q, idx) {
@@ -1223,8 +1423,21 @@
         ctx.fillText((arrow === '◀ ' ? '◀ ' : '') + '🎯 내 탱크로' + (arrow === ' ▶' ? ' ▶' : ''), rc.x + rc.w / 2, rc.y + rc.h / 2);
       }
 
-      // 드래그 슬링샷 안내선
+      // 드래그 슬링샷 안내선 & 이전 발사 목표 링
       if (drag && drag.mode === 'aim' && g.phase === 'aim') {
+        var dt0 = g.tanks[g.turn];
+        if (dt0.lastA != null && dt0.lastP != null) {
+          var dMaxPull = clamp(Math.min(SW, SH) * 0.28, 140, 220), dlRad = dt0.lastA * Math.PI / 180;
+          var gxD = drag.sx - Math.cos(dlRad) * (dt0.lastP * dMaxPull), gyD = drag.sy + Math.sin(dlRad) * (dt0.lastP * dMaxPull);
+          ctx.save();
+          ctx.strokeStyle = 'rgba(147,210,255,.7)'; ctx.lineWidth = 2; ctx.setLineDash([4, 4]);
+          ctx.beginPath(); ctx.moveTo(drag.sx, drag.sy); ctx.lineTo(gxD, gyD); ctx.stroke(); ctx.setLineDash([]);
+          ctx.fillStyle = 'rgba(147,210,255,.16)'; ctx.strokeStyle = '#93D2FF'; ctx.lineWidth = 2;
+          ctx.beginPath(); ctx.arc(gxD, gyD, 10, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = '#93D2FF'; ctx.font = '800 10px system-ui,sans-serif'; ctx.textAlign = 'center';
+          ctx.fillText('이전', gxD, gyD + 19);
+          ctx.restore();
+        }
         ctx.strokeStyle = 'rgba(255,224,138,.75)'; ctx.lineWidth = 3; ctx.setLineDash([6, 6]);
         ctx.beginPath(); ctx.moveTo(drag.sx, drag.sy); ctx.lineTo(drag.cx, drag.cy); ctx.stroke(); ctx.setLineDash([]);
         ctx.strokeStyle = '#FFE08A'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(drag.sx, drag.sy, 14, 0, 6.283); ctx.stroke();
@@ -1243,9 +1456,17 @@
         var ang = tk.a > 90 ? 180 - tk.a : tk.a; ctx.textAlign = g.turn === 0 ? 'left' : 'right'; ctx.font = '800 19px system-ui,sans-serif'; ctx.fillStyle = '#fff';
         var tx = g.turn === 0 ? 40 : SW - 40, px0 = g.turn === 0 ? 40 : SW - 40 - 220;
         ctx.fillText('각도 ' + Math.round(ang) + '° · 파워 ' + Math.round(tk.p * 100) + '%', tx, SH - 122);
+        if (tk.lastA != null && tk.lastP != null) {
+          ctx.fillStyle = '#93D2FF'; ctx.font = '800 12px system-ui,sans-serif';
+          ctx.fillText('이전 ' + dispAng(tk.lastA) + '° · ' + Math.round(tk.lastP * 100) + '%', tx, SH - 170);
+        }
         ctx.fillStyle = 'rgba(10,14,32,.55)'; roundRect(ctx, px0, SH - 154, 220, 10, 5); ctx.fill();
         ctx.fillStyle = '#FFE08A'; if (tk.p > 0.02) { roundRect(ctx, px0, SH - 154, Math.max(8, 220 * tk.p), 10, 5); ctx.fill(); }
-        if (tk.lastP != null) { ctx.fillStyle = '#fff'; ctx.fillRect(px0 + 220 * tk.lastP - 1.5, SH - 157, 3, 16); }
+        if (tk.lastP != null) {
+          var lpxBar = px0 + 220 * tk.lastP;
+          ctx.fillStyle = '#93D2FF'; ctx.fillRect(lpxBar - 1.5, SH - 157, 3, 16);
+          ctx.beginPath(); ctx.moveTo(lpxBar, SH - 157); ctx.lineTo(lpxBar - 4.5, SH - 163); ctx.lineTo(lpxBar + 4.5, SH - 163); ctx.closePath(); ctx.fill();
+        }
         ctx.textAlign = 'center'; ctx.font = '700 13px system-ui,sans-serif'; ctx.fillStyle = 'rgba(255,255,255,.76)';
         ctx.fillText('탱크를 당겨 발사 · 빈 화면/미니맵 드래그로 시점 이동', SW / 2, SH - 16);
       }
@@ -1262,7 +1483,6 @@
     function close() { if (!alive) return; alive = false; cancelAnimationFrame(raf); cv.removeEventListener('contextmenu', blockMenu); document.removeEventListener('keydown', kd); document.removeEventListener('keyup', ku); window.removeEventListener('resize', resize); root.remove(); chunks = Object.create(null); curF = null; if (opts.onExit) opts.onExit(); }
     btnX.addEventListener('click', close);
     btnR.addEventListener('click', function () { newGame(); });
-    btnM.addEventListener('click', function () { newGame(); });
     btnS.addEventListener('click', function () { sound = !sound; btnS.textContent = sound ? '🔊 소리 켜짐' : '🔇 소리 꺼짐'; if (sound) beep(500, 0.08, 0.04); });
     resize(); newGame(); curF = { close: close }; raf = requestAnimationFrame(frame);
     window.Game26._debugF = {
