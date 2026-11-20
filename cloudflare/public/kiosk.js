@@ -674,7 +674,7 @@
     function setMode(m) {
       if (m === 'game') { if (window.Game26) window.Game26.hub({ onExit: function () { paintDock(); } }); return; }
       if (m === 'board') { if (window.Board26) window.Board26.show({ power: true, onExit: function () { paintDock(); } }); return; }
-      if (m !== 'board' && m !== 'game') store('ks_mode', JSON.stringify({ m: m, v: jView, at: Date.now() }));   // 새로고침·자동 업데이트 후에도 보던 화면 유지
+      if (m !== 'board' && m !== 'game') store('ks_mode', JSON.stringify({ m: m, v: jView, at: Date.now() })); try { history.replaceState(null, '', '#k-' + m); } catch (e) {}   // 새로고침·자동 업데이트 후에도 보던 화면 유지 (저장소 + 주소 뒤 #k-화면)
       cleanups.forEach(function (f) { f(); }); cleanups = []; KAPI = {}; resetTimers(); cdEl = null; mode = m; setTimeout(paintBadge, 0); clear(main); main.scrollTop = 0; paintDock(); root.classList.toggle('ks-solid', m === 'clean' || m === 'jongrye' || m === 'study'); root.classList.toggle('ks-cleanmode', m === 'clean');
       if (m === 'today') { todayEl = null; paintToday(); sumBox = el('div', 'ks-sumbn'); main.appendChild(sumBox); paintSum(); main.appendChild(todayEl); lastIdx = -2; tick(); }
       else if (m === 'clean') { paintClean(); tick(); } else if (m === 'jongrye') { paintJongrye(); tick(); } else if (m === 'study') { paintStudy(); tick(); } else if (m === 'seat') paintSeat();
@@ -722,7 +722,7 @@
     function refresh() { fetch('/api/data', { headers: { authorization: 'Bearer ' + tok() }, cache: 'no-store' }).then(function (r) { if (r.status === 401) { store('tok26', null); location.reload(); return null; } return r.ok ? r.json() : null; }).then(function (d) { if (d && d.me) { D = d; if (mode === 'today') { paintToday(true); } } }).catch(function () {}); }
     setInterval(tick, 1000); setInterval(refresh, 5 * 60 * 1000); keepAwake();
     document.body.appendChild(root);
-    var startMode = 'today'; try { var sm = JSON.parse(load('ks_mode') || 'null'); if (sm && sm.m && Date.now() - sm.at < 12 * 3600e3 && MODES.some(function (x) { return x[0] === sm.m && x[0] !== 'board' && x[0] !== 'game'; })) { startMode = sm.m; if (sm.v === 'jo' || sm.v === 'jong') jView = sm.v; } } catch (e) {}
+    var startMode = 'today', hm0 = /^#k-(\w+)/.exec(location.hash || ''); try { var sm = JSON.parse(load('ks_mode') || 'null'); if (hm0) sm = { m: hm0[1], v: sm && sm.v, at: Date.now() }; /* 주소에 #k-화면이 있으면 우선 */ if (sm && sm.m && Date.now() - sm.at < 12 * 3600e3 && MODES.some(function (x) { return x[0] === sm.m && x[0] !== 'board' && x[0] !== 'game'; })) { startMode = sm.m; if (sm.v === 'jo' || sm.v === 'jong') jView = sm.v; } } catch (e) {}
     setMode(startMode); tick(); setTimeout(rpoll, 1500);
   }
   window.Kiosk26 = { start: start };
