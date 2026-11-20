@@ -192,7 +192,7 @@
     if (name === 'me') renderMe();
     if (name === 'admin') renderAdmin();
     requestAnimationFrame(refreshAllPills);
-    try { history.replaceState(null, '', '#' + (name === 'naesin' && nsSub === 'grade' ? 'grade' : name)); } catch (e) {}
+    try { history.replaceState(null, '', '#' + (name === 'naesin' && nsSub === 'grade' ? 'grade' : name)); localStorage.setItem('tab26', JSON.stringify({ t: name === 'naesin' && nsSub === 'grade' ? 'grade' : name, at: Date.now() })); } catch (e) {}
   }
   Array.prototype.forEach.call(document.querySelectorAll('#ns-seg .seg-b'), function (b) {
     b.addEventListener('click', function () {
@@ -218,7 +218,7 @@
       if (DATA && DATA.me && DATA.me.role !== 'teacher') { selectTab('me'); window.scrollTo({ top: 0, behavior: 'smooth' }); }
     });
   })();
-  document.getElementById('logoutBtn').addEventListener('click', function () { store('tok26', null); store('gk26', null); store('pwlen26', null); store('gcscore26', null); store('pref26', null); location.hash = ''; location.reload(); });
+  document.getElementById('logoutBtn').addEventListener('click', function () { store('tok26', null); store('gk26', null); store('pwlen26', null); store('gcscore26', null); store('pref26', null); store('tab26', null); location.hash = ''; location.reload(); });
 
   // ---------- 테마 ----------
   (function () {
@@ -460,7 +460,7 @@
   }
 
   // ---------- 내 일정 (개인 일정: 내 비밀번호로 암호화되어 저장·동기화) ----------
-  var todayView = 'list', calState = null;
+  var todayView = (function () { try { var v = localStorage.getItem('sub_today26'); return ['list', 'cal', 'week', 'jr'].indexOf(v) >= 0 ? v : 'list'; } catch (e) { return 'list'; } })(), calState = null;
   function myEvents() { var v = prefLoad().myEvents; return Array.isArray(v) ? v : []; }
   function saveMyEvents(list) { var p2 = prefLoad(); p2.myEvents = list; prefSave(p2); }
   function listable(e) { return !e.calOnly; }   // calOnly 일정(퇴사·입사)은 캘린더에만 — 목록·홈 일정에는 안 나옴 (알림장에는 기본으로 들어감)
@@ -2216,7 +2216,7 @@
       b.addEventListener('click', function () {
         var prevIdx = VIEWS.indexOf(todayView);
         if (prevIdx === i) return;
-        todayView = VIEWS[i];
+        todayView = VIEWS[i]; try { localStorage.setItem('sub_today26', todayView); } catch (e) {}
         var pn = document.getElementById('panel-today'); if (pn) { pn.style.minHeight = pn.offsetHeight + 'px'; setTimeout(function () { pn.style.minHeight = ''; }, 340); }   // 높이가 확 줄어 화면이 튀지 않게
         listCard.hidden = v[1] !== listCard; calCard.hidden = v[1] !== calCard; weeklyCard.hidden = v[1] !== weeklyCard; jrCard.hidden = v[1] !== jrCard; if (v[1] === jrCard) jrCard.load();
         Array.prototype.forEach.call(seg.children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
@@ -2869,7 +2869,7 @@
 
   // ---------- 시험 대비 (과목별 시험 범위 · 팁) ----------
   var prepMine = true;
-  var examView = 'main';   // 기말고사 탭 안: 'main'(시간표·이동 공지) | 'prep'(시험 대비)
+  var examView = (function () { try { var v = localStorage.getItem('sub_exam26'); return v === 'prep' ? 'prep' : 'main'; } catch (e) { return 'main'; } })();   // 기말고사 탭 안: 'main'(시간표·이동 공지) | 'prep'(시험 대비)
   function examBox() { var pe = document.getElementById('panel-exam'), b = pe.querySelector('.prep-box'); if (!b) { b = h('div', { class: 'prep-box' }); pe.appendChild(b); } return b; }
   function applyExamView() { var pe = document.getElementById('panel-exam'); if (!pe) return; pe.classList.toggle('show-prep', examView === 'prep'); if (examView === 'prep') renderPrep(); }
   function renderExamSeg(teacherOnly) {   // 기말고사 탭 맨 위: [시간표·이동 | 시험 대비] 전환 (교사는 시험 대비만)
@@ -2881,7 +2881,7 @@
       [['시간표 · 이동', 'main'], ['시험 대비', 'prep']].forEach(function (v) {
         var b = h('button', { class: 'seg-b', type: 'button', text: v[0], 'aria-pressed': examView === v[1] ? 'true' : 'false' });
         b.addEventListener('click', function () {
-          if (examView === v[1]) return; examView = v[1];
+          if (examView === v[1]) return; examView = v[1]; try { localStorage.setItem('sub_exam26', examView); } catch (e) {}
           Array.prototype.forEach.call(seg.children, function (x) { x.setAttribute('aria-pressed', x === b ? 'true' : 'false'); });
           syncPill(seg, b); applyExamView(); window.scrollTo({ top: 0 });
         });
@@ -3138,6 +3138,7 @@
     if (isT) {   // 교사 계정: 학생 전용 화면(홈·기말고사·등급컷·내 정보)은 만들지 않음
       renderMore(); renderToday(); renderTeacher(); renderExamSeg(true);
       var ts = (location.hash || '').replace('#', '');
+      if (!ts) { try { var lt2 = JSON.parse(localStorage.getItem('tab26') || 'null'); if (lt2 && lt2.t && Date.now() - lt2.at < 12 * 3600e3) ts = lt2.t; } catch (e) {} }
       selectTab(['teacher', 'today', 'more'].indexOf(ts) >= 0 ? ts : 'teacher');
       if (ts === 'board' && window.Board26) setTimeout(function () { window.Board26.show({ power: true, onExit: function () { try { history.replaceState(null, '', '#teacher'); } catch (e) {} } }); }, 400);
       return;
@@ -3162,6 +3163,7 @@
     setTimeout(function () { if (load('tutorial26') === '1' || DATA.tutorial) showTutorial(); }, 1100);
     setTimeout(maybePushPrompt, 2600);   // 꺼져 있으면 알림 켜라고 안내 (카드뉴스 중이면 건너뜀)
     var start = (location.hash || '').replace('#', '');
+    if (!start) { try { var lt = JSON.parse(localStorage.getItem('tab26') || 'null'); if (lt && lt.t && Date.now() - lt.at < 12 * 3600e3) start = lt.t; } catch (e) {} }   // 주소에 탭이 없으면(앱 아이콘으로 다시 열기 등) 마지막으로 본 탭
     start = { table: 'exam', move: 'exam', caution: 'exam' }[start] || start;
     if (start === 'board' && DATA.me.admin && window.Board26) setTimeout(function () { window.Board26.show({ power: true, onExit: function () { try { history.replaceState(null, '', '#home'); } catch (e) {} } }); }, 400);
     selectTab(['home', 'today', 'exam', 'prep', 'grade', 'naesin', 'me', 'more', 'admin'].indexOf(start) >= 0 && (start !== 'admin' || DATA.me.admin) ? start : 'home');
