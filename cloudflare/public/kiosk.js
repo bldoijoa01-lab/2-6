@@ -24,8 +24,8 @@
 
   function start(data) {
     var D = data, mode = 'today', timers = [], root = el('div', 'ks-root'), head = el('div', 'ks-head'), main = el('div', 'ks-main'), dock = el('div', 'ks-dock');
-    var clockEl = el('div', 'ks-clock'), dateEl = el('div', 'ks-date'), periodEl = el('div', 'ks-period'), suEl = el('div', 'ks-period ks-sucd');
-    var hl = el('div', 'ks-hl'); hl.appendChild(clockEl); var hr = el('div', 'ks-hr'); hr.appendChild(dateEl); var prow = el('div', 'ks-prow'); prow.appendChild(suEl); prow.appendChild(periodEl); hr.appendChild(prow);
+    var clockEl = el('div', 'ks-clock'), dateEl = el('div', 'ks-date'), periodEl = el('div', 'ks-period'), suEl = el('div', 'ks-period ks-sucd'), examEl = el('div', 'ks-period ks-examcd');
+    var hl = el('div', 'ks-hl'); hl.appendChild(clockEl); var hr = el('div', 'ks-hr'); hr.appendChild(dateEl); var prow = el('div', 'ks-prow'); prow.appendChild(examEl); prow.appendChild(suEl); prow.appendChild(periodEl); hr.appendChild(prow);
     head.appendChild(hl); head.appendChild(hr);
     root.appendChild(head); root.appendChild(main); root.appendChild(dock);
     document.body.classList.add('kiosk'); document.body.classList.remove('locked');
@@ -424,7 +424,20 @@
     }
     // 2028학년도 수능(2027-11-18 목) 입실 완료 08:10(KST)까지 남은 초 — 헤더의 'n교시 수업 중' 왼쪽에 표시. 평가원 시행계획 확정 시 바뀔 수 있음
     var SUNEUNG_AT = Date.UTC(2027, 10, 18, 8, 10, 0) - 9 * 3600e3;
+    function nextExam() {   // 다가오는 시험(기말고사·중간고사)의 첫 시험 시작 시각까지
+      var now = Date.now(), best = null;
+      function consider(date, time, label) { var p = String(time).split(':'); var ms = Date.UTC(+date.slice(0, 4), +date.slice(5, 7) - 1, +date.slice(8, 10), +p[0], +p[1] || 0) - 9 * 3600e3; if (ms > now && (!best || ms < best.ms)) best = { ms: ms, date: date, label: label }; }
+      if (D.exam && D.exam.days && D.exam.days.length) consider(D.exam.days[0].date, ((D.exam.periods && D.exam.periods[0] && D.exam.periods[0].time) || '08:50').split('~')[0], '기말고사');
+      (D.events || []).forEach(function (e) { if (e.date && /중간고사|기말고사/.test(e.title)) consider(e.date, '08:50', /중간/.test(e.title) ? '중간고사' : '기말고사'); });
+      return best;
+    }
+    function paintExam() {
+      var x = nextExam(); if (!x) { examEl.style.display = 'none'; return; }
+      var left = Math.max(0, Math.floor((x.ms - Date.now()) / 1000)), dd = Math.round((Date.UTC(+x.date.slice(0, 4), +x.date.slice(5, 7) - 1, +x.date.slice(8, 10)) - Date.UTC(kst().getUTCFullYear(), kst().getUTCMonth(), kst().getUTCDate())) / 864e5);
+      examEl.style.display = ''; examEl.textContent = '📝 ' + x.label + ' ' + (dd <= 0 ? 'D-DAY' : 'D-' + dd) + ' · ' + left.toLocaleString('ko-KR') + '초';
+    }
     function paintSuneung() {
+      paintExam();
       var left = Math.max(0, Math.floor((SUNEUNG_AT - Date.now()) / 1000));
       suEl.textContent = '🎓 수능까지 ' + left.toLocaleString('ko-KR') + '초';
     }

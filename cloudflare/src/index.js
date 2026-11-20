@@ -1,7 +1,7 @@
 // 2-6 알림장 서버: 이름+번호 로그인 -> 서명 토큰 -> 데이터 제공
 // KV: "roster" = [{"n":1,"name":"홍길동"}, ...], "data" = data.json 내용
 // Secret: SESSION_SECRET
-import ASSETS from './assets.js';
+import ASSETS, { BUILD } from './assets.js';
 import FONT from './pretendard.woff2';
 import OG from './og.jpg';
 import ICON from './icon.png';
@@ -856,9 +856,11 @@ export default {
       return new Response(ICON, { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' } });
     if (url.pathname === '/fonts/pretendard-1.woff2')
       return new Response(FONT, { headers: { 'content-type': 'font/woff2', 'cache-control': 'public, max-age=31536000, immutable' } });
+    if (url.pathname === '/api/version') return new Response(JSON.stringify({ v: BUILD }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });   // 새 버전 배포 확인용
     if (url.pathname.startsWith('/api/')) return json({ error: 'not_found' }, 404);
     const a = ASSETS[url.pathname === '/' ? '/index.html' : url.pathname];
     if (!a) return new Response('Not found', { status: 404 });
+    if (a.type.indexOf('text/html') === 0) return new Response(a.body.replace('<head>', '<head><script>window.BUILD=' + JSON.stringify(BUILD) + '</script>'), { headers: { 'content-type': a.type, 'cache-control': 'no-cache' } });
     return new Response(a.body, { headers: { 'content-type': a.type, 'cache-control': 'no-cache' } });
   },
 };

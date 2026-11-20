@@ -3262,4 +3262,29 @@
       });
   }
   loadData();
+
+  // ---------- 새 버전 자동 확인: 배포되면 알아서 새로고침 ----------
+  // 전자칠판: 1분마다 확인, 게임·받아쓰기·의견 보드 중이 아닐 때 자동 새로고침 / 학생 앱: 앱으로 돌아올 때(백그라운드→화면) 바로 새로고침, 쓰는 중에 새 버전이 나오면 작은 알림 줄을 띄움
+  (function () {
+    var cur = window.BUILD, pending = false; if (!cur) return;
+    function isKiosk() { return document.body.classList.contains('kiosk'); }
+    function busy() { return !!document.querySelector('.gm-root, .bd-root, .ks-jnote.rec, .ks-recbadge, .ks-modal, input:focus, textarea:focus, .modal, .jr-modal'); }
+    function reload() { try { location.reload(); } catch (e) {} }
+    function banner() {
+      if (document.getElementById('updbar')) return;
+      var b = h('button', { id: 'updbar', class: 'updbar', type: 'button', text: '🔄 새 버전이 나왔어요 · 눌러서 새로고침' }); b.addEventListener('click', reload); document.body.appendChild(b);
+    }
+    function onNew(returning) {
+      pending = true;
+      if (isKiosk()) { if (!busy()) reload(); return; }
+      if (returning && !busy()) { reload(); return; }   // 앱으로 막 돌아온 순간엔 바로
+      banner();
+    }
+    function check(returning) {
+      fetch('/api/version', { cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.v && j.v !== cur) onNew(returning === true); }).catch(function () {});
+    }
+    setInterval(function () { if (pending && isKiosk() && !busy()) { reload(); return; } if (isKiosk() || !document.hidden) check(); }, 60000);
+    document.addEventListener('visibilitychange', function () { if (document.hidden) return; check(true); });   // 앱으로 돌아왔을 때 바로 확인
+    window.addEventListener('focus', function () { check(true); });
+  })();
 })();

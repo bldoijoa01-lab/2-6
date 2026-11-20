@@ -1255,3 +1255,7 @@ body.kiosk{overflow:hidden}
 .ks-hcard{border-radius:18px; border:1px solid rgba(255,255,255,.28); background:rgba(255,255,255,.08); padding:.7em 1.1em} .ks-hcard summary{cursor:pointer; font-size:1.15em; font-weight:800; color:#FFE08A; list-style:none} .ks-hcard summary::-webkit-details-marker{display:none} .ks-hcard summary::before{content:'▾ '} .ks-hcard:not([open]) summary::before{content:'▸ '} .ks-hcard summary small{opacity:.7; color:#fff; font-weight:600}
 .ks-hcard .ks-suml{font-size:1.2em; margin:.4em 0} .ks-hraw{margin-top:.5em; white-space:pre-wrap; opacity:.8; font-size:.95em; line-height:1.5}
 .jr-ent{margin-bottom:.7em} .jr-entl{font-weight:800; margin-bottom:.15em}
+
+.ks-period.ks-examcd{background:rgba(120,200,255,.18); color:#CFE9FF; font-variant-numeric:tabular-nums; margin-top:.35em}
+
+.updbar{position:fixed; left:50%; bottom:16px; transform:translateX(-50%); z-index:700; border:0; border-radius:999px; padding:12px 20px; font:inherit; font-weight:800; background:#2F6BFF; color:#fff; box-shadow:0 10px 30px rgba(0,0,0,.35); cursor:pointer}
