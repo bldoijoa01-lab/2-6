@@ -1034,17 +1034,17 @@ body.no-anim .panel,body.no-anim .panel *{animation:none !important}
 body.kiosk .wrap,body.kiosk .top,body.kiosk #splash,body.kiosk .ribbon,body.kiosk .foot,body.kiosk #previewBar{display:none !important}
 body.kiosk{overflow:hidden}
 .ks-root{
-  --k-bg:#0B1437;
-  --k-bg-grad:radial-gradient(960px 640px at 12% 8%,rgba(108,146,255,.44),transparent 58%),radial-gradient(880px 640px at 88% 92%,rgba(255,112,196,.34),transparent 58%),radial-gradient(700px 520px at 56% 42%,rgba(148,102,255,.24),transparent 62%),linear-gradient(158deg,#0B1437 0%,#24185B 54%,#45207A 100%);
-  --k-surface:rgba(16,18,52,.46); --k-card:linear-gradient(145deg,rgba(255,255,255,.13) 0%,rgba(255,255,255,.05) 100%); --k-row:rgba(255,255,255,.075); --k-row-hover:rgba(255,255,255,.15);
-  --k-line:rgba(255,255,255,.18); --k-line-strong:rgba(255,255,255,.32);
-  --k-ink:#F7F5FF; --k-sub:#C3BCE0; --k-mute:#8F87B5;
-  --k-accent:#8EA8FF; --k-accent-soft:rgba(142,168,255,.20);
-  --k-amber:#F5CE78; --k-amber-soft:rgba(245,206,120,.18);
-  --k-green:#5BE0B3; --k-green-soft:rgba(91,224,179,.18);
-  --k-rose:#FF7CA8; --k-rose-soft:rgba(255,124,168,.18);
-  --k-pill-on-bg:linear-gradient(135deg,#668BFF,#9B6BFF); --k-pill-on-ink:#FFFFFF;
-  --k-shadow:0 16px 40px rgba(6,5,26,.34),inset 0 1px 0 rgba(255,255,255,.28),inset 0 0 0 1px rgba(255,255,255,.06);
+  --k-bg:#10122B;
+  --k-bg-grad:radial-gradient(60vmax 46vmax at 4% 4%,rgba(70,110,255,.26),transparent 60%),radial-gradient(56vmax 44vmax at 96% 18%,rgba(255,90,140,.14),transparent 60%),radial-gradient(64vmax 48vmax at 90% 96%,rgba(150,90,255,.22),transparent 62%),linear-gradient(180deg,#0A0F22 0%,#10122B 55%,#190F26 100%);
+  --k-surface:rgba(18,22,42,.72); --k-card:linear-gradient(145deg,rgba(24,29,56,.78) 0%,rgba(16,20,40,.68) 100%); --k-row:rgba(255,255,255,.06); --k-row-hover:rgba(255,255,255,.11);
+  --k-line:rgba(255,255,255,.11); --k-line-strong:rgba(255,255,255,.20);
+  --k-ink:#EAEEFB; --k-sub:#A6B0CB; --k-mute:#7B86A3;
+  --k-accent:#7AA2FF; --k-accent-soft:rgba(122,162,255,.16);
+  --k-amber:#F0BA5C; --k-amber-soft:rgba(240,186,92,.16);
+  --k-green:#4FD1A1; --k-green-soft:rgba(79,209,161,.15);
+  --k-rose:#FF7C9C; --k-rose-soft:rgba(255,124,156,.16);
+  --k-pill-on-bg:linear-gradient(135deg,#4F7CFF,#7B6AF0); --k-pill-on-ink:#FFFFFF;
+  --k-shadow:0 10px 32px rgba(0,0,0,.35),inset 0 1px 0 rgba(255,255,255,.09);
   --k-ease:cubic-bezier(.22,1,.36,1);
   position:fixed; inset:0; z-index:350; display:flex; flex-direction:column; overflow:hidden;
   background:var(--k-bg-grad,var(--k-bg)); color:var(--k-ink); font-size:calc(var(--ks,1) * clamp(14px,1.02vw,23px));
@@ -1084,8 +1084,8 @@ body.kiosk{overflow:hidden}
 /* 앰비언트 백드롭 & 오비탈 링 (Aleph 레퍼런스) */
 .ks-atmo{position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden}
 .ks-orb{position:absolute; border-radius:50%; filter:blur(72px); will-change:transform,opacity}
-.ks-orb-a{width:min(68vw,780px); height:min(68vw,780px); left:50%; bottom:-34%; transform:translateX(-50%); background:radial-gradient(circle,rgba(165,120,255,.42) 0%,rgba(255,115,198,.26) 46%,transparent 72%); animation:ksOrbA 20s ease-in-out infinite alternate}
-.ks-orb-b{width:min(46vw,540px); height:min(46vw,540px); left:-8%; top:-18%; background:radial-gradient(circle,rgba(105,148,255,.40) 0%,transparent 70%); animation:ksOrbB 26s ease-in-out infinite alternate}
+.ks-orb-a{width:min(68vw,780px); height:min(68vw,780px); left:50%; bottom:-34%; transform:translateX(-50%); background:radial-gradient(circle,rgba(150,90,255,.16) 0%,rgba(255,90,140,.09) 46%,transparent 72%); animation:ksOrbA 20s ease-in-out infinite alternate}
+.ks-orb-b{width:min(46vw,540px); height:min(46vw,540px); left:-8%; top:-18%; background:radial-gradient(circle,rgba(70,110,255,.18) 0%,transparent 70%); animation:ksOrbB 26s ease-in-out infinite alternate}
 .ks-ring{position:absolute; width:min(76vh,680px); height:min(76vh,680px); left:50%; top:50%; margin-left:calc(min(76vh,680px) * -.5); margin-top:calc(min(76vh,680px) * -.5); border-radius:50%; border:1px solid rgba(226,214,255,.09); box-shadow:0 0 80px rgba(180,148,255,.06); animation:ksOrbit 80s linear infinite}
 .ks-ring::after{content:''; position:absolute; inset:14%; border-radius:50%; border:1px solid rgba(232,199,123,.07)}
 .ks-root.ks-cleanmode .ks-orb-a{background:radial-gradient(circle,rgba(114,214,184,.22) 0%,rgba(232,199,123,.09) 46%,transparent 72%)}
@@ -1458,12 +1458,12 @@ body.kiosk{overflow:hidden}
 .gm-btn.warn{background:#e0334a; border-color:#e0334a}
 .gm-end{position:absolute; left:50%; top:62%; transform:translateX(-50%); display:flex; gap:14px; z-index:3; animation:ksReveal .42s cubic-bezier(.22,1,.36,1) both}
 .gm-big{border:0; border-radius:999px; padding:16px 28px; font:inherit; font-weight:900; font-size:20px; background:#5BE7FF; color:#06303d; cursor:pointer; box-shadow:0 10px 30px rgba(0,0,0,.5)} .gm-big.out{background:rgba(255,255,255,.16); color:#fff; border:1px solid rgba(255,255,255,.4)}
-.gm-hub{position:fixed; inset:0; z-index:590; background:radial-gradient(900px 600px at 15% 8%,rgba(120,150,255,.32),transparent 60%),radial-gradient(800px 600px at 90% 90%,rgba(255,120,200,.24),transparent 60%),linear-gradient(160deg,rgba(11,20,55,.94),rgba(42,26,99,.94) 58%,rgba(75,35,128,.94)); backdrop-filter:blur(14px); display:flex; align-items:center; justify-content:center; animation:ksFadeIn .28s ease}
-.gm-hubc{text-align:center; color:#F7F5FF; padding:20px} .gm-hubc h2{margin:0 0 18px; font-size:clamp(24px,3vw,40px); animation:ksReveal .45s cubic-bezier(.22,1,.36,1) both}
+.gm-hub{position:fixed; inset:0; z-index:590; background:radial-gradient(60vmax 46vmax at 8% 8%,rgba(70,110,255,.22),transparent 60%),radial-gradient(60vmax 46vmax at 92% 92%,rgba(150,90,255,.18),transparent 60%),linear-gradient(180deg,rgba(10,15,34,.94),rgba(16,18,43,.94) 55%,rgba(25,15,38,.94)); backdrop-filter:blur(14px); display:flex; align-items:center; justify-content:center; animation:ksFadeIn .28s ease}
+.gm-hubc{text-align:center; color:#EAEEFB; padding:20px} .gm-hubc h2{margin:0 0 18px; font-size:clamp(24px,3vw,40px); animation:ksReveal .45s cubic-bezier(.22,1,.36,1) both}
 .gm-hubrow{display:flex; gap:18px; flex-wrap:wrap; justify-content:center; margin-bottom:22px}
-.gm-hubb{width:min(300px,80vw); padding:26px 18px; border-radius:20px; border:1px solid rgba(255,255,255,.26); background:linear-gradient(145deg,rgba(255,255,255,.15) 0%,rgba(255,255,255,.05) 100%); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%); color:#F7F5FF; font:inherit; cursor:pointer; display:flex; flex-direction:column; gap:8px; align-items:center; box-shadow:0 16px 40px rgba(7,6,28,.42),inset 0 1px 0 rgba(255,255,255,.32); animation:ksReveal .5s cubic-bezier(.22,1,.36,1) both; transition:transform .24s cubic-bezier(.22,1,.36,1),border-color .22s ease,background .22s ease,box-shadow .24s ease}
+.gm-hubb{width:min(300px,80vw); padding:26px 18px; border-radius:20px; border:1px solid rgba(255,255,255,.14); background:linear-gradient(145deg,rgba(24,29,56,.82) 0%,rgba(16,20,40,.72) 100%); backdrop-filter:blur(24px) saturate(180%); -webkit-backdrop-filter:blur(24px) saturate(180%); color:#EAEEFB; font:inherit; cursor:pointer; display:flex; flex-direction:column; gap:8px; align-items:center; box-shadow:0 12px 34px rgba(0,0,0,.42),inset 0 1px 0 rgba(255,255,255,.10); animation:ksReveal .5s cubic-bezier(.22,1,.36,1) both; transition:transform .24s cubic-bezier(.22,1,.36,1),border-color .22s ease,background .22s ease,box-shadow .24s ease}
 .gm-hubb:nth-child(1){animation-delay:40ms} .gm-hubb:nth-child(2){animation-delay:100ms} .gm-hubb:nth-child(3){animation-delay:160ms} .gm-hubb:nth-child(4){animation-delay:220ms}
-.gm-hubb:hover{background:rgba(46,40,108,.86); border-color:#A5B8FF; transform:translateY(-6px) scale(1.018); box-shadow:0 22px 48px rgba(10,8,36,.55)}
+.gm-hubb:hover{background:rgba(32,39,74,.90); border-color:#7AA2FF; transform:translateY(-6px) scale(1.018); box-shadow:0 22px 48px rgba(10,8,36,.55)}
 .gm-hubb:active{transform:scale(.97)}
 .gm-hubc .gm-big{animation:ksReveal .5s cubic-bezier(.22,1,.36,1) 220ms both; transition:transform .2s cubic-bezier(.22,1,.36,1),background .2s ease}
 .gm-hubc .gm-big:hover{transform:translateY(-2px)} .gm-hubc .gm-big:active{transform:scale(.96)}
