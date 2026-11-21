@@ -1363,7 +1363,7 @@ body.kiosk{overflow:hidden}
 .ks-smapl{font-size:.86em; color:var(--k-mute)}
 .ks-seat{display:flex; flex-direction:column; gap:1em; align-items:center; animation:ksReveal .5s var(--k-ease) both}
 .ks-swrap{display:flex; flex-direction:column; align-items:center; gap:.8em; width:100%}
-.ks-sgrid{display:flex; gap:1.8em; align-items:flex-start; justify-content:center; width:100%}
+.ks-sgrid{display:flex; gap:1.8em; align-items:flex-end; justify-content:center; width:100%}
 .ks-scol{display:flex; flex-direction:column; gap:.35em}
 .ks-srow{display:flex; gap:.35em}
 .ks-sdesk{min-width:5.6em; padding:.68em .45em; border-radius:.68em; border:1px solid var(--k-line-strong); background:var(--k-card); color:var(--k-ink); font:inherit; font-weight:800; font-size:1.18em; cursor:pointer; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:.12em; line-height:1.15; transition:background .2s var(--k-ease),border-color .2s var(--k-ease),transform .2s var(--k-ease)}
