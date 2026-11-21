@@ -77,8 +77,12 @@
     hl.appendChild(hmeta);
     var hr = el('div', 'ks-hr'), prow = el('div', 'ks-prow');
     prow.appendChild(examEl); prow.appendChild(suEl); hr.appendChild(prow);
+    var atmo = el('div', 'ks-atmo'); atmo.setAttribute('aria-hidden', 'true');
+    atmo.appendChild(el('div', 'ks-orb ks-orb-a'));
+    atmo.appendChild(el('div', 'ks-orb ks-orb-b'));
+    atmo.appendChild(el('div', 'ks-ring'));
     head.appendChild(hl); head.appendChild(hr);
-    root.appendChild(head); root.appendChild(main); root.appendChild(dock);
+    root.appendChild(atmo); root.appendChild(head); root.appendChild(main); root.appendChild(dock);
     document.body.classList.add('kiosk'); document.body.classList.remove('locked');
     var scale = parseFloat(load('ks_scale') || '1'); root.style.setProperty('--ks', scale);
     var theme = load('ks_theme') === 'light' ? 'light' : 'dark';
@@ -187,7 +191,7 @@
     }
     function paintToday(keep) {
       if (!todayEl) { todayEl = el('div', 'ks-today'); }
-      clear(todayEl); var k = kst(), iso = isoOf(k), dow = k.getUTCDay();
+      clear(todayEl); todayEl.classList.toggle('ks-noreveal', !!keep); var k = kst(), iso = isoOf(k), dow = k.getUTCDay();
       var noSchool = (D.events || []).filter(function (e) { return e.noSchool && e.date <= iso && iso <= (e.end || e.date); })[0];
       // 알림장
       var daily = (D.daily || {})[iso], items = (daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 아직 없어요' }];
@@ -746,7 +750,7 @@
       var ov = el('div', 'ks-modal'), card = el('div', 'ks-mcard');
       card.appendChild(el('h2', null, '전자칠판 설정'));
       var th = el('div', 'ks-row left'); th.appendChild(el('span', 'ks-lbl', '화면 테마'));
-      [['미드나잇 인디고', 'dark'], ['라이트 클린', 'light']].forEach(function (tOpt) {
+      [['바이올렛 미스트', 'dark'], ['라벤더 미스트', 'light']].forEach(function (tOpt) {
         var b = el('button', 'ks-chip' + (theme === tOpt[1] ? ' on' : ''), tOpt[0]); b.type = 'button';
         b.addEventListener('click', function () {
           theme = tOpt[1]; store('ks_theme', theme); root.classList.toggle('ks-light', theme === 'light');
