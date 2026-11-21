@@ -29,7 +29,9 @@
     shuffle: '<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>',
     reset: '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>',
     door: '<path d="M13 4h5a2 2 0 0 1 2 2v14H4V6a2 2 0 0 1 2-2h7z"/><path d="M13 4v16"/><circle cx="10.5" cy="12" r=".8" fill="currentColor"/>',
-    fullscreen: '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>'
+    fullscreen: '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/>',
+    moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'
   };
   function svgIcon(name) {
     var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
@@ -87,6 +89,7 @@
     var scale = parseFloat(load('ks_scale') || '1'); root.style.setProperty('--ks', scale);
     var theme = load('ks_theme') === 'light' ? 'light' : 'dark';
     root.classList.toggle('ks-light', theme === 'light');
+    function applyTheme(next) { theme = next === 'light' ? 'light' : 'dark'; store('ks_theme', theme); root.classList.toggle('ks-light', theme === 'light'); if (dock.childNodes.length) paintDock(); }
     var names = null;   // 학생 이름(뽑기·모둠)
     var stLbl = null, stRng = null, KAPI = {}, alertEl = null, alertText = '', SC = loadSched(), barEl = null, cdEl = null, cdEnd = 0, lastPhase = null;
     function later(fn, ms) { var t = setTimeout(fn, ms); timers.push(t); return t; }
@@ -750,10 +753,10 @@
       var ov = el('div', 'ks-modal'), card = el('div', 'ks-mcard');
       card.appendChild(el('h2', null, '전자칠판 설정'));
       var th = el('div', 'ks-row left'); th.appendChild(el('span', 'ks-lbl', '화면 테마'));
-      [['바이올렛 미스트', 'dark'], ['라벤더 미스트', 'light']].forEach(function (tOpt) {
+      [['다크 모드', 'dark'], ['라이트 모드', 'light']].forEach(function (tOpt) {
         var b = el('button', 'ks-chip' + (theme === tOpt[1] ? ' on' : ''), tOpt[0]); b.type = 'button';
         b.addEventListener('click', function () {
-          theme = tOpt[1]; store('ks_theme', theme); root.classList.toggle('ks-light', theme === 'light');
+          applyTheme(tOpt[1]);
           Array.prototype.forEach.call(th.querySelectorAll('.ks-chip'), function (x) { x.classList.remove('on'); }); b.classList.add('on');
         });
         th.appendChild(b);
@@ -799,6 +802,12 @@
         b.appendChild(ic); b.appendChild(el('span', 'ks-dl', m[2]));
         b.addEventListener('click', function () { setMode(m[0]); }); dock.appendChild(b);
       });
+      var tBtn = el('button', 'ks-dbtn small ks-tbtn'); tBtn.type = 'button';
+      var tTitle = theme === 'light' ? '다크 모드로 전환' : '라이트 모드로 전환';
+      tBtn.title = tTitle; tBtn.setAttribute('aria-label', tTitle);
+      var tic = el('span', 'ks-de'); tic.appendChild(svgIcon(theme === 'light' ? 'moon' : 'sun')); tBtn.appendChild(tic);
+      tBtn.addEventListener('click', function () { applyTheme(theme === 'light' ? 'dark' : 'light'); });
+      dock.appendChild(tBtn);
       var s = el('button', 'ks-dbtn small'); s.type = 'button'; s.title = '설정'; s.setAttribute('aria-label', '설정');
       var sic = el('span', 'ks-de'); sic.appendChild(svgIcon('settings')); s.appendChild(sic);
       s.addEventListener('click', openSettings); dock.appendChild(s);
