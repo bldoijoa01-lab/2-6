@@ -1,7 +1,51 @@
 // 전자칠판 전용 화면 (role 'board' 계정으로 로그인했을 때): 교실에 띄워 두는 대시보드 + 수업 도구
 // 오늘(알림장·일과·급식·일정·청소) / 의견 보드 / 발표자 뽑기 / 모둠 나누기
 (function () {
-  var DOW = ['일', '월', '화', '수', '목', '금', '토'], KIND = { pin: '⭐', notice: '📢', prep: '🎒', hw: '📝', time: '⏰' };
+  var DOW = ['일', '월', '화', '수', '목', '금', '토'];
+  var KIND_META = {
+    pin: { label: '중요', cls: 'pin' },
+    notice: { label: '공지', cls: 'notice' },
+    prep: { label: '준비물', cls: 'prep' },
+    hw: { label: '과제', cls: 'hw' },
+    time: { label: '시간', cls: 'time' }
+  };
+  var ICONS = {
+    home: '<path d="M3 10.5L12 3l9 7.5"/><path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/>',
+    clean: '<path d="M12 3l1.8 4.2L18 9l-4.2 1.8L12 15l-1.8-4.2L6 9l4.2-1.8z"/><path d="M19 15l.9 2.1L22 18l-2.1.9L19 21l-.9-2.1L16 18l2.1-.9z"/>',
+    announce: '<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/>',
+    study: '<path d="M2 5a2 2 0 0 1 2-2h6a3 3 0 0 1 3 3v14a2 2 0 0 0-2-2H4a2 2 0 0 1-2-2z"/><path d="M22 5a2 2 0 0 0-2-2h-6a3 3 0 0 0-3 3v14a2 2 0 0 1 2-2h7a2 2 0 0 0 2-2z"/>',
+    seat: '<rect x="3" y="4" width="7" height="6" rx="1.5"/><rect x="14" y="4" width="7" height="6" rx="1.5"/><rect x="3" y="14" width="7" height="6" rx="1.5"/><rect x="14" y="14" width="7" height="6" rx="1.5"/>',
+    game: '<rect x="2" y="6" width="20" height="12" rx="4"/><path d="M6 12h4"/><path d="M8 10v4"/><circle cx="15.5" cy="11" r=".8" fill="currentColor"/><circle cx="17.5" cy="13" r=".8" fill="currentColor"/>',
+    board: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>',
+    pick: '<rect x="3" y="3" width="18" height="18" rx="4"/><circle cx="8.5" cy="8.5" r="1" fill="currentColor"/><circle cx="15.5" cy="8.5" r="1" fill="currentColor"/><circle cx="12" cy="12" r="1" fill="currentColor"/><circle cx="8.5" cy="15.5" r="1" fill="currentColor"/><circle cx="15.5" cy="15.5" r="1" fill="currentColor"/>',
+    group: '<path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9c.26.6.79 1 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/>',
+    notice: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="14" y2="17"/>',
+    clock: '<circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15.5 14"/>',
+    meal: '<path d="M4 3v7a3 3 0 0 0 3 3v8"/><path d="M7 3v7"/><path d="M10 3v7a3 3 0 0 1-3 3"/><path d="M17 3v18"/><path d="M17 3c2 0 3 2.5 3 6s-1 4-3 4"/>',
+    calendar: '<rect x="3" y="4" width="18" height="17" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>',
+    broom: '<path d="M14.5 3.5l6 6"/><path d="M18 7l-8.5 8.5"/><path d="M9.5 15.5L4 17l3 3 1.5-5.5z"/><path d="M5 13l6 6"/>',
+    mic: '<rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="17" x2="12" y2="21"/><line x1="8" y1="21" x2="16" y2="21"/>',
+    shuffle: '<polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/><line x1="4" y1="4" x2="9" y2="9"/>',
+    reset: '<polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/>',
+    door: '<path d="M13 4h5a2 2 0 0 1 2 2v14H4V6a2 2 0 0 1 2-2h7z"/><path d="M13 4v16"/><circle cx="10.5" cy="12" r=".8" fill="currentColor"/>',
+    fullscreen: '<polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="M4.93 4.93l1.41 1.41"/><path d="M17.66 17.66l1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="M6.34 17.66l-1.41 1.41"/><path d="M19.07 4.93l-1.41 1.41"/>',
+    moon: '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>'
+  };
+  function svgIcon(name) {
+    var s = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    s.setAttribute('class', 'ks-svg');
+    s.setAttribute('viewBox', '0 0 24 24');
+    s.setAttribute('fill', 'none');
+    s.setAttribute('stroke', 'currentColor');
+    s.setAttribute('stroke-width', '2');
+    s.setAttribute('stroke-linecap', 'round');
+    s.setAttribute('stroke-linejoin', 'round');
+    s.setAttribute('aria-hidden', 'true');
+    s.innerHTML = ICONS[name] || ICONS.notice;
+    return s;
+  }
   function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
   function clear(e) { while (e.firstChild) e.removeChild(e.firstChild); }
   function store(k, v) { try { if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) {} }
@@ -25,11 +69,27 @@
   function start(data) {
     var D = data, mode = 'today', timers = [], root = el('div', 'ks-root'), head = el('div', 'ks-head'), main = el('div', 'ks-main'), dock = el('div', 'ks-dock');
     var clockEl = el('div', 'ks-clock'), dateEl = el('div', 'ks-date'), periodEl = el('div', 'ks-period'), suEl = el('div', 'ks-period ks-sucd'), examEl = el('div', 'ks-period ks-examcd');
-    var hl = el('div', 'ks-hl'); hl.appendChild(clockEl); var hr = el('div', 'ks-hr'); hr.appendChild(dateEl); var prow = el('div', 'ks-prow'); prow.appendChild(examEl); prow.appendChild(suEl); prow.appendChild(periodEl); hr.appendChild(prow);
+    var hl = el('div', 'ks-hl'), hmeta = el('div', 'ks-hmeta'), dateline = el('div', 'ks-dateline');
+    dateline.appendChild(el('span', 'ks-classbadge', D.className || '2-6'));
+    dateline.appendChild(dateEl);
+    hmeta.appendChild(dateline);
+    hmeta.appendChild(periodEl);
+    hl.appendChild(clockEl);
+    hl.appendChild(el('div', 'ks-hdiv'));
+    hl.appendChild(hmeta);
+    var hr = el('div', 'ks-hr'), prow = el('div', 'ks-prow');
+    prow.appendChild(examEl); prow.appendChild(suEl); hr.appendChild(prow);
+    var atmo = el('div', 'ks-atmo'); atmo.setAttribute('aria-hidden', 'true');
+    atmo.appendChild(el('div', 'ks-orb ks-orb-a'));
+    atmo.appendChild(el('div', 'ks-orb ks-orb-b'));
+    atmo.appendChild(el('div', 'ks-ring'));
     head.appendChild(hl); head.appendChild(hr);
-    root.appendChild(head); root.appendChild(main); root.appendChild(dock);
+    root.appendChild(atmo); root.appendChild(head); root.appendChild(main); root.appendChild(dock);
     document.body.classList.add('kiosk'); document.body.classList.remove('locked');
     var scale = parseFloat(load('ks_scale') || '1'); root.style.setProperty('--ks', scale);
+    var theme = load('ks_theme') === 'light' ? 'light' : 'dark';
+    root.classList.toggle('ks-light', theme === 'light');
+    function applyTheme(next) { theme = next === 'light' ? 'light' : 'dark'; store('ks_theme', theme); root.classList.toggle('ks-light', theme === 'light'); if (dock.childNodes.length) paintDock(); }
     var names = null;   // 학생 이름(뽑기·모둠)
     var stLbl = null, stRng = null, KAPI = {}, alertEl = null, alertText = '', SC = loadSched(), barEl = null, cdEl = null, cdEnd = 0, lastPhase = null;
     function later(fn, ms) { var t = setTimeout(fn, ms); timers.push(t); return t; }
@@ -69,7 +129,7 @@
       var k = kst(), dow = k.getUTCDay(), m = k.getUTCHours() * 60 + k.getUTCMinutes(), P = periods();
       if (!P.length || dow < 1 || dow > 5) return { idx: -1, text: dow === 0 || dow === 6 ? '주말' : '' };
       for (var i = 0; i < P.length; i++) if (m >= P[i].s && m < P[i].e) return { idx: i, text: P[i].n + '교시 수업 중' };
-      var dsl = daySched(); if (dsl && dsl.lunch && m >= dsl.lunch.s && m < dsl.lunch.e) return { idx: -1, text: '🍚 점심시간 · ~' + hmStr(dsl.lunch.e) };
+      var dsl = daySched(); if (dsl && dsl.lunch && m >= dsl.lunch.s && m < dsl.lunch.e) return { idx: -1, text: '점심시간 · ~' + hmStr(dsl.lunch.e) };
       for (var j = 0; j < P.length; j++) if (m < P[j].s) return { idx: -1, text: j === 0 ? '등교 전' : '쉬는 시간 · 다음 ' + P[j].n + '교시 ' + hmStr(P[j].s) };
       return { idx: -1, text: '수업 끝' };
     }
@@ -89,12 +149,13 @@
       var p = curPeriod(); periodEl.textContent = p.text; periodEl.style.display = p.text ? '' : 'none';
       if (mode === 'today' && p.idx !== lastIdx) { lastIdx = p.idx; paintToday(true); }
       var ph = phase();
-      periodEl.classList.remove('ks-cdchip', 'soon');
+      periodEl.classList.remove('ks-cdchip', 'soon', 'live');
+      if (p.idx >= 0) periodEl.classList.add('live');
       var nowSec = k.getUTCHours() * 3600 + k.getUTCMinutes() * 60 + k.getUTCSeconds(), toJo = mins(SC.hs) * 60 - nowSec, dw = k.getUTCDay();
       if (dw >= 1 && dw <= 5 && toJo > 0 && nowSec >= 6 * 3600 && !(D.events || []).some(function (e) { var i0 = isoOf(k); return e.noSchool && e.date <= i0 && i0 <= (e.end || e.date); })) {   // 조회 시작 전 카운트다운
-        periodEl.textContent = '🌅 조회까지 ' + (toJo >= 3600 ? Math.floor(toJo / 3600) + ':' : '') + pad(Math.floor(toJo % 3600 / 60)) + ':' + pad(toJo % 60); periodEl.style.display = ''; periodEl.classList.add('ks-cdchip'); if (toJo <= 60) periodEl.classList.add('soon');
+        periodEl.textContent = '조회까지 ' + (toJo >= 3600 ? Math.floor(toJo / 3600) + ':' : '') + pad(Math.floor(toJo % 3600 / 60)) + ':' + pad(toJo % 60); periodEl.style.display = ''; periodEl.classList.add('ks-cdchip'); if (toJo <= 60) periodEl.classList.add('soon');
       }
-      if (ph) { periodEl.textContent = ph === 'clean' ? '🧹 청소 시간' : ph === 'jo' ? '🌅 조회 시간' : '📣 종례 시간'; periodEl.style.display = ''; }
+      if (ph) { periodEl.textContent = ph === 'clean' ? '청소 시간' : ph === 'jo' ? '조회 시간' : '종례 시간'; periodEl.style.display = ''; periodEl.classList.add('live'); }
       if (ph !== lastPhase) {   // 시간대가 바뀔 때 자동 전환 (설정에서 끌 수 있음)
         var prev = lastPhase; lastPhase = ph;
         if (SC.auto) {
@@ -118,49 +179,66 @@
       if (!sumBox || !sumBox.isConnected) return; clear(sumBox); var sm = D.jongrye && D.jongrye.summary;
       if ((!sm || !sm.lines || !sm.lines.length) && D.jongrye && D.jongrye.hist && D.jongrye.hist.length) { var le = D.jongrye.hist[D.jongrye.hist.length - 1]; sm = le.summary && { lines: le.summary.lines, at: le.summary.at || le.at, kind: le.kind }; }
       if (!sm || !sm.lines || !sm.lines.length) { sumBox.style.display = 'none'; return; }
-      sumBox.style.display = ''; var h1 = el('div', 'ks-sumh'); h1.appendChild(el('b', null, sm.kind === 'jo' ? '🌅 오늘 조회 요약' : sm.kind === 'jong' ? '📣 오늘 종례 요약' : '📣 오늘의 안내 요약')); h1.appendChild(el('small', null, hm(sm.at) + ' 정리')); sumBox.appendChild(h1);
+      sumBox.style.display = ''; var h1 = el('div', 'ks-sumh'); h1.appendChild(el('b', null, sm.kind === 'jo' ? '오늘 조회 요약' : sm.kind === 'jong' ? '오늘 종례 요약' : '오늘의 안내 요약')); h1.appendChild(el('small', null, hm(sm.at) + ' 정리')); sumBox.appendChild(h1);
       var ul = el('ul', 'ks-suml'); sm.lines.forEach(function (t) { ul.appendChild(el('li', null, t)); }); sumBox.appendChild(ul);
     }
 
     // ---------- 오늘 대시보드 ----------
     var todayEl = null;
-    function card(title, emoji) { var c = el('div', 'ks-card'), h = el('div', 'ks-ch'); h.appendChild(el('span', 'ks-ce', emoji)); h.appendChild(el('b', null, title)); c.appendChild(h); return c; }
+    function card(title, iconName, metaText) {
+      var c = el('div', 'ks-card'), h = el('div', 'ks-ch');
+      var ce = el('span', 'ks-ce'); ce.appendChild(svgIcon(iconName)); h.appendChild(ce);
+      h.appendChild(el('b', null, title));
+      if (metaText) h.appendChild(el('span', 'ks-cmeta', metaText));
+      c.appendChild(h); return c;
+    }
     function paintToday(keep) {
       if (!todayEl) { todayEl = el('div', 'ks-today'); }
-      clear(todayEl); var k = kst(), iso = isoOf(k), dow = k.getUTCDay();
+      clear(todayEl); todayEl.classList.toggle('ks-noreveal', !!keep); var k = kst(), iso = isoOf(k), dow = k.getUTCDay();
       var noSchool = (D.events || []).filter(function (e) { return e.noSchool && e.date <= iso && iso <= (e.end || e.date); })[0];
       // 알림장
-      var daily = (D.daily || {})[iso], c1 = card('오늘의 알림장', '📒'); c1.classList.add('ks-a');
-      var ul = el('ul', 'ks-list');
-      ((daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 아직 없어요' }]).forEach(function (i) { var li = el('li'); li.appendChild(el('span', 'ks-k', KIND[i.k] || '📢')); li.appendChild(el('span', 'ks-t', i.t)); ul.appendChild(li); });
+      var daily = (D.daily || {})[iso], items = (daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 아직 없어요' }];
+      var c1 = card('오늘의 알림장', 'notice', daily && daily.items ? items.length + '건' : ''), ul = el('ul', 'ks-list');
+      items.forEach(function (i) {
+        var km = KIND_META[i.k] || KIND_META.notice, li = el('li', 'ks-ni ks-ni-' + km.cls);
+        li.appendChild(el('span', 'ks-tag', km.label)); li.appendChild(el('span', 'ks-t', i.t)); ul.appendChild(li);
+      });
       c1.appendChild(ul); todayEl.appendChild(c1);
       // 일과
-      var c2 = card('오늘 일과', '🕘'), W = D.weekly, p = curPeriod(); c2.classList.add('ks-b');
-      if (noSchool) c2.appendChild(el('div', 'ks-empty', '오늘은 ' + noSchool.title.replace(/\(.*\)/, '') + '이라 학교에 안 가요 🙌'));
-      else if (!W || dow < 1 || dow > 5) c2.appendChild(el('div', 'ks-empty', '주말이에요 😴'));
+      var c2 = card('오늘 일과', 'clock', DOW[dow] + '요일'), W = D.weekly, p = curPeriod(); c2.classList.add('ks-b');
+      if (noSchool) c2.appendChild(el('div', 'ks-empty', '오늘은 ' + noSchool.title.replace(/\(.*\)/, '') + '이라 수업이 없어요'));
+      else if (!W || dow < 1 || dow > 5) c2.appendChild(el('div', 'ks-empty', '주말이에요 · 휴식 시간'));
       else periods().forEach(function (P, i) {
         var cell = P.row && P.row.cells[dow - 1]; if (!cell) return;
-        var name = cell.k === 'block' ? cell.b + ' 선택' : cell.t, row = el('div', 'ks-tt' + (i === p.idx ? ' now' : '')); row.dataset.s = P.s;
-        row.appendChild(el('span', 'ks-tp', P.n + '교시')); row.appendChild(el('span', 'ks-tm', P.special ? hmStr(P.s) + '~' + hmStr(P.e) : hmStr(P.s))); row.appendChild(el('span', 'ks-ts', name)); c2.appendChild(row);
+        var name = cell.k === 'block' ? cell.b + ' 선택' : cell.t, isNow = i === p.idx, row = el('div', 'ks-tt' + (isNow ? ' now' : '')); row.dataset.s = P.s;
+        row.appendChild(el('span', 'ks-tp', P.n + '교시')); row.appendChild(el('span', 'ks-tm', P.special ? hmStr(P.s) + '~' + hmStr(P.e) : hmStr(P.s))); row.appendChild(el('span', 'ks-ts', name));
+        if (isNow) row.appendChild(el('span', 'ks-nowtag', '진행 중'));
+        c2.appendChild(row);
       });
-      var dsx = daySched(); if (dsx && dsx.lunch && !noSchool && dow >= 1 && dow <= 5) { var lr = el('div', 'ks-tt lunch'); lr.appendChild(el('span', 'ks-tp', '점심')); lr.appendChild(el('span', 'ks-tm', hmStr(dsx.lunch.s) + '~' + hmStr(dsx.lunch.e))); lr.appendChild(el('span', 'ks-ts', '🍚 중식')); var rowsEl = c2.querySelectorAll('.ks-tt'), put = false; Array.prototype.forEach.call(rowsEl, function (re) { if (!put && +re.dataset.s > dsx.lunch.s) { c2.insertBefore(lr, re); put = true; } }); if (!put) c2.appendChild(lr); }
-      if (dsx && dsx.clean && !noSchool && dow >= 1 && dow <= 5) { var cr = el('div', 'ks-tt'); cr.appendChild(el('span', 'ks-tp', '청소')); cr.appendChild(el('span', 'ks-tm', hmStr(dsx.clean.s) + '~' + hmStr(dsx.clean.e))); cr.appendChild(el('span', 'ks-ts', '🧹 청소·하교')); c2.appendChild(cr); }
-      if (dsx && !noSchool && dow >= 1 && dow <= 5) { var tag = el('div', 'ks-ttnote', '⚡ 오늘은 특별 일과 · ' + dsx.title.replace(/\(.*?\)/g, '').trim() + (dsx.jong != null ? ' · 종례 ' + hmStr(dsx.jong) + ' 이후' : '')); c2.appendChild(tag); }
+      var dsx = daySched(); if (dsx && dsx.lunch && !noSchool && dow >= 1 && dow <= 5) { var lr = el('div', 'ks-tt lunch'); lr.appendChild(el('span', 'ks-tp', '점심')); lr.appendChild(el('span', 'ks-tm', hmStr(dsx.lunch.s) + '~' + hmStr(dsx.lunch.e))); lr.appendChild(el('span', 'ks-ts', '중식')); var rowsEl = c2.querySelectorAll('.ks-tt'), put = false; Array.prototype.forEach.call(rowsEl, function (re) { if (!put && +re.dataset.s > dsx.lunch.s) { c2.insertBefore(lr, re); put = true; } }); if (!put) c2.appendChild(lr); }
+      if (dsx && dsx.clean && !noSchool && dow >= 1 && dow <= 5) { var cr = el('div', 'ks-tt'); cr.appendChild(el('span', 'ks-tp', '청소')); cr.appendChild(el('span', 'ks-tm', hmStr(dsx.clean.s) + '~' + hmStr(dsx.clean.e))); cr.appendChild(el('span', 'ks-ts', '청소 · 하교')); c2.appendChild(cr); }
+      if (dsx && !noSchool && dow >= 1 && dow <= 5) { var tag = el('div', 'ks-ttnote', '특별 일과 · ' + dsx.title.replace(/\(.*?\)/g, '').trim() + (dsx.jong != null ? ' · 종례 ' + hmStr(dsx.jong) + ' 이후' : '')); c2.appendChild(tag); }
       todayEl.appendChild(c2);
       // 급식
-      var c3 = card('오늘 급식', '🍚'); c3.classList.add('ks-c'); var meals = (D.today && D.today.date === iso ? D.today.meals : []) || [], hm = k.getUTCHours() * 60 + k.getUTCMinutes();
+      var c3 = card('오늘 급식', 'meal'); c3.classList.add('ks-c'); var meals = (D.today && D.today.date === iso ? D.today.meals : []) || [], hm = k.getUTCHours() * 60 + k.getUTCMinutes();
       var now = hm < 540 ? '조식' : hm < 840 ? '중식' : '석식';
       if (!meals.length) c3.appendChild(el('div', 'ks-empty', '오늘 급식 정보가 없어요'));
-      meals.forEach(function (m) { var b = el('div', 'ks-meal' + (m.name === now ? ' now' : '')); var h = el('div', 'ks-mh'); h.appendChild(el('b', null, m.name)); if (m.kcal) h.appendChild(el('small', null, m.kcal + 'kcal')); b.appendChild(h); b.appendChild(el('div', 'ks-md', m.dishes.join(' · '))); c3.appendChild(b); });
+      meals.forEach(function (m) {
+        var b = el('div', 'ks-meal' + (m.name === now ? ' now' : '')), h = el('div', 'ks-mh');
+        h.appendChild(el('b', null, m.name));
+        if (m.name === now) h.appendChild(el('span', 'ks-mbadge', '현재'));
+        if (m.kcal) h.appendChild(el('small', null, m.kcal + 'kcal'));
+        b.appendChild(h); b.appendChild(el('div', 'ks-md', m.dishes.join(' · '))); c3.appendChild(b);
+      });
       todayEl.appendChild(c3);
       // 다가오는 일정
-      var c4 = card('다가오는 일정', '📅'); c4.classList.add('ks-d'); var up = (D.events || []).filter(function (e) { return !e.calOnly && Math.round((toUTC(e.end || e.date) - toUTC(iso)) / 86400000) >= 0; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; }).slice(0, 6);
+      var c4 = card('다가오는 일정', 'calendar'); c4.classList.add('ks-d'); var up = (D.events || []).filter(function (e) { return !e.calOnly && Math.round((toUTC(e.end || e.date) - toUTC(iso)) / 86400000) >= 0; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; }).slice(0, 6);
       if (!up.length) c4.appendChild(el('div', 'ks-empty', '예정된 일정이 없어요'));
       up.forEach(function (e) { var d = Math.round((toUTC(e.date) - toUTC(iso)) / 86400000), r = el('div', 'ks-ev'); r.appendChild(el('span', 'ks-evt', e.title)); var badge = el('span', 'ks-dd' + (d <= 1 ? ' hot' : ''), d < 0 ? '진행 중' : d === 0 ? 'D-DAY' : 'D-' + d); r.appendChild(badge); c4.appendChild(r); });
       todayEl.appendChild(c4);
       // 청소
       var C = D.clean; if (C && C.zones && !noSchool && dow >= 1 && dow <= 5 && (!C.until || iso <= C.until) && (!C.from || iso >= C.from)) {
-        var c5 = card('청소 당번', '🧹'); c5.classList.add('ks-e');
+        var c5 = card('청소 당번', 'broom'); c5.classList.add('ks-e');
         C.zones.forEach(function (z) { (z.rows || []).forEach(function (r) { var row = el('div', 'ks-cl'); row.appendChild(el('span', 'ks-clp', (z.zone + ' ' + (r.task || '')).replace(/\(\d+\)/g, '').trim())); row.appendChild(el('span', 'ks-clw', r.who.join(', '))); c5.appendChild(row); }); });
         todayEl.appendChild(c5);
       }
@@ -172,8 +250,10 @@
       var C = D.clean, iso = isoOf(kst()); if (!C || !C.zones || (C.until && iso > C.until) || (C.from && iso < C.from)) return null;
       return C.zones;
     }
-    function banner(cls, emoji, title, sub, endHM, endLabel) {
-      var b = el('div', 'ks-ban ' + cls), l = el('div', 'ks-banl'); l.appendChild(el('span', 'ks-bane', emoji)); var t = el('div'); t.appendChild(el('div', 'ks-bant', title)); if (sub) t.appendChild(el('div', 'ks-bans', sub)); l.appendChild(t); b.appendChild(l);
+    function banner(cls, iconName, title, sub, endHM, endLabel) {
+      var b = el('div', 'ks-ban ' + cls), l = el('div', 'ks-banl'), ic = el('span', 'ks-bane');
+      ic.appendChild(svgIcon(iconName)); l.appendChild(ic);
+      var t = el('div'); t.appendChild(el('div', 'ks-bant', title)); if (sub) t.appendChild(el('div', 'ks-bans', sub)); l.appendChild(t); b.appendChild(l);
       cdEl = el('b', 'ks-cd'); cdEnd = mins(endHM) * 60; var r = el('div', 'ks-banr'); r.appendChild(el('small', null, endLabel)); r.appendChild(cdEl); b.appendChild(r); return b;
     }
     // 청소 체크: 이름을 누르면 ✓ (오늘 날짜로 서버에 저장 → 선생님·관리자가 앱에서 기록 확인)
@@ -220,7 +300,7 @@
       var tot = Object.keys(all).length, dn = Object.keys(all).filter(function (n) { return CL[n]; }).length;
       if (sumEl) {
         var pct = tot ? Math.round((dn / tot) * 100) : 0;
-        sumEl.firstChild.textContent = '✨ 청소 완료 ' + dn + ' / ' + tot + '명 (' + pct + '%)';
+        sumEl.firstChild.textContent = '청소 완료 ' + dn + ' / ' + tot + '명 (' + pct + '%)';
         if (sumEl._bar) sumEl._bar.style.width = pct + '%';
         sumEl.classList.toggle('all', tot > 0 && dn === tot);
       }
@@ -242,13 +322,13 @@
     }
     function paintClean() {
       chips = []; zoneCards = []; var box = el('div', 'ks-cleanbox'), zs = cleanZones();
-      box.appendChild(banner('clean', '🧹', '차분하게 청소 시간', SCe().cs + ' ~ ' + SCe().js + ' · 맡은 구역을 조용히 정리해요', SCe().js, '종례까지'));
+      box.appendChild(banner('clean', 'clean', '차분하게 청소 시간', SCe().cs + ' ~ ' + SCe().js + ' · 맡은 구역을 조용히 정리해요', SCe().js, '종례까지'));
       sumEl = el('div', 'ks-sumbar');
-      var sumTxt = el('div', 'ks-sumtxt', '✨ 청소 완료 0 / 0명 (0%)');
+      var sumTxt = el('div', 'ks-sumtxt', '청소 완료 0 / 0명 (0%)');
       var prog = el('div', 'ks-cprog'), fill = el('div', 'ks-cprog-fill'); prog.appendChild(fill);
       sumEl.appendChild(sumTxt); sumEl.appendChild(prog); sumEl._bar = fill;
       var grid = el('div', 'ks-zones');
-      if (!zs) grid.appendChild(el('div', 'ks-empty big', '이번 달 청소배정표가 없어요. 학급 구역을 함께 정리해요 🧹'));
+      if (!zs) grid.appendChild(el('div', 'ks-empty big', '이번 달 청소배정표가 없어요 · 학급 구역을 함께 정리해요'));
       else zs.forEach(function (z) {
         var c = el('div', 'ks-zone'), zBtns = [];
         var hdr = el('div', 'ks-zhdr');
@@ -381,10 +461,10 @@
     }
     function paintHist() {   // 이미 끝낸 조회/종례의 요약본(접을 수 있는 카드)
       if (!histBox) return; clear(histBox);
-      var KL = { jo: '🌅 오늘 조회 요약', jong: '📣 오늘 종례 요약' };
+      var KL = { jo: '오늘 조회 요약', jong: '오늘 종례 요약' };
       ((JR && JR.hist) || []).forEach(function (e, i, arr) {
         var d = el('details', 'ks-hcard'); if (i === arr.length - 1) d.open = true;
-        var sm = el('summary'); sm.appendChild(el('b', null, KL[e.kind] || '📢 안내 요약')); if (e.at) sm.appendChild(el('small', null, ' · ' + hm(e.at) + ' 정리')); d.appendChild(sm);
+        var sm = el('summary'); sm.appendChild(el('b', null, KL[e.kind] || '안내 요약')); if (e.at) sm.appendChild(el('small', null, ' · ' + hm(e.at) + ' 정리')); d.appendChild(sm);
         var ul = el('ul', 'ks-suml'); ((e.summary && e.summary.lines) || []).forEach(function (t) { ul.appendChild(el('li', null, t)); }); d.appendChild(ul);
         var rawBtn = el('button', 'ks-chip', '원문 보기'), raw = el('div', 'ks-hraw', e.text || ''); raw.hidden = true; rawBtn.type = 'button'; rawBtn.addEventListener('click', function () { raw.hidden = !raw.hidden; rawBtn.textContent = raw.hidden ? '원문 보기' : '원문 접기'; });
         d.appendChild(rawBtn); d.appendChild(raw); histBox.appendChild(d);
@@ -394,14 +474,14 @@
       paintHist();
       if (!jrBox) return; clear(jrBox); jrLive = null; jrBox.classList.toggle('rec', dictOn);
       var hdr = el('div', 'ks-jnote-h');
-      hdr.appendChild(el('span', null, '📣 오늘의 안내사항'));
+      var ttl = el('span', 'ks-jtitle'); ttl.appendChild(svgIcon('announce')); ttl.appendChild(document.createTextNode('오늘의 안내사항')); hdr.appendChild(ttl);
       if (JR && JR.text) { var meta = (JR.by ? JR.by + ' · ' : '') + (JR.at ? hm(JR.at) : ''); if (meta) hdr.appendChild(el('small', 'ks-jnote-m', meta)); }
       var tools = el('span', 'ks-jtools');
-      var mic = el('button', 'ks-chip' + (dictOn ? ' on rec' : ''), dictOn ? '🔴 듣는 중 · 끝내기' : '🎙 받아쓰기'); mic.type = 'button'; mic.addEventListener('click', dictToggle); tools.appendChild(mic);
-      var eng = el('button', 'ks-chip', engine() === 'ai' ? '🧠 AI 인식' : '🌐 기본 인식'); eng.type = 'button'; eng.title = '받아쓰기 방식 바꾸기'; eng.addEventListener('click', function () { store('ks_stt', engine() === 'ai' ? 'chrome' : 'ai'); var was = dictOn; if (was) { dictStop(); dictToggle(); } else paintJrNote(); }); tools.appendChild(eng);
-      if (JR && JR.text) { var un = el('button', 'ks-chip', '↩ 마지막 문장 지우기'); un.type = 'button'; un.addEventListener('click', function () { if (dictSent.length) { dictSent.pop(); jrSet(dictText()); return; } var L = JR.text.split('\n'); L.pop(); dictBase = L.join('\n'); jrSet(dictBase); }); tools.appendChild(un);
-        var all = el('button', 'ks-chip', '🗑 전체 지우기'), armed = null; all.type = 'button';
-        all.addEventListener('click', function () { if (!armed) { all.textContent = '정말 지울까요? 한 번 더'; all.classList.add('rec'); armed = setTimeout(function () { armed = null; all.textContent = '🗑 전체 지우기'; all.classList.remove('rec'); }, 3000); return; } clearTimeout(armed); armed = null; dictBase = ''; dictSent = []; jrSet(''); });   // 실수 방지: 3초 안에 한 번 더 누르면 삭제
+      var mic = el('button', 'ks-chip' + (dictOn ? ' on rec' : ''), dictOn ? '듣는 중 · 끝내기' : '받아쓰기'); mic.type = 'button'; mic.addEventListener('click', dictToggle); tools.appendChild(mic);
+      var eng = el('button', 'ks-chip', engine() === 'ai' ? 'AI 인식' : '기본 인식'); eng.type = 'button'; eng.title = '받아쓰기 방식 바꾸기'; eng.addEventListener('click', function () { store('ks_stt', engine() === 'ai' ? 'chrome' : 'ai'); var was = dictOn; if (was) { dictStop(); dictToggle(); } else paintJrNote(); }); tools.appendChild(eng);
+      if (JR && JR.text) { var un = el('button', 'ks-chip', '마지막 줄 지우기'); un.type = 'button'; un.addEventListener('click', function () { if (dictSent.length) { dictSent.pop(); jrSet(dictText()); return; } var L = JR.text.split('\n'); L.pop(); dictBase = L.join('\n'); jrSet(dictBase); }); tools.appendChild(un);
+        var all = el('button', 'ks-chip', '전체 지우기'), armed = null; all.type = 'button';
+        all.addEventListener('click', function () { if (!armed) { all.textContent = '한 번 더 누르면 삭제'; all.classList.add('rec'); armed = setTimeout(function () { armed = null; all.textContent = '전체 지우기'; all.classList.remove('rec'); }, 3000); return; } clearTimeout(armed); armed = null; dictBase = ''; dictSent = []; jrSet(''); });   // 실수 방지: 3초 안에 한 번 더 누르면 삭제
         tools.appendChild(all); }
       hdr.appendChild(tools); jrBox.appendChild(hdr);
       if (dictMsg) jrBox.appendChild(el('div', 'ks-jnote-e', dictMsg));
@@ -412,7 +492,7 @@
         if (liveTxt) { var host = (dictSent.length && lastEl) ? lastEl : nt.appendChild(el('div', 'ks-jline')); host.appendChild(el('span', 'ks-jinterim', (host.textContent ? ' ' : '') + liveTxt)); }
         jrBox.appendChild(nt); jrBox.classList.remove('empty'); if (jrBox.isConnected) fitNote(nt);
       }
-      else if (!liveTxt) { jrBox.appendChild(el('div', 'ks-jnote-e', '🎙를 눌러 말씀하시거나, 관리자 화면에서 입력하면 여기에 떠요')); jrBox.classList.add('empty'); }
+      else if (!liveTxt) { jrBox.appendChild(el('div', 'ks-jnote-e', '받아쓰기를 켜고 말씀하시거나, 관리자 화면에서 입력하면 여기에 표시돼요')); jrBox.classList.add('empty'); }
       if (dictOn) { jrLive = el('div', 'ks-jlive', engine() === 'ai' ? dictInterim : ''); jrBox.appendChild(jrLive); }
       if (flash) { jrBox.classList.remove('flash'); void jrBox.offsetWidth; jrBox.classList.add('flash'); }
     }
@@ -432,39 +512,48 @@
       return best;
     }
     function paintExam() {
-      var x = nextExam(); if (!x) { examEl.style.display = 'none'; return; }
+      var x = nextExam(); clear(examEl);
+      if (!x) { examEl.style.display = 'none'; return; }
       var left = Math.max(0, Math.floor((x.ms - Date.now()) / 1000)), dd = Math.round((Date.UTC(+x.date.slice(0, 4), +x.date.slice(5, 7) - 1, +x.date.slice(8, 10)) - Date.UTC(kst().getUTCFullYear(), kst().getUTCMonth(), kst().getUTCDate())) / 864e5);
-      examEl.style.display = ''; examEl.textContent = '📝 ' + x.label + ' ' + (dd <= 0 ? 'D-DAY' : 'D-' + dd) + ' · ' + left.toLocaleString('ko-KR') + '초';
+      examEl.style.display = '';
+      examEl.appendChild(el('span', 'ks-cdlbl', x.label + ' ' + (dd <= 0 ? 'D-DAY' : 'D-' + dd)));
+      examEl.appendChild(el('b', 'ks-cdval', left.toLocaleString('ko-KR') + '초'));
     }
     function paintSuneung() {
       paintExam();
       var left = Math.max(0, Math.floor((SUNEUNG_AT - Date.now()) / 1000));
-      suEl.textContent = '🎓 수능까지 ' + left.toLocaleString('ko-KR') + '초';
+      clear(suEl);
+      suEl.appendChild(el('span', 'ks-cdlbl', '수능'));
+      suEl.appendChild(el('b', 'ks-cdval', left.toLocaleString('ko-KR') + '초'));
     }
     function paintJongrye() {
       var box = el('div', 'ks-jbox'), jv = jView || (JR && JR.hist && JR.hist.length ? 'jong' : (kst().getUTCHours() < 12 ? 'jo' : 'jong')), jo = jv === 'jo';   // 조회를 끝냈으면 다시 열 때 종례 화면
-      var tg = el('div', 'ks-jtog'); [['jo', '🌅 조회'], ['jong', '📣 종례']].forEach(function (x) { var b = el('button', 'ks-chip' + (jv === x[0] ? ' on' : ''), x[1]); b.type = 'button'; b.addEventListener('click', function () { if (jv !== x[0]) { jView = x[0]; setMode('jongrye'); } }); tg.appendChild(b); });
-      var fin = el('button', 'ks-chip ks-endbtn', jo ? '✅ 조회 끝' : '✅ 종례 끝'); fin.type = 'button'; fin.addEventListener('click', function () {
-        if (fin.disabled) return; fin.disabled = true; fin.textContent = '📝 저장·요약 중…'; var kind = jo ? 'jo' : 'jong'; dictStop();
+      var tg = el('div', 'ks-jtog'); [['jo', '조회'], ['jong', '종례']].forEach(function (x) { var b = el('button', 'ks-chip' + (jv === x[0] ? ' on' : ''), x[1]); b.type = 'button'; b.addEventListener('click', function () { if (jv !== x[0]) { jView = x[0]; setMode('jongrye'); } }); tg.appendChild(b); });
+      var fin = el('button', 'ks-chip ks-endbtn', jo ? '조회 끝' : '종례 끝'); fin.type = 'button'; fin.addEventListener('click', function () {
+        if (fin.disabled) return; fin.disabled = true; fin.textContent = '저장·요약 중…'; var kind = jo ? 'jo' : 'jong'; dictStop();
         var done = false; function go() { if (done) return; done = true; jView = null; setMode('today'); }
         setTimeout(go, 15000);   // 요약이 늦어져도 화면은 넘어감 (원문은 이미 저장됨)
         jrQ.then(function () { return (JR && JR.text) ? fetch('/api/jongrye', { method: 'POST', headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: JSON.stringify({ summarize: true, kind: kind }) }).then(function (r) { return r.json(); }) : null; })
           .then(function (j) { if (j && j.rec) { JR = j.rec; D.jongrye = JR; } }).catch(function () {}).then(go);
       }); tg.appendChild(fin); box.appendChild(tg);   // 일찍 끝나면 눌러서 오늘 화면으로
-      if (jo) box.appendChild(banner('jong', '🌅', '조회 시간', SC.hs + ' ~ ' + SC.he, SC.he, '조회 끝까지'));
-      else box.appendChild(banner('jong', '📣', '종례 시간', SCe().js + ' ~ ' + SCe().ee, SCe().ee, '종례 끝까지'));
+      if (jo) box.appendChild(banner('jong', 'announce', '조회 시간', SC.hs + ' ~ ' + SC.he, SC.he, '조회 끝까지'));
+      else box.appendChild(banner('jong', 'announce', '종례 시간', SCe().js + ' ~ ' + SCe().ee, SCe().ee, '종례 끝까지'));
       histBox = el('div', 'ks-jhist'); box.appendChild(histBox);
       jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { jrBox = null; histBox = null; });
    // 받아쓰기는 다른 화면으로 가도 계속 듣고, 끄기 버튼을 눌러야 멈춤
       var cols = el('div', 'ks-jcols'), iso = isoOf(kst()), daily = (D.daily || {})[iso];
-      var c1 = card('오늘의 알림장', '📒'), ul = el('ul', 'ks-list'); ((daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 없어요' }]).slice(0, 5).forEach(function (i) { var li = el('li'); li.appendChild(el('span', 'ks-k', KIND[i.k] || '📢')); li.appendChild(el('span', 'ks-t', i.t)); ul.appendChild(li); }); c1.appendChild(ul);
+      var c1 = card('오늘의 알림장', 'notice'), ul = el('ul', 'ks-list');
+      ((daily && daily.items) || [{ k: 'notice', t: '오늘 알림장이 없어요' }]).slice(0, 5).forEach(function (i) {
+        var km = KIND_META[i.k] || KIND_META.notice, li = el('li', 'ks-ni ks-ni-' + km.cls);
+        li.appendChild(el('span', 'ks-tag', km.label)); li.appendChild(el('span', 'ks-t', i.t)); ul.appendChild(li);
+      }); c1.appendChild(ul);
       var c2, ul2 = el('ul', 'ks-list');
       if (jo) {   // 조회: 오늘 일과(시간표)
-        c2 = card('오늘 일과', '🕘'); var W = D.weekly, dow = kst().getUTCDay(), line = [];
+        c2 = card('오늘 일과', 'clock'); var W = D.weekly, dow = kst().getUTCDay(), line = [];
         if (W && dow >= 1 && dow <= 5) periods().forEach(function (P) { var cell = P.row && P.row.cells[dow - 1]; if (cell) line.push(P.n + '교시 ' + (cell.k === 'block' ? cell.b + ' 선택' : cell.t) + (P.special ? ' (' + hmStr(P.s) + '~' + hmStr(P.e) + ')' : '')); });
         (line.length ? line : ['오늘은 수업이 없어요']).forEach(function (t) { var li = el('li'); li.appendChild(el('span', 'ks-t', t)); ul2.appendChild(li); }); c2.appendChild(ul2);
       } else {
-        c2 = card('내일 챙길 것', '🎒'); var tm = tomorrowItems(); (tm.length ? tm : ['내일 특별한 일정은 없어요']).forEach(function (t) { var li = el('li'); li.appendChild(el('span', 'ks-t', t)); ul2.appendChild(li); }); c2.appendChild(ul2);
+        c2 = card('내일 챙길 것', 'calendar'); var tm = tomorrowItems(); (tm.length ? tm : ['내일 특별한 일정은 없어요']).forEach(function (t) { var li = el('li'); li.appendChild(el('span', 'ks-t', t)); ul2.appendChild(li); }); c2.appendChild(ul2);
       }
       cols.appendChild(c1); cols.appendChild(c2); box.appendChild(cols); main.appendChild(box);
       pullJongrye();
@@ -479,11 +568,11 @@
       paintSeatMap();
       if (!outBox) return; clear(outBox);
       var now = OUT.filter(function (e) { return !e.back; }), back = OUT.filter(function (e) { return e.back; });
-      var h1 = el('div', 'ks-oh'), tt = el('div', 'ks-ott'); tt.appendChild(el('b', null, '🚪 교실 이탈')); tt.appendChild(el('span', 'ks-ocnt' + (now.length ? ' on' : ''), now.length + '명')); h1.appendChild(tt);
+      var h1 = el('div', 'ks-oh'), tt = el('div', 'ks-ott'); tt.appendChild(el('b', null, '교실 이탈')); tt.appendChild(el('span', 'ks-ocnt' + (now.length ? ' on' : ''), now.length + '명')); h1.appendChild(tt);
       var tl = el('div', 'ks-otl'), add = el('button', 'ks-chip on', '＋ 등록'); add.type = 'button'; add.addEventListener('click', function () { openOut(); }); tl.appendChild(add);
       if (now.length > 1) { var all = el('button', 'ks-chip', '모두 돌아옴'); all.type = 'button'; all.addEventListener('click', function () { OUT.forEach(function (e) { if (!e.back) e.back = Date.now(); }); paintOut(); outApi({ op: 'backall' }).then(function (j) { if (j && j.list) { OUT = j.list; paintOut(); } }); }); tl.appendChild(all); }
       h1.appendChild(tl); outBox.appendChild(h1);
-      if (!now.length) outBox.appendChild(el('div', 'ks-onone', '지금 자리를 비운 사람이 없어요 ✅'));
+      if (!now.length) outBox.appendChild(el('div', 'ks-onone', '지금 자리를 비운 사람이 없어요'));
       // 사유별로 묶어 이름 칩으로 (많아져도 한눈에). 칩을 누르면 돌아옴
       var groups = {}; now.forEach(function (e) { var k = e.reason.split(' · ')[0]; (groups[k] = groups[k] || []).push(e); });
       Object.keys(groups).forEach(function (k) {
@@ -551,7 +640,7 @@
         });
         grid.appendChild(c);
       });
-      var hd = el('div', 'ks-smaph'); hd.appendChild(el('b', null, '🪑 자리표')); hd.appendChild(el('span', 'ks-smapc', '재석 ' + (total - out) + ' / ' + total + '명')); var oc = el('span', 'ks-smapc o' + (out ? ' on' : ''), out ? '🚪 이탈 ' + out + '명' : '✅ 모두 자리에 있어요'); hd.appendChild(oc);
+      var hd = el('div', 'ks-smaph'); hd.appendChild(el('b', null, '교실 자리표')); hd.appendChild(el('span', 'ks-smapc', '재석 ' + (total - out) + ' / ' + total + '명')); var oc = el('span', 'ks-smapc o' + (out ? ' on' : ''), out ? '이탈 ' + out + '명' : '전원 재석'); hd.appendChild(oc);
       var lg = el('div', 'ks-smapl', '이름을 누르면 이탈 등록 · 빨간 자리(나간 사람)를 누르면 "돌아옴"');
       seatMapEl.appendChild(hd); seatMapEl.appendChild(grid); seatMapEl.appendChild(el('div', 'ks-podium small', '교탁')); seatMapEl.appendChild(lg);
     }
@@ -593,8 +682,8 @@
         });
       }
       function save() { store('ks_seats', JSON.stringify(seats)); }
-      var go = el('button', 'ks-btn big', '🔀 자리 섞기'), rs = el('button', 'ks-btn', '↺ 처음 배치로'), by = el('button', 'ks-btn', '🔢 번호순');
-      go.addEventListener('click', function () { put(shuffle(flat())); sel = null; save(); draw(true); note.textContent = '새 자리예요! 이동하세요 🪑 (두 자리를 차례로 누르면 서로 바뀌어요)'; });
+      var go = el('button', 'ks-btn big', '자리 섞기'), rs = el('button', 'ks-btn', '처음 배치로'), by = el('button', 'ks-btn', '번호순');
+      go.addEventListener('click', function () { put(shuffle(flat())); sel = null; save(); draw(true); note.textContent = '새 자리예요! 이동하세요 · 두 자리를 차례로 누르면 서로 바뀌어요'; });
       rs.addEventListener('click', function () { seats = JSON.parse(JSON.stringify(SEAT_DEF)); sel = null; save(); draw(true); note.textContent = '처음 배치로 돌아왔어요'; });
       by.addEventListener('click', function () { getNames(function (all) { var a = all.slice().sort(function (p, q) { return p.n - q.n; }).map(function (x) { return x.name; }); if (a.length === flat().length) { put(a); save(); draw(true); note.textContent = '번호순으로 앉아 봤어요'; } else note.textContent = '학생 수가 달라서 번호순은 못 만들었어요'; }); });
       KAPI.seat = { shuffle: function () { go.click(); }, reset: function () { rs.click(); }, num: function () { by.click(); }, state: function () { return { seats: seats }; } };
@@ -615,21 +704,22 @@
     // ---------- 발표자 뽑기 ----------
     var picked = [];
     function paintPick() {
-      var box = el('div', 'ks-pick'), stage = el('div', 'ks-pickstage'), big = el('div', 'ks-pickname', '🎲'), sub = el('div', 'ks-picksub', '버튼을 눌러 발표자를 뽑아요');
+      var box = el('div', 'ks-pick'), stage = el('div', 'ks-pickstage'), big = el('div', 'ks-pickname', '대기 중'), sub = el('div', 'ks-picksub', '버튼을 눌러 발표자를 뽑아요');
       stage.appendChild(big); stage.appendChild(sub);
-      var excl = true, exBtn = el('button', 'ks-chip on', '뽑힌 사람 제외 ✓'); exBtn.addEventListener('click', function () { excl = !excl; exBtn.classList.toggle('on', excl); exBtn.textContent = '뽑힌 사람 제외' + (excl ? ' ✓' : ''); });
-      var go = el('button', 'ks-btn big', '🎲 뽑기!'), clr = el('button', 'ks-btn', '↺ 처음부터'), hist = el('div', 'ks-hist'), busy = false;
+      var excl = true, exBtn = el('button', 'ks-chip on', '뽑힌 사람 제외 ✓'); exBtn.type = 'button'; exBtn.addEventListener('click', function () { excl = !excl; exBtn.classList.toggle('on', excl); exBtn.textContent = '뽑힌 사람 제외' + (excl ? ' ✓' : ''); });
+      var go = el('button', 'ks-btn big', '발표자 뽑기'), clr = el('button', 'ks-btn', '처음부터'), hist = el('div', 'ks-hist'), busy = false;
+      go.type = 'button'; clr.type = 'button';
       function paintHist() { clear(hist); picked.forEach(function (p) { hist.appendChild(el('span', 'ks-hchip', p.n + ' ' + p.name)); }); }
       go.addEventListener('click', function () {
         if (busy) return;
         getNames(function (all) {
           var pool = all.filter(function (s) { return !excl || !picked.some(function (p) { return p.n === s.n; }); });
-          if (!pool.length) { sub.textContent = '모두 뽑았어요! "처음부터"를 눌러 주세요'; return; }
+          if (!pool.length) { sub.textContent = '모두 뽑았어요 · "처음부터"를 눌러 주세요'; return; }
           busy = true; stage.classList.remove('hit'); var win = pool[Math.floor(Math.random() * pool.length)], i = 0, delay = 55, steps = 0;
-          (function spin() { var s = pool[Math.floor(Math.random() * pool.length)]; big.textContent = s.name; sub.textContent = s.n + '번'; steps++; delay *= 1.085; if (delay < 420) { later(spin, delay); } else { big.textContent = win.name; sub.textContent = win.n + '번 🎉'; stage.classList.add('hit'); picked.push(win); paintHist(); busy = false; beep(1); } })();
+          (function spin() { var s = pool[Math.floor(Math.random() * pool.length)]; big.textContent = s.name; sub.textContent = s.n + '번'; steps++; delay *= 1.085; if (delay < 420) { later(spin, delay); } else { big.textContent = win.name; sub.textContent = win.n + '번 당첨'; stage.classList.add('hit'); picked.push(win); paintHist(); busy = false; beep(1); } })();
         });
       });
-      clr.addEventListener('click', function () { picked = []; paintHist(); big.textContent = '🎲'; sub.textContent = '버튼을 눌러 발표자를 뽑아요'; stage.classList.remove('hit'); });
+      clr.addEventListener('click', function () { picked = []; paintHist(); big.textContent = '대기 중'; sub.textContent = '버튼을 눌러 발표자를 뽑아요'; stage.classList.remove('hit'); });
       var row = el('div', 'ks-row'); row.appendChild(go); row.appendChild(exBtn); row.appendChild(clr);
       KAPI.pick = { go: function () { go.click(); }, reset: function () { clr.click(); }, state: function () { return { picked: picked.map(function (p) { return p.n + ' ' + p.name; }), now: stage.classList.contains('hit') ? big.textContent : '' }; } };
       box.appendChild(stage); box.appendChild(row); box.appendChild(hist); main.appendChild(box); paintHist();
@@ -639,7 +729,8 @@
     var groupN = 6, lastGroups = [];
     function paintGroup() {
       var box = el('div', 'ks-group'), ctl = el('div', 'ks-row'), out = el('div', 'ks-groups');
-      var minus = el('button', 'ks-chip', '－'), plus = el('button', 'ks-chip', '＋'), lab = el('b', 'ks-glab', groupN + '모둠'), go = el('button', 'ks-btn big', '🔀 섞기');
+      var minus = el('button', 'ks-chip', '－'), plus = el('button', 'ks-chip', '＋'), lab = el('b', 'ks-glab', groupN + '모둠'), go = el('button', 'ks-btn big', '모둠 구성');
+      minus.type = 'button'; plus.type = 'button'; go.type = 'button';
       function draw() { lab.textContent = groupN + '모둠'; }
       minus.addEventListener('click', function () { groupN = Math.max(2, groupN - 1); draw(); });
       plus.addEventListener('click', function () { groupN = Math.min(10, groupN + 1); draw(); });
@@ -660,12 +751,22 @@
     // ---------- 설정 ----------
     function openSettings() {
       var ov = el('div', 'ks-modal'), card = el('div', 'ks-mcard');
-      card.appendChild(el('h2', null, '⚙ 전자칠판 설정'));
-      var sz = el('div', 'ks-row'); sz.appendChild(el('span', 'ks-lbl', '글자 크기'));
-      [['보통', 1], ['크게', 1.15], ['아주 크게', 1.3]].forEach(function (s) { var b = el('button', 'ks-chip' + (Math.abs(scale - s[1]) < 0.01 ? ' on' : ''), s[0]); b.addEventListener('click', function () { scale = s[1]; store('ks_scale', String(scale)); root.style.setProperty('--ks', scale); Array.prototype.forEach.call(sz.querySelectorAll('.ks-chip'), function (x) { x.classList.remove('on'); }); b.classList.add('on'); }); sz.appendChild(b); });
+      card.appendChild(el('h2', null, '전자칠판 설정'));
+      var th = el('div', 'ks-row left'); th.appendChild(el('span', 'ks-lbl', '화면 테마'));
+      [['다크 모드', 'dark'], ['라이트 모드', 'light']].forEach(function (tOpt) {
+        var b = el('button', 'ks-chip' + (theme === tOpt[1] ? ' on' : ''), tOpt[0]); b.type = 'button';
+        b.addEventListener('click', function () {
+          applyTheme(tOpt[1]);
+          Array.prototype.forEach.call(th.querySelectorAll('.ks-chip'), function (x) { x.classList.remove('on'); }); b.classList.add('on');
+        });
+        th.appendChild(b);
+      });
+      card.appendChild(th);
+      var sz = el('div', 'ks-row left'); sz.appendChild(el('span', 'ks-lbl', '글자 크기'));
+      [['보통', 1], ['크게', 1.15], ['아주 크게', 1.3]].forEach(function (s) { var b = el('button', 'ks-chip' + (Math.abs(scale - s[1]) < 0.01 ? ' on' : ''), s[0]); b.type = 'button'; b.addEventListener('click', function () { scale = s[1]; store('ks_scale', String(scale)); root.style.setProperty('--ks', scale); Array.prototype.forEach.call(sz.querySelectorAll('.ks-chip'), function (x) { x.classList.remove('on'); }); b.classList.add('on'); }); sz.appendChild(b); });
       card.appendChild(sz);
       function field(label, type, val, onChange, w) { var r = el('div', 'ks-row left'); r.appendChild(el('span', 'ks-lbl', label)); var i = el('input', 'ks-in'); i.type = type; i.value = val; if (w) i.style.width = w; i.addEventListener('change', function () { onChange(i.value); store('ks_sched', JSON.stringify(SC)); lastPhase = undefined; }); r.appendChild(i); return r; }
-      function toggle(label, key) { var b = el('button', 'ks-chip' + (SC[key] ? ' on' : ''), label + (SC[key] ? ' 켜짐' : ' 꺼짐')); b.addEventListener('click', function () { SC[key] = !SC[key]; store('ks_sched', JSON.stringify(SC)); b.classList.toggle('on', SC[key]); b.textContent = label + (SC[key] ? ' 켜짐' : ' 꺼짐'); }); return b; }
+      function toggle(label, key) { var b = el('button', 'ks-chip' + (SC[key] ? ' on' : ''), label + (SC[key] ? ' 켜짐' : ' 꺼짐')); b.type = 'button'; b.addEventListener('click', function () { SC[key] = !SC[key]; store('ks_sched', JSON.stringify(SC)); b.classList.toggle('on', SC[key]); b.textContent = label + (SC[key] ? ' 켜짐' : ' 꺼짐'); }); return b; }
       card.appendChild(el('div', 'ks-sec', '청소 · 종례 시간'));
       card.appendChild(field('청소 시작', 'time', SC.cs, function (v) { SC.cs = v; })); card.appendChild(field('종례 시작', 'time', SC.js, function (v) { SC.js = v; })); card.appendChild(field('종례 끝', 'time', SC.ee, function (v) { SC.ee = v; }));
       card.appendChild(field('종례 문구', 'text', SC.msg, function (v) { SC.msg = v || SCHED_DEF.msg; }, '16em'));
@@ -673,20 +774,43 @@
       card.appendChild(field('자습 문구', 'text', SC.smsg, function (v) { SC.smsg = v || SCHED_DEF.smsg; }, '16em'));
       card.appendChild(el('div', 'ks-sec', '조회 시간')); card.appendChild(field('조회 시작', 'time', SC.hs, function (v) { SC.hs = v; })); card.appendChild(field('조회 끝', 'time', SC.he, function (v) { SC.he = v; }));
       var tg = el('div', 'ks-row left'); tg.appendChild(toggle('시간 되면 자동 전환', 'auto')); tg.appendChild(toggle('딩동 소리', 'chime')); card.appendChild(tg);
-      var fs = el('button', 'ks-btn', '⛶ 전체화면'); fs.addEventListener('click', function () { if (document.fullscreenElement) document.exitFullscreen(); else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {}); });
-      var wl = el('div', 'ks-note', wakeLock ? '✅ 화면이 꺼지지 않게 유지 중이에요' : '이 브라우저는 화면 꺼짐 방지를 지원하지 않거나 아직 켜지지 않았어요');
-      var out = el('button', 'ks-btn danger', '로그아웃'); out.addEventListener('click', function () { if (window.confirm('전자칠판 계정을 로그아웃할까요? 다시 로그인하려면 비밀번호가 필요해요.')) { store('tok26', null); store('gk26', null); location.hash = ''; location.reload(); } });
-      var close = el('button', 'ks-btn', '닫기'); close.addEventListener('click', function () { ov.remove(); });
+      var fs = el('button', 'ks-btn', '전체화면'); fs.type = 'button'; fs.addEventListener('click', function () { if (document.fullscreenElement) document.exitFullscreen(); else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {}); });
+      var wl = el('div', 'ks-note', wakeLock ? '화면이 꺼지지 않게 유지 중이에요' : '이 브라우저는 화면 꺼짐 방지를 지원하지 않거나 아직 켜지지 않았어요');
+      var out = el('button', 'ks-btn danger', '로그아웃'); out.type = 'button'; out.addEventListener('click', function () { if (window.confirm('전자칠판 계정을 로그아웃할까요? 다시 로그인하려면 비밀번호가 필요해요.')) { store('tok26', null); store('gk26', null); location.hash = ''; location.reload(); } });
+      var close = el('button', 'ks-btn', '닫기'); close.type = 'button'; close.addEventListener('click', function () { ov.remove(); });
       var row = el('div', 'ks-row'); row.appendChild(fs); row.appendChild(close); card.appendChild(wl); card.appendChild(row); card.appendChild(out);
       ov.appendChild(card); ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); }); root.appendChild(ov);
     }
 
     // ---------- 모드 전환 ----------
-    var MODES = [['today', '🏠', '오늘'], ['clean', '🧹', '청소'], ['jongrye', '📣', '조회/종례'], ['study', '📖', '자습'], ['seat', '🪑', '자리 바꾸기'], ['game', '🎮', '미니게임'], ['board', '💬', '의견 보드'], ['pick', '🎲', '발표자 뽑기'], ['group', '👥', '모둠 나누기']];
+    var MODES = [
+      ['today', 'home', '오늘'],
+      ['clean', 'clean', '청소'],
+      ['jongrye', 'announce', '조회/종례'],
+      ['study', 'study', '자습'],
+      ['seat', 'seat', '자리'],
+      ['game', 'game', '미니게임'],
+      ['board', 'board', '의견 보드'],
+      ['pick', 'pick', '발표자'],
+      ['group', 'group', '모둠']
+    ];
     function paintDock() {
       clear(dock);
-      MODES.forEach(function (m) { var b = el('button', 'ks-dbtn' + (mode === m[0] ? ' on' : '')); b.appendChild(el('span', 'ks-de', m[1])); b.appendChild(el('span', 'ks-dl', m[2])); b.addEventListener('click', function () { setMode(m[0]); }); dock.appendChild(b); });
-      var s = el('button', 'ks-dbtn small'); s.appendChild(el('span', 'ks-de', '⚙')); s.addEventListener('click', openSettings); dock.appendChild(s);
+      MODES.forEach(function (m) {
+        var b = el('button', 'ks-dbtn' + (mode === m[0] ? ' on' : '')); b.type = 'button';
+        var ic = el('span', 'ks-de'); ic.appendChild(svgIcon(m[1]));
+        b.appendChild(ic); b.appendChild(el('span', 'ks-dl', m[2]));
+        b.addEventListener('click', function () { setMode(m[0]); }); dock.appendChild(b);
+      });
+      var tBtn = el('button', 'ks-dbtn small ks-tbtn'); tBtn.type = 'button';
+      var tTitle = theme === 'light' ? '다크 모드로 전환' : '라이트 모드로 전환';
+      tBtn.title = tTitle; tBtn.setAttribute('aria-label', tTitle);
+      var tic = el('span', 'ks-de'); tic.appendChild(svgIcon(theme === 'light' ? 'moon' : 'sun')); tBtn.appendChild(tic);
+      tBtn.addEventListener('click', function () { applyTheme(theme === 'light' ? 'dark' : 'light'); });
+      dock.appendChild(tBtn);
+      var s = el('button', 'ks-dbtn small'); s.type = 'button'; s.title = '설정'; s.setAttribute('aria-label', '설정');
+      var sic = el('span', 'ks-de'); sic.appendChild(svgIcon('settings')); s.appendChild(sic);
+      s.addEventListener('click', openSettings); dock.appendChild(s);
     }
     function setMode(m) {
       if (m === 'game') { if (window.Game26) window.Game26.hub({ onExit: function () { paintDock(); } }); return; }
