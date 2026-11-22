@@ -146,6 +146,27 @@ async function dailyPush(env, kind, force) {
   return out;
 }
 
+// 일회성 안내 푸시(정정·사과 등): KV `broadcast:*` = { title, body, url?, tag?, audience?: [이름] } 를 다음 Cron(30분 간격)에 알림을 켠 학생에게 보내고 지움
+async function broadcastPush(env) {
+  const out = { sent: 0, gone: 0, failed: 0, subs: 0, msgs: 0 };
+  const keys = (await env.CLASS_KV.list({ prefix: 'broadcast:' })).keys; if (!keys.length) return out;
+  const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), pushKeys = (await env.CLASS_KV.list({ prefix: 'push:' })).keys;
+  for (const bk of keys) {
+    const m = JSON.parse(await env.CLASS_KV.get(bk.name) || 'null'); await env.CLASS_KV.delete(bk.name);   // 먼저 지워 중복 발송 방지
+    if (!m || !m.title) continue; out.msgs++;
+    const msg = { title: String(m.title).slice(0, 80), body: String(m.body || '').slice(0, 300), tag: m.tag || 'notice-' + Date.now(), url: m.url || '/#home' };
+    for (const k of pushKeys) {
+      const n = parseInt(k.name.slice(5), 10), me = roster.find((x) => x.n === n && isStu(x)); if (!me) continue;
+      if (Array.isArray(m.audience) && !m.audience.includes(me.name)) continue;
+      const rec = JSON.parse(await env.CLASS_KV.get(k.name) || '{}'); if (!rec.subs || !rec.subs.length || rec.off) continue;
+      const keep = [];
+      for (const sb of rec.subs) { out.subs++; const r = await sendPush(sb, msg, env); if (r === 'gone') out.gone++; else { keep.push(sb); if (r) out.sent++; else out.failed++; } }
+      if (keep.length !== rec.subs.length) { rec.subs = keep; await env.CLASS_KV.put(k.name, JSON.stringify(rec)); }
+    }
+  }
+  return out;
+}
+
 // 오늘의 알림장: 날짜별 전달사항·준비물·숙제 (관리자/교사가 씀, 학생은 읽기만). 최근 30일만 보관
 async function saveDaily(env, b, who) {
   const str = (v, max) => (typeof v === 'string' ? v.trim().slice(0, max) : '');
@@ -290,7 +311,7 @@ export class Board {
 }
 
 export default {
-  async scheduled(event, env, ctx) { ctx.waitUntil(dailyPush(env, null, false)); },   // 30분마다: 각자 정한 시각이 된 사람에게 아침 알림장/저녁 일정 알림
+  async scheduled(event, env, ctx) { ctx.waitUntil((async () => { await broadcastPush(env); await dailyPush(env, null, false); })()); },   // 30분마다: 각자 정한 시각이 된 사람에게 아침 알림장/저녁 일정 알림
   async fetch(request, env) {
     const url = new URL(request.url);
     if (url.pathname === '/api/login' && request.method === 'POST') {
