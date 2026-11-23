@@ -279,14 +279,16 @@
   function fortress(opts) {
     if (curF) return; opts = opts || {};
     var root = el('div', 'gm-root fg-root'), cv = el('canvas', 'gm-cv'), ctx = cv.getContext('2d'), bar = el('div', 'gm-bar');
-    var btnR = el('button', 'gm-btn', '🔁 다시'), btnS = el('button', 'gm-btn', '🔇 소리 꺼짐'), btnX = el('button', 'gm-btn', '✕ 나가기');
-    [btnR, btnS, btnX].forEach(function (b) { b.type = 'button'; bar.appendChild(b); });
+    var btnZ = el('button', 'gm-btn', '🔍 줌: ' + 'x'), btnR = el('button', 'gm-btn', '🔁 다시'), btnS = el('button', 'gm-btn', '🔇 소리 꺼짐'), btnX = el('button', 'gm-btn', '✕ 나가기');
+    [btnZ, btnR, btnS, btnX].forEach(function (b) { b.type = 'button'; bar.appendChild(b); });
     root.appendChild(cv); root.appendChild(bar); document.body.appendChild(root);
 
-    var DPR = Math.min(2, window.devicePixelRatio || 1), SW = 0, SH = 0, FW = 1600, FH = 800, alive = true, raf = 0, last = 0, sound = false, ac = null, wins = [0, 0], g;
+    var LITE = window.KS_LITE !== false, DPR = LITE ? (window.KS_LITE ? 0.75 : Math.min(1.25, window.devicePixelRatio || 1)) : Math.min(2, window.devicePixelRatio || 1), SW = 0, SH = 0, FW = 1600, FH = 800, alive = true, raf = 0, last = 0, sound = false, ac = null, wins = [0, 0], g;
     var CR = 46, GRAV = 620, MAXV = 1120, MOVE = 170, BEDROCK = 24, MS = 2;
     var CW = 512, PAD = 2, CWP = CW + PAD * 2, CMW = CW / MS, CMH = FH / MS;
-    var ZOOM_INTRO = 0.88, ZOOM_AIM = 1.50, ZOOM_FLY = 1.08, ZOOM_SETTLE = 1.24, INTRO_DUR = 3.1;
+    // 줌 프리셋: 아이들이 어려워해서 기본을 '넓게'(전장이 한눈에)로. 🔍 버튼으로 바꿈
+    var ZP = [{ n: '넓게', aim: 0.98, fly: 0.86, settle: 1.0 }, { n: '보통', aim: 1.22, fly: 1.0, settle: 1.1 }, { n: '가깝게', aim: 1.5, fly: 1.08, settle: 1.24 }], zi = 0; try { zi = Math.max(0, Math.min(2, parseInt(localStorage.getItem('fg_zoom') || '0', 10) || 0)); } catch (e) {}
+    var ZOOM_INTRO = 0.88, ZOOM_AIM = ZP[zi].aim, ZOOM_FLY = ZP[zi].fly, ZOOM_SETTLE = ZP[zi].settle, INTRO_DUR = 3.1;
     var AIM_RING_R = 64, AIM_RING_HIT = 92;
     var TCOL = [['#38BDF8', '#0284C7', '#BAE6FD'], ['#FB7185', '#E11D48', '#FECDD3']];
     var chunks = Object.create(null), mapIdx = -1;
@@ -604,7 +606,9 @@
           props.push({ x: px, y: pyP, kind: kindR < 0.45 ? 'tree' : 'tuft', h: 16 + hR * 14 });
         }
       }
-      var ch = { ci: ci, x0: x0, cv: cvC, ctx: cCtx, solid: solidC, props: props };
+      var minRow = CMH; for (var rr = 0; rr < CMH && minRow === CMH; rr++) for (var cc = 0; cc < CMW; cc++) if (solidC[rr * CMW + cc] === 1) { minRow = rr; break; }
+      var ch = { ci: ci, x0: x0, cv: cvC, ctx: cCtx, solid: solidC, props: props, minY: Math.max(0, minRow * MS - 8) };   // minY: 이 위쪽은 하늘이라 그릴 필요 없음
+      if (g) g.tver = (g.tver || 0) + 1;
       chunks[ci] = ch;
       return ch;
     }
@@ -639,6 +643,10 @@
 
     function aimCamTarget(turnIdx) {
       var tk = g.tanks[turnIdx], opp = g.tanks[1 - turnIdx], dir = opp.x >= tk.x ? 1 : -1;
+      if (zi === 0) {   // '넓게': 두 탱크가 한 화면에 다 보이게 가운데를 비추고 줌을 맞춤 (아이들이 상대를 찾기 어려워해서)
+        var span = Math.abs(opp.x - tk.x) + 340, fz = Math.min(ZOOM_AIM, (SW * 0.92) / (span * baseSc)), zz = Math.max(0.45, fz);
+        return { x: (tk.x + opp.x) / 2, y: clampCamY((tk.y + opp.y) / 2 - 110, zz), z: zz };
+      }
       return { x: tk.x + dir * 135, y: clampCamY(tk.y - 75, ZOOM_AIM), z: ZOOM_AIM };
     }
 
@@ -661,7 +669,7 @@
 
       var clouds = []; for (var i = 0; i < 10; i++) clouds.push({ x: -300 + Math.random() * 2200, y: 65 + Math.random() * 165, s: 0.75 + Math.random() * 0.65, spd: 8 + Math.random() * 10 });
       var stars = []; for (var j = 0; j < 75; j++) stars.push([Math.random() * FW, Math.random() * FH * 0.62, Math.random() * 1.6 + 0.5, Math.random() * 6.28]);
-      var windPts = []; for (var w = 0; w < 48; w++) windPts.push([-300 + Math.random() * 2200, Math.random() * FH * 0.78, 22 + Math.random() * 28, Math.random() * 6.28, Math.random()]);
+      var windPts = []; for (var w = 0; w < (LITE ? 20 : 48); w++) windPts.push([-300 + Math.random() * 2200, Math.random() * FH * 0.78, 22 + Math.random() * 28, Math.random() * 6.28, Math.random()]);
 
       g = {
         seed: seed, ph: ph, sp1: sp1, sp2: sp2, map: map, geo: geo, clouds: clouds, stars: stars, windPts: windPts,
@@ -815,6 +823,7 @@
         for (var pi = ch.props.length - 1; pi >= 0; pi--) { if (!isSolid(ch.props[pi].x, ch.props[pi].y + 3)) ch.props.splice(pi, 1); }
       }
 
+      g.tver = (g.tver || 0) + 1;   // 지형이 바뀜 → 미니맵 캐시 갱신
       g.lastHit = { x: x, y: y };
       if (typeof owner === 'number' && g.tanks[owner]) {
         g.tanks[owner].lastHit = { x: x, y: y };
@@ -953,7 +962,7 @@
             var tgtA = aimCamTarget(g.turn);
             cam.tx = tgtA.x; cam.ty = tgtA.y; cam.tz = tgtA.z;
           } else {
-            cam.tz = ZOOM_AIM;
+            cam.tz = aimCamTarget(g.turn).z;
           }
           posRate = 5.8; zoomRate = 4.4;
         } else if (g.phase === 'fly' && g.shot) {
@@ -1031,28 +1040,37 @@
     }
 
     // ---------- 그리기 ----------
+    var bgCv = null, bgMap = null, bgW = 0, bgH = 0, mmCache = null;
+    function paintSky(c, camx, tt, m) {   // 하늘·별·천체 (스크린 좌표)
+      var sky = c.createLinearGradient(0, 0, 0, SH);
+      sky.addColorStop(0, m.sky[0]); sky.addColorStop(0.4, m.sky[1]); sky.addColorStop(0.78, m.sky[2]); sky.addColorStop(1, m.sky[3]);
+      c.fillStyle = sky; c.fillRect(0, 0, SW, SH);
+
+      if (m.stars > 0) {
+        var starOff = (camx - 800) * 0.08 * baseSc;
+        g.stars.forEach(function (st) {
+          var sx = ((st[0] * baseSc - starOff) % SW + SW) % SW, sy = st[1] * (SH / FH);
+          c.fillStyle = 'rgba(255,255,255,' + (m.stars * (0.4 + 0.6 * Math.abs(Math.sin(tt * 1.4 + st[3])))) + ')';
+          c.beginPath(); c.arc(sx, sy, st[2], 0, 6.283); c.fill();
+        });
+      }
+      var cel = m.celestial, celX = SW * 0.5 + (cel.x - 800 - (camx - 800) * 0.12) * baseSc, celY = cel.y * (SH / FH), celR = cel.r * baseSc;
+      var cg = c.createRadialGradient(celX, celY, celR * 0.4, celX, celY, celR * 3.2);
+      cg.addColorStop(0, cel.glow); cg.addColorStop(1, 'rgba(0,0,0,0)'); c.fillStyle = cg; c.beginPath(); c.arc(celX, celY, celR * 3.2, 0, 6.283); c.fill();
+      c.fillStyle = cel.c; c.beginPath(); c.arc(celX, celY, celR, 0, 6.283); c.fill();
+      if (cel.crescent) { c.fillStyle = m.sky[1]; c.beginPath(); c.arc(celX + celR * 0.36, celY - celR * 0.2, celR * 0.86, 0, 6.283); c.fill(); }
+
+    }
     function draw() {
       ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
       var m = g.map, wm = windMeta(g.wind), es = effSc(), sxOff = g.shake > 0 ? (Math.random() - 0.5) * g.shake : 0, syOff = g.shake > 0 ? (Math.random() - 0.5) * g.shake : 0;
 
-      // 1. 하늘 그라데이션 & 무한 패럴랙스 별/천체 (스크린 좌표)
-      var sky = ctx.createLinearGradient(0, 0, 0, SH);
-      sky.addColorStop(0, m.sky[0]); sky.addColorStop(0.4, m.sky[1]); sky.addColorStop(0.78, m.sky[2]); sky.addColorStop(1, m.sky[3]);
-      ctx.fillStyle = sky; ctx.fillRect(0, 0, SW, SH);
-
-      if (m.stars > 0) {
-        var starOff = (cam.x - 800) * 0.08 * baseSc;
-        g.stars.forEach(function (st) {
-          var sx = ((st[0] * baseSc - starOff) % SW + SW) % SW, sy = st[1] * (SH / FH);
-          ctx.fillStyle = 'rgba(255,255,255,' + (m.stars * (0.4 + 0.6 * Math.abs(Math.sin(g.t * 1.4 + st[3])))) + ')';
-          ctx.beginPath(); ctx.arc(sx, sy, st[2], 0, 6.283); ctx.fill();
-        });
-      }
-      var cel = m.celestial, celX = SW * 0.5 + (cel.x - 800 - (cam.x - 800) * 0.12) * baseSc, celY = cel.y * (SH / FH), celR = cel.r * baseSc;
-      var cg = ctx.createRadialGradient(celX, celY, celR * 0.4, celX, celY, celR * 3.2);
-      cg.addColorStop(0, cel.glow); cg.addColorStop(1, 'rgba(0,0,0,0)'); ctx.fillStyle = cg; ctx.beginPath(); ctx.arc(celX, celY, celR * 3.2, 0, 6.283); ctx.fill();
-      ctx.fillStyle = cel.c; ctx.beginPath(); ctx.arc(celX, celY, celR, 0, 6.283); ctx.fill();
-      if (cel.crescent) { ctx.fillStyle = m.sky[1]; ctx.beginPath(); ctx.arc(celX + celR * 0.36, celY - celR * 0.2, celR * 0.86, 0, 6.283); ctx.fill(); }
+      // 1. 하늘 (가벼운 화면: 한 번만 그려 두고 복사, 아니면 매 프레임 그려 별이 반짝임)
+      if (LITE) {   // 하늘은 뒤쪽 캔버스에 한 번만 그려 두고, 게임 캔버스는 투명하게 비우기만 함 (매 프레임 화면 전체 복사 없음)
+        if (!bgCv) { bgCv = document.createElement('canvas'); bgCv.className = 'gm-cv'; root.insertBefore(bgCv, cv); }
+        if (bgMap !== m || bgW !== SW || bgH !== SH) { bgCv.width = SW; bgCv.height = SH; bgCv.style.width = SW + 'px'; bgCv.style.height = SH + 'px'; bgMap = m; bgW = SW; bgH = SH; paintSky(bgCv.getContext('2d'), 800, 0, m); }
+        ctx.clearRect(0, 0, SW, SH);
+      } else paintSky(ctx, cam.x, g.t, m);
 
       // 2. 월드 카메라 변환
       ctx.save();
@@ -1098,10 +1116,9 @@
           if (w[0] < visL - 140 || w[0] > visR + 140) return;
           var wLen = (22 + wm.abs * 9) * (0.75 + w[4] * 0.45), xHead = w[0] + wm.dir * wLen;
           var wAlpha = (0.16 + wm.abs * 0.04) * (0.65 + w[4] * 0.35);
-          var rg = ctx.createLinearGradient(w[0], w[1], xHead, w[1]);
-          rg.addColorStop(0, 'rgba(255,255,255,0)'); rg.addColorStop(0.55, '#FFFFFF'); rg.addColorStop(1, wm.col);
+          var rg = null; if (!LITE) { rg = ctx.createLinearGradient(w[0], w[1], xHead, w[1]); rg.addColorStop(0, 'rgba(255,255,255,0)'); rg.addColorStop(0.55, '#FFFFFF'); rg.addColorStop(1, wm.col); }
           ctx.globalAlpha = wAlpha;
-          ctx.strokeStyle = rg; ctx.lineWidth = 1.3 + wm.abs * 0.14;
+          ctx.strokeStyle = rg || wm.col; ctx.lineWidth = 1.3 + wm.abs * 0.14;
           var waveY = w[1] + Math.sin(g.t * 4 + w[3]) * (2.5 + wm.abs * 0.25);
           ctx.beginPath(); ctx.moveTo(w[0], w[1]); ctx.quadraticCurveTo((w[0] + xHead) / 2, waveY, xHead, w[1]); ctx.stroke();
           if (wm.abs >= 4 && wi % 4 === 0) {
@@ -1117,7 +1134,8 @@
       var cStart = Math.floor(visL / CW), cEnd = Math.floor(visR / CW);
       for (var ci = cStart; ci <= cEnd; ci++) {
         var ch = getChunk(ci);
-        ctx.drawImage(ch.cv, PAD, 0, CW + 1, FH, ch.x0, 0, CW + 1, FH);
+        var vy0 = Math.max(0, Math.floor(Math.max(ch.minY, cam.y - (SH * 0.54) / es - 6))), vy1 = Math.min(FH, Math.ceil(cam.y + (SH * 0.46) / es + 6));
+        if (vy1 > vy0) ctx.drawImage(ch.cv, PAD, vy0, CW + 1, vy1 - vy0, ch.x0, vy0, CW + 1, vy1 - vy0);   // 안 보이는 하늘/땅속은 그리지 않음
         ch.props.forEach(function (pr) {
           var sway = g.wind === 0 ? Math.sin(g.t * 1.5 + pr.x * 0.04) * 0.5 : g.wind * (0.65 + 0.35 * Math.sin(g.t * (2.2 + wm.abs * 0.6) + pr.x * 0.04));
           if (pr.kind === 'tree') {
@@ -1365,11 +1383,13 @@
       roundRect(ctx, mm.x, mm.y, mm.w, mm.h, 14);
       ctx.fillStyle = 'rgba(8,12,28,.76)'; ctx.fill();
       ctx.clip();
-      var mc0 = Math.floor(spanMin / CW), mc1 = Math.floor(spanMax / CW);
-      for (var mci = mc0; mci <= mc1; mci++) {
-        var mch = getChunk(mci);
-        ctx.drawImage(mch.cv, PAD, 0, CW + 1, FH, mm.x + (mch.x0 - spanMin) * mmSX, mm.y, (CW + 1) * mmSX, mm.h);
+      var mc0 = Math.floor(spanMin / CW), mc1 = Math.floor(spanMax / CW), mmKey = (g.tver || 0) + ':' + mm.w + 'x' + mm.h + ':' + spanMin + ':' + spanMax;
+      if (!mmCache || mmCache.key !== mmKey) {   // 미니맵 지형은 바뀔 때만 다시 그려 캐시 (매 프레임 큰 이미지를 줄여 그리지 않음)
+        if (!mmCache) mmCache = { cv: document.createElement('canvas'), key: '' };
+        mmCache.cv.width = Math.max(1, Math.round(mm.w)); mmCache.cv.height = Math.max(1, Math.round(mm.h)); var mcx = mmCache.cv.getContext('2d'); mmCache.key = mmKey;
+        for (var mci = mc0; mci <= mc1; mci++) { var mch = getChunk(mci); mcx.drawImage(mch.cv, PAD, 0, CW + 1, FH, (mch.x0 - spanMin) * mmSX, 0, (CW + 1) * mmSX, mm.h); }
       }
+      ctx.drawImage(mmCache.cv, mm.x, mm.y, mm.w, mm.h);
       ctx.fillStyle = '#262333'; ctx.fillRect(mm.x, mm.y + (FH - BEDROCK) * mmSY, mm.w, BEDROCK * mmSY + 2);
       if (g.phase === 'aim') {
         var mmTk = g.tanks[g.turn];
@@ -1479,8 +1499,11 @@
       }
     }
 
-    function frame(now) { raf = 0; if (!alive) return; var dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now; update(dt); draw(); raf = requestAnimationFrame(frame); }
+    function frame(now) { raf = 0; if (!alive) return; if (LITE && now - last < 30) { raf = requestAnimationFrame(frame); return; }   // 가벼운 화면: 30fps
+      var dt = Math.min(0.05, (now - last) / 1000 || 0.016); last = now; update(dt); draw(); raf = requestAnimationFrame(frame); }
     function close() { if (!alive) return; alive = false; cancelAnimationFrame(raf); cv.removeEventListener('contextmenu', blockMenu); document.removeEventListener('keydown', kd); document.removeEventListener('keyup', ku); window.removeEventListener('resize', resize); root.remove(); chunks = Object.create(null); curF = null; if (opts.onExit) opts.onExit(); }
+    function setZoom(i) { zi = i; ZOOM_AIM = ZP[i].aim; ZOOM_FLY = ZP[i].fly; ZOOM_SETTLE = ZP[i].settle; btnZ.textContent = '🔍 줌: ' + ZP[i].n; try { localStorage.setItem('fg_zoom', String(i)); } catch (e) {} if (g) cam.manual = false; }
+    btnZ.addEventListener('click', function () { setZoom((zi + 1) % 3); }); btnZ.textContent = '🔍 줌: ' + ZP[zi].n;
     btnX.addEventListener('click', close);
     btnR.addEventListener('click', function () { newGame(); });
     btnS.addEventListener('click', function () { sound = !sound; btnS.textContent = sound ? '🔊 소리 켜짐' : '🔇 소리 꺼짐'; if (sound) beep(500, 0.08, 0.04); });
