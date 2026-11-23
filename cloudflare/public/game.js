@@ -216,16 +216,19 @@
     function tk() { try { return localStorage.getItem('tok26') || ''; } catch (e) { return ''; } }
     function rapi(body) { return fetch('/api/rank/circle', { method: body ? 'POST' : 'GET', headers: { authorization: 'Bearer ' + tk(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' }).then(function (r) { return r.json().then(function (j) { j._st = r.status; return j; }); }); }
     function paintBest() {
-      best = rank.length ? rank[0].acc : 0; bestEl.textContent = rank.length ? '🏆 최고 ' + best.toFixed(1) + '% · ' + rank[0].name + '  ·  도전 ' + tries + '회' : '🏆 아직 기록이 없어요 · 도전 ' + tries + '회';
-      clear2(rankEl); rankEl.appendChild(el('div', 'cg-rt', '🏆 랭킹'));
-      if (!rank.length) rankEl.appendChild(el('div', 'cg-rn', '첫 기록의 주인공이 되어 보세요!'));
-      rank.slice(0, 8).forEach(function (r, i) { var row = el('div', 'cg-rr' + (i === 0 ? ' top' : '')); row.appendChild(el('span', 'cg-rk', i === 0 ? '👑' : String(i + 1))); row.appendChild(el('b', null, r.name)); row.appendChild(el('span', 'cg-ra', r.acc.toFixed(1) + '%')); rankEl.appendChild(row); });
+      best = rank.length ? rank[0].acc : 0; bestEl.textContent = '도전 ' + tries + '회';
+      clear2(rankEl);
+      if (!rank.length) { rankEl.appendChild(el('div', 'cg-rt', '🏆 랭킹')); rankEl.appendChild(el('div', 'cg-rn', '첫 기록의 주인공이 되어 보세요!')); return; }
+      var top1 = el('div', 'cg-top1'); top1.appendChild(el('div', 'cg-t1l', '👑 1등')); top1.appendChild(el('b', 'cg-t1n', rank[0].name)); top1.appendChild(el('div', 'cg-t1a', rank[0].acc.toFixed(1) + '%')); rankEl.appendChild(top1);   // 1등은 오른쪽 위에 크게
+      rank.slice(1, 5).forEach(function (r, i) { var row = el('div', 'cg-rr'); row.appendChild(el('span', 'cg-rk', String(i + 2))); row.appendChild(el('b', null, r.name)); row.appendChild(el('span', 'cg-ra', r.acc.toFixed(1) + '%')); rankEl.appendChild(row); });
     }
     function clear2(e) { while (e.firstChild) e.removeChild(e.firstChild); }
     function loadRank() { rapi().then(function (j) { if (j && j.list) { rank = j.list; paintBest(); } }).catch(function () {}); }
     paintBest(); loadRank();
-    function askName(acc) {   // 최고 기록을 깼을 때 이름을 써서 랭킹에 기록
-      var ov = el('div', 'cg-ask'), card = el('div', 'cg-askc'); card.appendChild(el('h2', null, '🏆 새 최고 기록 ' + acc.toFixed(1) + '%!')); card.appendChild(el('div', 'cg-asks', '이름을 써서 랭킹에 남겨요'));
+    function qualifies(acc) { return rank.length < 5 || acc > rank[4].acc; }   // 5등 안에 들면 이름을 써서 기록
+    function placeOf(acc) { var n = 1; rank.forEach(function (r) { if (r.acc >= acc) n++; }); return n; }
+    function askName(acc) {
+      var pl = placeOf(acc), ov = el('div', 'cg-ask'), card = el('div', 'cg-askc'); card.appendChild(el('h2', null, pl === 1 ? '🏆 새 최고 기록 ' + acc.toFixed(1) + '%!' : '🏅 ' + pl + '등 기록 ' + acc.toFixed(1) + '%!')); card.appendChild(el('div', 'cg-asks', '이름을 써서 랭킹에 남겨요'));
       var inp = el('input', 'cg-in'); inp.type = 'text'; inp.maxLength = 10; inp.placeholder = '이름 (10자까지)'; try { inp.value = localStorage.getItem('circle_name') || ''; } catch (e) {} card.appendChild(inp);
       var chips = el('div', 'cg-chips'); card.appendChild(chips);
       fetch('/api/classmates', { headers: { authorization: 'Bearer ' + tk() }, cache: 'no-store' }).then(function (r) { return r.json(); }).then(function (j) { (j.students || []).forEach(function (st) { var b = el('button', 'cg-chip', st.name); b.type = 'button'; b.addEventListener('click', function () { inp.value = st.name; }); chips.appendChild(b); }); }).catch(function () {});
@@ -233,7 +236,7 @@
       skip.addEventListener('click', function () { ov.remove(); });
       ok.addEventListener('click', function () {
         var nm = inp.value.trim(); if (!nm) { msg.textContent = '이름을 써 주세요'; return; } ok.disabled = true;
-        rapi({ name: nm, acc: acc }).then(function (j) { if (j && j.list) { rank = j.list; try { localStorage.setItem('circle_name', nm); } catch (e) {} paintBest(); ov.remove(); say('👑 ' + nm + ' 님이 랭킹 1위!', 'best'); } else { ok.disabled = false; if (j && j.list === undefined && j._st === 409) { msg.textContent = '그 사이에 더 높은 기록이 나왔어요'; loadRank(); } else msg.textContent = '기록하지 못했어요 (로그인이 필요해요)'; } }).catch(function () { ok.disabled = false; msg.textContent = '연결이 불안정해요'; });
+        rapi({ name: nm, acc: acc }).then(function (j) { if (j && j.list) { rank = j.list; try { localStorage.setItem('circle_name', nm); } catch (e) {} paintBest(); ov.remove(); say((pl === 1 ? '👑 ' : '🏅 ') + nm + ' 님이 랭킹 ' + pl + '위!', 'best'); } else { ok.disabled = false; if (j && j.list === undefined && j._st === 409) { msg.textContent = '그 사이에 5등 안에서 밀려났어요'; loadRank(); } else msg.textContent = '기록하지 못했어요 (로그인이 필요해요)'; } }).catch(function () { ok.disabled = false; msg.textContent = '연결이 불안정해요'; });
       });
       row.appendChild(ok); row.appendChild(skip); card.appendChild(msg); card.appendChild(row); ov.appendChild(card); ov.addEventListener('pointerdown', function (e) { e.stopPropagation(); }); root.appendChild(ov); setTimeout(function () { try { inp.focus(); } catch (e) {} }, 100);
     }
@@ -263,9 +266,9 @@
     function up() {
       if (!drawing) return; drawing = false; tries++;
       var r = scoreCircle(pts, SW / 2, SH / 2); if (r.err) { res = null; say(r.err + ' 🙂', 'err'); paintBest(); return; }
-      res = r; shown = 0; var newBest = r.acc > best; paintBest(); paintStatic(); animate();
+      res = r; shown = 0; var newBest = qualifies(r.acc); paintBest(); paintStatic(); animate();
       var a = r.acc; say(a >= 99 ? '🤯 소름… 거의 완벽한 원!' : a >= 95 ? '😲 엄청나요! 컴퍼스급' : a >= 90 ? '😎 아주 잘 그렸어요' : a >= 80 ? '👍 꽤 둥글어요' : a >= 60 ? '🙂 조금만 더!' : a >= 35 ? '🥔 감자 모양… 다시 도전' : '🎯 가운데 점이 원의 중심이에요! 점을 감싸며 그려 보세요', (newBest ? 'best' : '') + ' res');
-      if (newBest) { msgEl.textContent += '  ⭐ 최고 기록!'; setTimeout(function () { if (alive && res && res === r) askName(r.acc); }, 1400); }
+      if (newBest) { msgEl.textContent += placeOf(r.acc) === 1 ? '  ⭐ 최고 기록!' : '  🏅 ' + placeOf(r.acc) + '등!'; setTimeout(function () { if (alive && res && res === r) askName(r.acc); }, 1400); }
     }
     cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     function kd(e) { if (e.key === 'Escape') close(); } document.addEventListener('keydown', kd); window.addEventListener('resize', resize);

@@ -1501,3 +1501,5 @@ body.lite .gm-root *{backdrop-filter:none !important}
 .cg-root .gm-cv{background:transparent}
 .cg-dot{position:absolute; left:50%; top:50%; width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:50%; background:rgba(255,255,255,.55); pointer-events:none}
 .cg-pct{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-weight:900; color:#fff; text-shadow:0 2px 14px rgba(0,0,0,.6); pointer-events:none; font-variant-numeric:tabular-nums}
+
+.cg-top1{text-align:center; padding:6px 4px 10px; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,.18)} .cg-t1l{color:#FFE08A; font-weight:900; font-size:15px} .cg-t1n{display:block; font-size:clamp(24px,2.4vw,36px); color:#fff; line-height:1.15; margin:2px 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap} .cg-t1a{font-size:clamp(20px,2vw,30px); font-weight:900; color:#FFE08A; font-variant-numeric:tabular-nums}

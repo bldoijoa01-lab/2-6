@@ -597,9 +597,8 @@ export default {
         if (b.op === 'reset') { if (!(me0.role === 'teacher' || me0.admin)) return json({ error: 'forbidden' }, 403); list = []; await env.CLASS_KV.put('rank:circle', '[]'); return json({ ok: true, list }); }
         const acc = Math.round(Number(b.acc) * 10) / 10, name = String(b.name || '').replace(/\s+/g, ' ').trim().slice(0, 10);
         if (!name || !(acc > 0 && acc <= 100)) return json({ error: 'bad' }, 400);
-        const best = list.length ? list[0].acc : 0;
-        if (acc <= best) return json({ error: 'not_record', list }, 409);   // 최고 기록을 깬 경우에만 기록
-        list.unshift({ name, acc, at: Date.now() }); list.sort((a, b) => b.acc - a.acc || b.at - a.at); list = list.slice(0, 30);
+        if (list.length >= 5 && acc <= list[4].acc) return json({ error: 'not_record', list }, 409);   // 5등 안에 드는 기록만 기록
+        list.unshift({ name, acc, at: Date.now() }); list.sort((a, b) => b.acc - a.acc || b.at - a.at); list = list.slice(0, 5);
         await env.CLASS_KV.put('rank:circle', JSON.stringify(list));
         return json({ ok: true, list });
       }
