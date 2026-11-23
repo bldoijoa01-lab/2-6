@@ -209,8 +209,9 @@
     if (curC) return; opts = opts || {};
     var root = el('div', 'gm-root cg-root'), cv = el('canvas', 'gm-cv'), ctx = cv.getContext('2d'), bar = el('div', 'gm-bar'), msgEl = el('div', 'cg-msg'), bestEl = el('div', 'cg-best');
     var btnX = el('button', 'gm-btn', '✕ 나가기'); btnX.type = 'button'; bar.appendChild(btnX);
-    root.appendChild(cv); root.appendChild(bar); root.appendChild(bestEl); root.appendChild(msgEl); document.body.appendChild(root);
-    var DPR = Math.min(2, window.devicePixelRatio || 1), SW = 0, SH = 0, pts = [], drawing = false, res = null, shown = 0, raf = 0, alive = true, tries = 0;
+    var dotEl = el('div', 'cg-dot'), pctEl = el('div', 'cg-pct');   // 가운데 점·정확도 숫자는 캔버스가 아니라 화면 요소로 (매 프레임 다시 그리지 않음)
+    root.appendChild(cv); root.appendChild(dotEl); root.appendChild(pctEl); root.appendChild(bar); root.appendChild(bestEl); root.appendChild(msgEl); document.body.appendChild(root);
+    var DPR = window.KS_LITE ? 1 : Math.min(2, window.devicePixelRatio || 1), SW = 0, SH = 0, pts = [], drawing = false, res = null, shown = 0, raf = 0, alive = true, tries = 0;
     var rank = [], best = 0, rankEl = el('div', 'cg-rank'); root.appendChild(rankEl); try { localStorage.removeItem('circle_best'); } catch (e) {}   // 예전 기기별 최고 기록은 더 이상 쓰지 않음
     function tk() { try { return localStorage.getItem('tok26') || ''; } catch (e) { return ''; } }
     function rapi(body) { return fetch('/api/rank/circle', { method: body ? 'POST' : 'GET', headers: { authorization: 'Bearer ' + tk(), 'content-type': 'application/json' }, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' }).then(function (r) { return r.json().then(function (j) { j._st = r.status; return j; }); }); }
@@ -236,40 +237,41 @@
       });
       row.appendChild(ok); row.appendChild(skip); card.appendChild(msg); card.appendChild(row); ov.appendChild(card); ov.addEventListener('pointerdown', function (e) { e.stopPropagation(); }); root.appendChild(ov); setTimeout(function () { try { inp.focus(); } catch (e) {} }, 100);
     }
-    function resize() { SW = window.innerWidth; SH = window.innerHeight; cv.width = Math.round(SW * DPR); cv.height = Math.round(SH * DPR); cv.style.width = SW + 'px'; cv.style.height = SH + 'px'; }
+    function resize() { SW = window.innerWidth; SH = window.innerHeight; cv.width = Math.round(SW * DPR); cv.height = Math.round(SH * DPR); cv.style.width = SW + 'px'; cv.style.height = SH + 'px'; pctEl.style.fontSize = Math.round(Math.min(SW, SH) * 0.2) + 'px'; paintStatic(); }
+    function clearCv() { ctx.setTransform(DPR, 0, 0, DPR, 0, 0); ctx.clearRect(0, 0, SW, SH); ctx.lineCap = 'round'; ctx.lineJoin = 'round'; }
+    // 결과/현재 선을 한 번에 그림 (색 구간별로 묶어서 선 수십 개가 아니라 몇 번의 stroke로)
+    function paintStatic() {
+      clearCv(); if (!SW) return;
+      if (res) {
+        ctx.strokeStyle = 'rgba(120,255,170,.7)'; ctx.lineWidth = 3; ctx.setLineDash([10, 9]); ctx.beginPath(); ctx.arc(res.cx, res.cy, res.r, 0, 6.28); ctx.stroke(); ctx.setLineDash([]);
+        var buckets = []; for (var i = 1; i < pts.length; i++) { var q = Math.min(11, Math.floor(Math.min(1, Math.abs(res.rs[i] - res.r) / res.r / 0.12) * 11.99)); (buckets[q] = buckets[q] || []).push(i); }
+        ctx.lineWidth = 7; buckets.forEach(function (list, q) { if (!list) return; ctx.strokeStyle = dcol(q / 11 * 0.12); ctx.beginPath(); list.forEach(function (i) { ctx.moveTo(pts[i - 1][0], pts[i - 1][1]); ctx.lineTo(pts[i][0], pts[i][1]); }); ctx.stroke(); });
+      } else if (pts.length > 1) { ctx.strokeStyle = '#7FE0FF'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (var k = 1; k < pts.length; k++) ctx.lineTo(pts[k][0], pts[k][1]); ctx.stroke(); }
+    }
+    function animate() {   // 정확도 숫자가 올라가는 동안만 갱신하고 끝나면 멈춤
+      if (raf || !res) return;
+      (function step() { raf = 0; if (!alive || !res) return; shown += (res.acc - shown) * 0.14 + 0.05; if (shown >= res.acc) shown = res.acc; pctEl.textContent = shown.toFixed(1) + '%'; if (shown < res.acc) raf = requestAnimationFrame(step); })();
+    }
     function say(t, cls) { msgEl.textContent = t; msgEl.className = 'cg-msg' + (cls ? ' ' + cls : ''); }
-    function start() { pts = []; res = null; shown = 0; say('가운데 점을 중심으로 원을 한 번에 그려 보세요 ✏️', 'hint'); }
+    function start() { pts = []; res = null; shown = 0; pctEl.textContent = ''; clearCv(); say('가운데 점을 중심으로 원을 한 번에 그려 보세요 ✏️', 'hint'); }
     function dcol(d) { var t = Math.max(0, Math.min(1, d / 0.12)); return 'hsl(' + Math.round(130 - 130 * t) + ',90%,60%)'; }   // 잘 그린 곳 초록 → 벗어난 곳 빨강
-    function down(e) { if (res && shown < 0.98 * res.acc) return; start(); drawing = true; pts.push([e.clientX, e.clientY]); try { cv.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); }
-    function move(e) { if (!drawing) return; var l = pts[pts.length - 1]; if (Math.hypot(e.clientX - l[0], e.clientY - l[1]) > 1.5) pts.push([e.clientX, e.clientY]); }
+    function down(e) { if (res && shown < 0.98 * res.acc) return; start(); drawing = true; pts.push([e.clientX, e.clientY]); ctx.strokeStyle = '#7FE0FF'; ctx.lineWidth = 7; try { cv.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); }
+    function move(e) {   // 새로 지나간 구간만 바로 이어 그림 (처음부터 다시 그리지 않음)
+      if (!drawing) return; var evs = e.getCoalescedEvents ? e.getCoalescedEvents() : null; if (!evs || !evs.length) evs = [e];
+      for (var k = 0; k < evs.length; k++) { var ev = evs[k], l = pts[pts.length - 1]; if (Math.hypot(ev.clientX - l[0], ev.clientY - l[1]) > 1.5) { pts.push([ev.clientX, ev.clientY]); ctx.beginPath(); ctx.moveTo(l[0], l[1]); ctx.lineTo(ev.clientX, ev.clientY); ctx.stroke(); } }
+    }
     function up() {
       if (!drawing) return; drawing = false; tries++;
       var r = scoreCircle(pts, SW / 2, SH / 2); if (r.err) { res = null; say(r.err + ' 🙂', 'err'); paintBest(); return; }
-      res = r; shown = 0; var newBest = r.acc > best; paintBest();
+      res = r; shown = 0; var newBest = r.acc > best; paintBest(); paintStatic(); animate();
       var a = r.acc; say(a >= 99 ? '🤯 소름… 거의 완벽한 원!' : a >= 95 ? '😲 엄청나요! 컴퍼스급' : a >= 90 ? '😎 아주 잘 그렸어요' : a >= 80 ? '👍 꽤 둥글어요' : a >= 60 ? '🙂 조금만 더!' : a >= 35 ? '🥔 감자 모양… 다시 도전' : '🎯 가운데 점이 원의 중심이에요! 점을 감싸며 그려 보세요', (newBest ? 'best' : '') + ' res');
       if (newBest) { msgEl.textContent += '  ⭐ 최고 기록!'; setTimeout(function () { if (alive && res && res === r) askName(r.acc); }, 1400); }
     }
     cv.addEventListener('pointerdown', down); cv.addEventListener('pointermove', move); cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
     function kd(e) { if (e.key === 'Escape') close(); } document.addEventListener('keydown', kd); window.addEventListener('resize', resize);
-    function frame() {
-      raf = 0; if (!alive) return;
-      ctx.setTransform(DPR, 0, 0, DPR, 0, 0); var g = ctx.createRadialGradient(SW / 2, SH / 2, 50, SW / 2, SH / 2, Math.max(SW, SH) * 0.7); g.addColorStop(0, '#16204d'); g.addColorStop(1, '#05071a'); ctx.fillStyle = g; ctx.fillRect(0, 0, SW, SH);
-      ctx.fillStyle = 'rgba(255,255,255,.5)'; ctx.beginPath(); ctx.arc(SW / 2, SH / 2, 5, 0, 6.28); ctx.fill();   // 기준점(가운데)
-      ctx.lineCap = 'round'; ctx.lineJoin = 'round';
-      if (res) {
-        ctx.strokeStyle = 'rgba(120,255,170,.7)'; ctx.lineWidth = 3; ctx.setLineDash([10, 9]); ctx.beginPath(); ctx.arc(res.cx, res.cy, res.r, 0, 6.28); ctx.stroke(); ctx.setLineDash([]);
-        for (var i = 1; i < pts.length; i++) { ctx.strokeStyle = dcol(Math.abs(res.rs[i] - res.r) / res.r); ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(pts[i - 1][0], pts[i - 1][1]); ctx.lineTo(pts[i][0], pts[i][1]); ctx.stroke(); }
-        shown += (res.acc - shown) * 0.12 + 0.05; if (shown > res.acc) shown = res.acc;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.fillStyle = '#fff'; ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 18;
-        ctx.font = '900 ' + Math.round(Math.min(SW, SH) * 0.2) + 'px system-ui,sans-serif'; ctx.fillText(shown.toFixed(1) + '%', res.cx, res.cy); ctx.shadowBlur = 0;
-      } else if (pts.length > 1) {
-        ctx.strokeStyle = '#7FE0FF'; ctx.lineWidth = 7; ctx.beginPath(); ctx.moveTo(pts[0][0], pts[0][1]); for (var k = 1; k < pts.length; k++) ctx.lineTo(pts[k][0], pts[k][1]); ctx.stroke();
-      }
-      raf = requestAnimationFrame(frame);
-    }
     function close() { if (!alive) return; alive = false; cancelAnimationFrame(raf); document.removeEventListener('keydown', kd); window.removeEventListener('resize', resize); root.remove(); curC = null; if (opts.onExit) opts.onExit(); }
     btnX.addEventListener('click', close);
-    resize(); start(); curC = { close: close }; raf = requestAnimationFrame(frame);
+    resize(); start(); curC = { close: close };
     window.Game26._debugC = { score: scoreCircle, state: function () { return { res: res, best: best, tries: tries }; } };
   }
 

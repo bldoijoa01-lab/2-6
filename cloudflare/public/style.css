@@ -1495,3 +1495,9 @@ body.lite .bd-b{box-shadow:0 3px 8px rgba(0,0,0,.28) !important; filter:none !im
 body.lite .bd-b.new{box-shadow:0 0 0 4px rgba(255,255,255,.85) !important}
 body.lite .bd-root,body.lite .bd-top{animation:none !important}
 body.lite .gm-root *{backdrop-filter:none !important}
+
+/* 원 그리기: 배경·가운데 점·정확도 숫자는 화면 요소 (캔버스는 선만) */
+.cg-root{background:radial-gradient(ellipse at center,#16204d 0%,#05071a 75%)}
+.cg-root .gm-cv{background:transparent}
+.cg-dot{position:absolute; left:50%; top:50%; width:10px; height:10px; margin:-5px 0 0 -5px; border-radius:50%; background:rgba(255,255,255,.55); pointer-events:none}
+.cg-pct{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-weight:900; color:#fff; text-shadow:0 2px 14px rgba(0,0,0,.6); pointer-events:none; font-variant-numeric:tabular-nums}
