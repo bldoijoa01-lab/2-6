@@ -313,14 +313,17 @@
 
     // ---------- 물리 루프 ----------
     function kick() { if (!raf && alive) { lastT = performance.now(); raf = requestAnimationFrame(frame); } }
+    var lastDraw = 0;
     function frame(t) {
       raf = 0; if (!alive) return;
+      if (window.KS_LITE && t - lastDraw < 30 && !(list.some(function (o) { return o.drag; }))) { raf = requestAnimationFrame(frame); return; }   // 가벼운 화면: 30fps
+      lastDraw = t;
       var dt = Math.min(0.05, Math.max(0.001, (t - lastT) / 1000)); lastT = t;
       step(dt, t);
       var busy = list.some(function (o) {
         return o.drag || Math.abs(o.vy) > 1.5 || Math.abs(o.vx) > 1.5 || (!o.free && (Math.abs(o.tx - o.x) > 1.5 || Math.abs(o.ty - o.y) > 1.5)) || Math.abs(o.sq) > 0.005 || Math.abs(o.sqv) > 0.02;
       });
-      if (busy || (list.length && !reduce())) raf = requestAnimationFrame(frame);
+      if (busy || (list.length && !reduce() && !window.KS_LITE)) raf = requestAnimationFrame(frame);   // 가벼운 화면에서는 다 가라앉으면 루프를 멈춤
     }
     function step(dt, t) {
       sub(dt, t);

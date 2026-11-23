@@ -1480,3 +1480,18 @@ body.kiosk{overflow:hidden}
 .cg-in{width:100%; padding:14px 16px; border-radius:14px; border:1px solid rgba(255,255,255,.35); background:rgba(255,255,255,.1); color:#fff; font:inherit; font-size:22px; font-weight:800; text-align:center}
 .cg-chips{display:flex; flex-wrap:wrap; gap:6px; justify-content:center; margin:12px 0; max-height:150px; overflow:auto} .cg-chip{border:1px solid rgba(255,255,255,.3); background:rgba(255,255,255,.1); color:#fff; border-radius:99px; padding:6px 12px; font:inherit; font-weight:700; cursor:pointer}
 .cg-askm{min-height:1.3em; color:#FFB0B0; margin-bottom:6px} .cg-askr{display:flex; gap:12px; justify-content:center}
+
+/* ===== 가벼운 화면(전자칠판 성능 모드, 기본 켜짐) =====
+   성능이 낮은 칠판에서 버벅이던 원인: 화면 전체에서 움직이는 큰 블러 배경(filter:blur 72px + 계속 도는 애니메이션)과
+   카드마다 걸린 backdrop-filter(유리 효과)·큰 그림자. 가벼운 화면에선 모두 끄고 단색/정적 배경으로 대체 */
+.ks-root.ks-lite *,.ks-root.ks-lite *::before,.ks-root.ks-lite *::after{backdrop-filter:none !important; -webkit-backdrop-filter:none !important; animation:none !important; transition:none !important; text-shadow:none !important}
+.ks-root.ks-lite .ks-orb{filter:none !important; will-change:auto !important}
+.ks-root.ks-lite .ks-ring{display:none}
+.ks-root.ks-lite{--k-card:rgba(30,26,52,.86); --k-surface:rgba(34,30,58,.96)}
+.ks-root.ks-lite.ks-light{--k-card:rgba(255,255,255,.9); --k-surface:rgba(255,255,255,.98)}
+.ks-root.ks-lite .ks-card,.ks-root.ks-lite .ks-zone,.ks-root.ks-lite .ks-sbox,.ks-root.ks-lite .ks-jnote,.ks-root.ks-lite .ks-gcard,.ks-root.ks-lite .ks-mcard,.ks-root.ks-lite .ks-head,.ks-root.ks-lite .ks-dock,.ks-root.ks-lite .ks-dbtn,.ks-root.ks-lite .ks-ban,.ks-root.ks-lite .ks-sumbn,.ks-root.ks-lite .ks-hcard,.ks-root.ks-lite .ks-seat,.ks-root.ks-lite .ks-smap{box-shadow:none !important}
+body.lite .bd-root *,body.lite .bd-root::before,body.lite .bd-root::after{backdrop-filter:none !important; -webkit-backdrop-filter:none !important}
+body.lite .bd-b{box-shadow:0 3px 8px rgba(0,0,0,.28) !important; filter:none !important; transition:none !important; animation-duration:.01s !important}
+body.lite .bd-b.new{box-shadow:0 0 0 4px rgba(255,255,255,.85) !important}
+body.lite .bd-root,body.lite .bd-top{animation:none !important}
+body.lite .gm-root *{backdrop-filter:none !important}

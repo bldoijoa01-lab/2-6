@@ -905,7 +905,9 @@ export default {
     if (url.pathname.startsWith('/api/')) return json({ error: 'not_found' }, 404);
     const a = ASSETS[url.pathname === '/' ? '/index.html' : url.pathname];
     if (!a) return new Response('Not found', { status: 404 });
-    if (a.type.indexOf('text/html') === 0) return new Response(a.body.replace('<head>', '<head><script>window.BUILD=' + JSON.stringify(BUILD) + '</script>'), { headers: { 'content-type': a.type, 'cache-control': 'no-cache' } });
-    return new Response(a.body, { headers: { 'content-type': a.type, 'cache-control': 'no-cache' } });
+    const et = '"' + BUILD + '"';   // 배포 버전이 같으면 304로 즉시 응답 (매번 수백 KB를 다시 받지 않음)
+    if (request.headers.get('if-none-match') === et) return new Response(null, { status: 304, headers: { etag: et, 'cache-control': 'no-cache' } });
+    if (a.type.indexOf('text/html') === 0) return new Response(a.body.replace('<head>', '<head><script>window.BUILD=' + JSON.stringify(BUILD) + '</script>'), { headers: { 'content-type': a.type, 'cache-control': 'no-cache', etag: et } });
+    return new Response(a.body, { headers: { 'content-type': a.type, 'cache-control': 'no-cache', etag: et } });
   },
 };

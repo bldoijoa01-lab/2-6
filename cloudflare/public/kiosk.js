@@ -87,6 +87,9 @@
     root.appendChild(atmo); root.appendChild(head); root.appendChild(main); root.appendChild(dock);
     document.body.classList.add('kiosk'); document.body.classList.remove('locked');
     var scale = parseFloat(load('ks_scale') || '1'); root.style.setProperty('--ks', scale);
+    var lite = load('ks_lite') !== '0';   // 가벼운 화면(기본 켜짐): 블러·반짝이는 배경 효과를 꺼서 성능 낮은 전자칠판에서도 부드럽게
+    root.classList.toggle('ks-lite', lite); document.body.classList.toggle('lite', lite); window.KS_LITE = lite;
+    function applyLite(v) { lite = v; store('ks_lite', v ? '1' : '0'); root.classList.toggle('ks-lite', v); document.body.classList.toggle('lite', v); window.KS_LITE = v; }
     var theme = load('ks_theme') === 'light' ? 'light' : 'dark';
     root.classList.toggle('ks-light', theme === 'light');
     function applyTheme(next) { theme = next === 'light' ? 'light' : 'dark'; store('ks_theme', theme); root.classList.toggle('ks-light', theme === 'light'); if (dock.childNodes.length) paintDock(); }
@@ -445,7 +448,7 @@
     function dictRun() {
       if (engine() === 'ai') { aiRun(); return; }
       var SR = window.SpeechRecognition || window.webkitSpeechRecognition, r = new SR(); dictRec = r; r.lang = 'ko-KR'; r.continuous = true; r.interimResults = true; dictAt = Date.now();
-      r.onresult = function (e) { var interim = ''; for (var i = e.resultIndex; i < e.results.length; i++) { var t = e.results[i][0].transcript; if (e.results[i].isFinal) { if (t.trim()) dictAppend(t.trim()); } else interim += t; } dictInterim = interim; paintJrNote(); };   // 말하는 대로 흐린 글자가 바로 문단 끝에 이어 보이고, 확정되면 진해짐
+      r.onresult = function (e) { var interim = ''; for (var i = e.resultIndex; i < e.results.length; i++) { var t = e.results[i][0].transcript; if (e.results[i].isFinal) { if (t.trim()) dictAppend(t.trim()); } else interim += t; } dictInterim = interim; paintJrNoteSoon(); };   // 말하는 대로 흐린 글자가 바로 문단 끝에 이어 보이고, 확정되면 진해짐
       r.onspeechstart = function () { if (jrLive && jrLive.isConnected && !dictInterim) jrLive.textContent = '🎙 듣는 중 ●●●'; };
       r.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') dictStop('마이크 사용을 허용해 주세요 (주소창 왼쪽 자물쇠)'); else if (e.error === 'network' || e.error === 'audio-capture') { dictMsg = '연결이 불안정해요 (' + (e.error === 'network' ? '인터넷' : '마이크') + ') · 자동으로 다시 시도 중'; paintJrNote(); } };
       r.onend = function () {   // 크롬은 말이 없으면 끊김 → 다시 이어 듣되, 금방 계속 끊기면(소리 나는 기기에서 반복음 방지) 멈춤
@@ -470,6 +473,8 @@
         d.appendChild(rawBtn); d.appendChild(raw); histBox.appendChild(d);
       });
     }
+    var jrSoonT = 0;
+    function paintJrNoteSoon() { if (jrSoonT) return; jrSoonT = setTimeout(function () { jrSoonT = 0; paintJrNote(); }, lite ? 350 : 160); }   // 받아쓰기 중간 글자는 자주 그리지 않음(레이아웃 계산이 무거움)
     function paintJrNote(flash) {
       paintHist();
       if (!jrBox) return; clear(jrBox); jrLive = null; jrBox.classList.toggle('rec', dictOn);
@@ -762,6 +767,9 @@
         th.appendChild(b);
       });
       card.appendChild(th);
+      var pf = el('div', 'ks-row left'); pf.appendChild(el('span', 'ks-lbl', '화면 효과'));
+      [['⚡ 가벼운 화면 (권장)', true], ['✨ 화려한 효과', false]].forEach(function (o) { var b = el('button', 'ks-chip' + (lite === o[1] ? ' on' : ''), o[0]); b.type = 'button'; b.addEventListener('click', function () { applyLite(o[1]); Array.prototype.forEach.call(pf.querySelectorAll('.ks-chip'), function (x) { x.classList.remove('on'); }); b.classList.add('on'); }); pf.appendChild(b); });
+      card.appendChild(pf); card.appendChild(el('div', 'ks-note', '버벅이면 "가벼운 화면"을 쓰세요. 블러·움직이는 배경을 꺼요.'));
       var sz = el('div', 'ks-row left'); sz.appendChild(el('span', 'ks-lbl', '글자 크기'));
       [['보통', 1], ['크게', 1.15], ['아주 크게', 1.3]].forEach(function (s) { var b = el('button', 'ks-chip' + (Math.abs(scale - s[1]) < 0.01 ? ' on' : ''), s[0]); b.type = 'button'; b.addEventListener('click', function () { scale = s[1]; store('ks_scale', String(scale)); root.style.setProperty('--ks', scale); Array.prototype.forEach.call(sz.querySelectorAll('.ks-chip'), function (x) { x.classList.remove('on'); }); b.classList.add('on'); }); sz.appendChild(b); });
       card.appendChild(sz);
@@ -848,7 +856,7 @@
       return st;
     }
     function rpoll() {
-      var hr = kst().getUTCHours(), delay = mode === 'jongrye' ? 800 : (hr >= 7 && hr < 22 ? 3000 : 15000);
+      var hr = kst().getUTCHours(), delay = mode === 'jongrye' ? (lite ? 1500 : 800) : (hr >= 7 && hr < 22 ? 3000 : 15000);
       if (!rBusy) { rBusy = true;
         fetch('/api/kiosk/poll', { method: 'POST', headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: JSON.stringify({ since: rSince, state: remoteState() }), cache: 'no-store' })
           .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { rBusy = false; if (!j) return; rSince = j.last; (j.cmds || []).forEach(function (c) { try { runCmd(c); } catch (e) {} }); }).catch(function () { rBusy = false; });

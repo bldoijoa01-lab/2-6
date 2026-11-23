@@ -96,8 +96,18 @@
 <script src="conv9.js"></script>
 <script src="demo.js"></script>
 <script src="board.js?v=20261117t"></script>
-<script src="kiosk.js?v=20261121c"></script>
-<script src="game.js?v=20261120d"></script>
+<script>
+/* 무거운 스크립트(칠판 화면 84KB·미니게임 100KB)는 쓸 때만 내려받아 학생 폰의 첫 화면을 가볍게 */
+(function () {
+  function lazy(name, src, fns) {
+    var stub = {}, loading = null;
+    fns.forEach(function (f) { stub[f] = function () { var a = arguments; if (!loading) loading = new Promise(function (ok, no) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = function () { loading = null; no(); }; document.head.appendChild(s); }); loading.then(function () { var real = window[name]; if (real && real !== stub) real[f].apply(real, a); }); }; });
+    window[name] = stub;
+  }
+  lazy('Kiosk26', 'kiosk.js?v=20261121c', ['start']);
+  lazy('Game26', 'game.js?v=20261123a', ['hub', 'show', 'circle', 'fortress']);
+})();
+</script>
 <script src="grade.js"></script>
 <script src="app.js?v=20261117t"></script>
 </body>
