@@ -687,7 +687,15 @@
         for (var t = 0; t < tries; t++) { var cand = shuffle(cur), sc = 0; pidx.forEach(function (p) { if (old[pk(cand[p[0]], cand[p[1]])]) sc++; }); if (sc < bs) { bs = sc; best = cand; if (sc === 0) break; } }
         return best;
       }
-      function save() { store('ks_seats', JSON.stringify(seats)); }
+      var dirty = false, sbar = el('div', 'ks-sbar'); sbar.hidden = true;
+      function commit() { store('ks_seats', JSON.stringify(seats)); dirty = false; sbar.hidden = true; }
+      function save() { dirty = true; sbar.hidden = false; }   // 바꾼 자리는 '저장'을 눌러야 확정 (자습 자리표에도 그때 반영)
+      function revert() { seats = seatsLoad(); sel = null; dirty = false; sbar.hidden = true; draw(true); note.textContent = '저장해 둔 자리로 되돌렸어요'; }
+      (function () { var t = el('span', null, '✏️ 아직 저장하지 않은 자리예요'), ok = el('button', 'ks-btn big', '✅ 이 자리로 저장'), no = el('button', 'ks-btn', '↩ 되돌리기'); ok.type = no.type = 'button';
+        ok.addEventListener('click', function () { if (run) return; commit(); note.textContent = '✅ 자리를 저장했어요 (자습 자리표에도 반영돼요)'; }); no.addEventListener('click', function () { if (run) return; revert(); });
+        sbar.appendChild(t); sbar.appendChild(ok); sbar.appendChild(no); })();
+      seatGuard = { dirty: function () { return dirty; }, commit: commit, revert: function () { dirty = false; } };
+      cleanups.push(function () { seatGuard = null; });
       // ----- 소리 (기본 꺼짐) -----
       var ac2 = null; function fxBeep(f, d, v) { if (!fx.sound) return; try { ac2 = ac2 || new (window.AudioContext || window.webkitAudioContext)(); var o = ac2.createOscillator(), g2 = ac2.createGain(); o.type = 'triangle'; o.frequency.value = f; o.connect(g2); g2.connect(ac2.destination); var t0 = ac2.currentTime; g2.gain.setValueAtTime(v || 0.05, t0); g2.gain.exponentialRampToValueAtTime(0.0001, t0 + d); o.start(t0); o.stop(t0 + d + 0.02); } catch (e) {} }
       function draw(anim) {
@@ -817,7 +825,7 @@
       KAPI.seat = { shuffle: function () { go.click(); }, reset: function () { rs.click(); }, num: function () { by.click(); }, state: function () { return { seats: seats, mode: fx.mode }; } };
       [go, rs, by, pic, skipBtn].forEach(function (x) { ctl.appendChild(x); }); note.textContent = '연출을 고르고 🎲 자리 섞기! · 자리를 누르고 다른 자리를 누르면 서로 바뀌어요 · 배치는 이 전자칠판에 저장돼요';
       wrap.appendChild(grid); wrap.appendChild(el('div', 'ks-podium', '교탁')); wrap.appendChild(ov);
-      box.appendChild(opt); box.appendChild(ctl); box.appendChild(wrap); box.appendChild(note); main.appendChild(box); draw();
+      box.appendChild(opt); box.appendChild(ctl); box.appendChild(sbar); box.appendChild(wrap); box.appendChild(note); main.appendChild(box); draw();
     }
 
     var cleanups = [];
@@ -943,7 +951,14 @@
       var sic = el('span', 'ks-de'); sic.appendChild(svgIcon('settings')); s.appendChild(sic);
       s.addEventListener('click', openSettings); dock.appendChild(s);
     }
-    function setMode(m) {
+    var seatGuard = null;
+    function setMode(m, force) {
+      if (!force && mode === 'seat' && m !== 'seat' && seatGuard && seatGuard.dirty()) {   // 자리를 바꾼 뒤 저장 안 하고 다른 화면으로 가려 할 때
+        var g = seatGuard, ov2 = el('div', 'ks-askov'), bx = el('div', 'ks-ask'); bx.appendChild(el('b', null, '바꾼 자리를 저장할까요?')); bx.appendChild(el('p', null, '저장하지 않으면 이전 자리로 돌아가요.'));
+        var y = el('button', 'ks-btn big', '✅ 저장하고 이동'), n2 = el('button', 'ks-btn', '저장 안 함'), c = el('button', 'ks-btn', '계속 보기'); y.type = n2.type = c.type = 'button';
+        y.addEventListener('click', function () { ov2.remove(); g.commit(); setMode(m, true); }); n2.addEventListener('click', function () { ov2.remove(); g.revert(); setMode(m, true); }); c.addEventListener('click', function () { ov2.remove(); });
+        bx.appendChild(y); bx.appendChild(n2); bx.appendChild(c); ov2.appendChild(bx); root.appendChild(ov2); return;
+      }
       if (m === 'game') { if (window.Game26) window.Game26.hub({ onExit: function () { paintDock(); } }); return; }
       if (m === 'board') { if (window.Board26) window.Board26.show({ power: true, onExit: function () { paintDock(); } }); return; }
       if (m !== 'board' && m !== 'game') store('ks_mode', JSON.stringify({ m: m, v: jView, at: Date.now() })); try { history.replaceState(null, '', '#k-' + m); } catch (e) {}   // 새로고침·자동 업데이트 후에도 보던 화면 유지 (저장소 + 주소 뒤 #k-화면)

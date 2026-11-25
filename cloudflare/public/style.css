@@ -1527,3 +1527,8 @@ body.lite .gm-root *{backdrop-filter:none !important}
 @keyframes fxWob{from{transform:translate(-3px,2px) rotate(-2.5deg)}to{transform:translate(3px,-2px) rotate(2.5deg)}}
 
 .ks-btn[hidden]{display:none !important}
+
+.ks-sbar{display:flex; gap:.6em; align-items:center; justify-content:center; flex-wrap:wrap; margin:.6em auto; padding:.45em 1em; border-radius:14px; background:rgba(255,179,71,.16); border:1px solid #FFB347; width:max-content; max-width:94%; font-weight:800}
+.ks-sbar[hidden]{display:none !important}
+.ks-askov{position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6)}
+.ks-ask{display:flex; flex-direction:column; gap:.6em; padding:1.4em 1.8em; border-radius:20px; background:var(--k-card,#1d2347); border:1px solid rgba(255,255,255,.25); color:#fff; text-align:center; min-width:20em} .ks-ask p{margin:0; opacity:.8}
