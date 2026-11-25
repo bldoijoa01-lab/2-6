@@ -1503,3 +1503,27 @@ body.lite .gm-root *{backdrop-filter:none !important}
 .cg-pct{position:absolute; left:50%; top:50%; transform:translate(-50%,-50%); font-weight:900; color:#fff; text-shadow:0 2px 14px rgba(0,0,0,.6); pointer-events:none; font-variant-numeric:tabular-nums}
 
 .cg-top1{text-align:center; padding:6px 4px 10px; margin-bottom:6px; border-bottom:1px solid rgba(255,255,255,.18)} .cg-t1l{color:#FFE08A; font-weight:900; font-size:15px} .cg-t1n{display:block; font-size:clamp(24px,2.4vw,36px); color:#fff; line-height:1.15; margin:2px 0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap} .cg-t1a{font-size:clamp(20px,2vw,30px); font-weight:900; color:#FFE08A; font-variant-numeric:tabular-nums}
+
+/* ===== 자리 바꾸기 연출 (추첨 쇼 · 카드 뒤집기 · 날아가기) — transform/opacity만 사용, 가벼운 화면에서도 동작 ===== */
+.ks-swrap{position:relative}
+.ks-fxopt{flex-wrap:wrap; gap:.5em .9em; justify-content:center} .ks-fxg{display:inline-flex; gap:.35em}
+.ks-btn.dis{opacity:.45; pointer-events:none}
+.ks-fxov{position:absolute; left:50%; top:-.2em; transform:translateX(-50%); z-index:4; padding:.35em 1.2em; border-radius:99px; background:rgba(10,14,32,.82); border:1px solid var(--k-line-strong,rgba(255,255,255,.3)); color:#fff; font-weight:900; font-size:1.3em; white-space:nowrap; pointer-events:none}
+.ks-fxov.cnt{font-size:4.2em; padding:.05em .55em; top:20%; background:rgba(10,14,32,.7); animation:fxPop .8s ease-out both}
+.ks-fxov.go{color:#FFE08A; font-size:2.2em; top:22%} .ks-fxov.front{background:linear-gradient(90deg,#FFB347,#FF6B9A); border-color:transparent; font-size:1.8em; animation:fxPop .5s ease-out both} .ks-fxov.sus{color:#FFE08A}
+.ks-root.ks-lite .ks-fxov.cnt,.ks-root.ks-lite .ks-fxov.front{animation:fxPop .5s ease-out both !important}
+.ks-sdesk.fx-wait{opacity:.55; border-style:dashed}
+.ks-sdesk.fx-spin{background:var(--k-amber,#FFE08A) !important; color:#111827 !important; transform:scale(1.08)}
+.ks-sdesk.fx-land{animation:fxLand .55s ease-out both !important}
+.ks-sdesk.fx-front{background:linear-gradient(135deg,#FFE08A,#FFB347) !important; color:#3a2a00 !important; border-color:#FFB347 !important}
+.ks-sdesk.fx-card{background:linear-gradient(135deg,#5b6bff,#a05bff) !important; border-color:rgba(255,255,255,.5) !important; color:#fff !important; font-size:1.6em !important; cursor:pointer}
+.ks-sgrid.fx-shuffling .ks-sdesk.fx-card{animation:fxWob .22s ease-in-out infinite alternate !important}
+.ks-sdesk.fx-out{transform:scaleX(0); transition:transform .17s ease-in !important}
+.ks-sdesk.fx-fly{position:absolute; z-index:5; margin:0; display:flex; align-items:center; justify-content:center; background:var(--k-card,#222a55); will-change:transform; pointer-events:none; box-shadow:0 6px 14px rgba(0,0,0,.35) !important}
+.ks-sdesk.fx-landed{background:var(--k-amber,#FFE08A) !important; color:#111827 !important}
+.ks-fxfront{margin:.7em auto 0; width:max-content; max-width:92%; display:flex; gap:.4em; align-items:center; flex-wrap:wrap; justify-content:center; padding:.4em 1em; border-radius:99px; background:rgba(255,179,71,.2); border:1px solid #FFB347; } .ks-fxchip{padding:.1em .7em; border-radius:99px; background:#FFB347; color:#3a2a00; font-weight:900}
+@keyframes fxPop{0%{transform:translateX(-50%) scale(.6); opacity:0}60%{transform:translateX(-50%) scale(1.12); opacity:1}100%{transform:translateX(-50%) scale(1)}}
+@keyframes fxLand{0%{transform:scale(1.35)}55%{transform:scale(.94)}100%{transform:scale(1)}}
+@keyframes fxWob{from{transform:translate(-3px,2px) rotate(-2.5deg)}to{transform:translate(3px,-2px) rotate(2.5deg)}}
+
+.ks-btn[hidden]{display:none !important}

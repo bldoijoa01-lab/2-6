@@ -668,33 +668,155 @@
       [['고준서', '이수환'], ['이윤지', '이채민'], ['윤희선', '유동경'], ['오은혁', '송은준'], ['이찬민', '김진호']],
       [['김서연', null], ['정수진', '최호연'], ['한호승', '신재경'], ['안채빈', '김가빈'], ['윤기원', '김성현'], ['강다연', '정서진']]];
     function seatsLoad() { try { var j = JSON.parse(load('ks_seats') || 'null'); if (j && j.length === 3) return j; } catch (e) {} return JSON.parse(JSON.stringify(SEAT_DEF)); }
+    // ---------- 자리 바꾸기: 3가지 연출(추첨 쇼 · 카드 뒤집기 · 날아가기) ----------
     function paintSeat() {
-      var seats = seatsLoad(), box = el('div', 'ks-seat'), grid = el('div', 'ks-sgrid'), sel = null, ctl = el('div', 'ks-row'), note = el('div', 'ks-note');
-      function flat() { var a = []; seats.forEach(function (c) { c.forEach(function (r) { r.forEach(function (v, i) { if (v) a.push(v); }); }); }); return a; }
+      var seats = seatsLoad(), box = el('div', 'ks-seat'), grid = el('div', 'ks-sgrid'), sel = null, ctl = el('div', 'ks-row'), note = el('div', 'ks-note'), deskEls = [];
+      var fx = { mode: 'show', fast: false, sound: false, avoid: true }; try { var sf = JSON.parse(load('ks_seatfx') || 'null'); if (sf) Object.keys(fx).forEach(function (k) { if (sf[k] !== undefined) fx[k] = sf[k]; }); } catch (e) {}
+      function saveFx() { store('ks_seatfx', JSON.stringify(fx)); }
+      var run = null;   // 진행 중인 연출 { skip: fn }
+      // 자리 번호(flat 순서)와 위치, 앞자리(교탁 쪽 맨 앞줄) 정보
+      function slotsOf() { var out = []; seats.forEach(function (c, ci) { c.forEach(function (r, ri) { r.forEach(function (v, si) { if (v) out.push({ ci: ci, ri: ri, si: si, front: ri === c.length - 1, name: v }); }); }); }); return out; }
+      function flat() { return slotsOf().map(function (x) { return x.name; }); }
       function put(names) { var k = 0; seats.forEach(function (c) { c.forEach(function (r) { for (var i = 0; i < r.length; i++) if (r[i]) r[i] = names[k++]; }); }); }
+      function pairIdx() { var k = 0, out = []; seats.forEach(function (c) { c.forEach(function (r) { var cnt = 0, first = -1; r.forEach(function (v) { if (v) { if (first < 0) first = k; cnt++; k++; } }); if (cnt === 2) out.push([first, first + 1]); }); }); return out; }
+      function pk(a2, b2) { return a2 < b2 ? a2 + '|' + b2 : b2 + '|' + a2; }
+      function smartShuffle() {   // 지난번과 같은 짝이 최대한 안 나오게 여러 번 섞어서 가장 좋은 걸 고름
+        var cur = flat(), pidx = pairIdx(), old = {}; if (fx.avoid) pidx.forEach(function (p) { old[pk(cur[p[0]], cur[p[1]])] = 1; });
+        var best = null, bs = 1e9, tries = fx.avoid ? 400 : 1;
+        for (var t = 0; t < tries; t++) { var cand = shuffle(cur), sc = 0; pidx.forEach(function (p) { if (old[pk(cand[p[0]], cand[p[1]])]) sc++; }); if (sc < bs) { bs = sc; best = cand; if (sc === 0) break; } }
+        return best;
+      }
+      function save() { store('ks_seats', JSON.stringify(seats)); }
+      // ----- 소리 (기본 꺼짐) -----
+      var ac2 = null; function fxBeep(f, d, v) { if (!fx.sound) return; try { ac2 = ac2 || new (window.AudioContext || window.webkitAudioContext)(); var o = ac2.createOscillator(), g2 = ac2.createGain(); o.type = 'triangle'; o.frequency.value = f; o.connect(g2); g2.connect(ac2.destination); var t0 = ac2.currentTime; g2.gain.setValueAtTime(v || 0.05, t0); g2.gain.exponentialRampToValueAtTime(0.0001, t0 + d); o.start(t0); o.stop(t0 + d + 0.02); } catch (e) {} }
       function draw(anim) {
-        clear(grid); var ix = 0;
+        clear(grid); deskEls = []; var ix = 0, k = 0;
         seats.forEach(function (col, ci) {
           var c = el('div', 'ks-scol');
           col.forEach(function (row, ri) { var r = el('div', 'ks-srow'); row.forEach(function (v, si) {
             if (!v) { r.appendChild(el('div', 'ks-sdesk empty')); return; }
-            var d = el('button', 'ks-sdesk' + (sel && sel[0] === ci && sel[1] === ri && sel[2] === si ? ' sel' : ''), v); d.type = 'button'; if (anim) d.style.animationDelay = (ix * 28) + 'ms'; if (anim) d.classList.add('shuf'); ix++;
+            var d = el('button', 'ks-sdesk' + (sel && sel[0] === ci && sel[1] === ri && sel[2] === si ? ' sel' : ''), v); d.type = 'button'; if (anim) d.style.animationDelay = (ix * 28) + 'ms'; if (anim) d.classList.add('shuf'); ix++; deskEls[k++] = d;
             d.addEventListener('click', function () {
+              if (run) return;
               if (!sel) { sel = [ci, ri, si]; draw(); return; }
-              var a = seats[sel[0]][sel[1]], t = a[sel[2]]; a[sel[2]] = seats[ci][ri][si]; seats[ci][ri][si] = t; sel = null; save(); draw(); note.textContent = '두 자리를 바꿨어요';
+              var a2 = seats[sel[0]][sel[1]], t2 = a2[sel[2]]; a2[sel[2]] = seats[ci][ri][si]; seats[ci][ri][si] = t2; sel = null; save(); draw(); note.textContent = '두 자리를 바꿨어요';
             }); r.appendChild(d); }); c.appendChild(r); });
           grid.appendChild(c);
         });
       }
-      function save() { store('ks_seats', JSON.stringify(seats)); }
-      var go = el('button', 'ks-btn big', '자리 섞기'), rs = el('button', 'ks-btn', '처음 배치로'), by = el('button', 'ks-btn', '번호순');
-      go.addEventListener('click', function () { put(shuffle(flat())); sel = null; save(); draw(true); note.textContent = '새 자리예요! 이동하세요 · 두 자리를 차례로 누르면 서로 바뀌어요'; });
-      rs.addEventListener('click', function () { seats = JSON.parse(JSON.stringify(SEAT_DEF)); sel = null; save(); draw(true); note.textContent = '처음 배치로 돌아왔어요'; });
-      by.addEventListener('click', function () { getNames(function (all) { var a = all.slice().sort(function (p, q) { return p.n - q.n; }).map(function (x) { return x.name; }); if (a.length === flat().length) { put(a); save(); draw(true); note.textContent = '번호순으로 앉아 봤어요'; } else note.textContent = '학생 수가 달라서 번호순은 못 만들었어요'; }); });
-      KAPI.seat = { shuffle: function () { go.click(); }, reset: function () { rs.click(); }, num: function () { by.click(); }, state: function () { return { seats: seats }; } };
-      [go, rs, by].forEach(function (x) { ctl.appendChild(x); }); note.textContent = '자리를 누르고 다른 자리를 누르면 서로 바뀌어요 · 배치는 이 전자칠판에 저장돼요';
-      var wrap = el('div', 'ks-swrap'); wrap.appendChild(grid); wrap.appendChild(el('div', 'ks-podium', '교탁'));
-      box.appendChild(ctl); box.appendChild(wrap); box.appendChild(note); main.appendChild(box); draw();
+      var wrap = el('div', 'ks-swrap'), ov = el('div', 'ks-fxov'); ov.hidden = true;
+      function showOv(html, cls) { ov.hidden = false; ov.className = 'ks-fxov' + (cls ? ' ' + cls : ''); ov.textContent = html; }
+      function hideOv() { ov.hidden = true; }
+      function finish(names, frontWinners, extra) {   // 연출 끝: 결과 확정·저장
+        run = null; draw(false); hideOv(); setBusy(false);
+        note.textContent = '새 자리 완성! ' + (frontWinners && frontWinners.length ? '앞자리 당첨: ' + frontWinners.join(', ') + ' · ' : '') + (extra || '') + '두 자리를 차례로 누르면 서로 바뀌어요';
+        var front = el('div', 'ks-fxfront'); if (frontWinners && frontWinners.length) { front.appendChild(el('b', null, '🎉 앞자리 당첨')); frontWinners.forEach(function (n) { front.appendChild(el('span', 'ks-fxchip', n)); }); box.insertBefore(front, note); later(function () { front.remove(); }, 9000); }
+      }
+      var busyBtns = [];
+      function setBusy(b) { busyBtns.forEach(function (x) { x.disabled = b; x.classList.toggle('dis', b); }); skipBtn.hidden = !b; }
+
+      // ===== 1) 추첨 쇼: 빈 책상에서 한 명씩 슬롯머신처럼 돌다가 확정 (뒤→앞, 앞자리는 마지막에) =====
+      function runShow(target) {
+        var sl = slotsOf(), n = sl.length, order = sl.map(function (x, i) { return i; }).sort(function (p, q) { return sl[p].ri - sl[q].ri || sl[p].ci - sl[q].ci || sl[p].si - sl[q].si; });
+        deskEls.forEach(function (d) { d.textContent = '?'; d.className = 'ks-sdesk fx-wait'; });
+        var front = [], skipped = false, F = fx.fast ? 0.28 : 1, names = flat();
+        function end() { put(target); save(); finish(target, front); }
+        run = { skip: function () { skipped = true; resetTimers(); order.forEach(function (k) { if (sl[k].front) front.push(target[k]); }); front = front.filter(function (v, i, a2) { return a2.indexOf(v) === i; }); end(); } };
+        var cd = fx.fast ? 1 : 3;
+        function count(c) {
+          if (skipped) return; if (c === 0) { showOv('🎰 추첨 시작!', 'go'); fxBeep(880, 0.3, 0.07); later(function () { hideOv(); reveal(0); }, 700 * (fx.fast ? 0.5 : 1)); return; }
+          showOv(String(c), 'cnt'); fxBeep(440 + (3 - c) * 120, 0.15, 0.06); later(function () { count(c - 1); }, fx.fast ? 380 : 850);
+        }
+        function reveal(i) {
+          if (skipped) return; if (i >= n) { later(end, 600 * F + 200); return; }
+          var k = order[i], d = deskEls[k], left = n - i, dur = (left > 7 ? 420 : 420 + (7 - left) * 380) * F, last = left === 1;
+          d.className = 'ks-sdesk fx-spin'; if (left <= 3) showOv(last ? '마지막 한 자리는…' : '남은 자리 ' + left + '개', 'sus');
+          var t0 = Date.now(); (function spin() {
+            if (skipped) return; if (Date.now() - t0 >= dur) {
+              d.textContent = target[k]; d.className = 'ks-sdesk fx-land' + (sl[k].front ? ' fx-front' : ''); fxBeep(sl[k].front ? 880 : 520 + (i % 6) * 40, 0.12, 0.06);
+              if (sl[k].front) { front.push(target[k]); showOv('🎉 앞자리 당첨! ' + target[k], 'front'); later(function () { if (!skipped && ov.className.indexOf('front') > -1) hideOv(); }, 1100 * F + 250); } else if (left > 3) hideOv();
+              if (last) { showOv('🎊 ' + target[k] + '!', 'front'); }
+              later(function () { reveal(i + 1); }, (last ? 500 : 140) * F + 60); return;
+            }
+            d.textContent = names[(Math.random() * names.length) | 0]; fxBeep(300 + Math.random() * 50, 0.03, 0.02); later(spin, 70);
+          })();
+        }
+        count(cd);
+      }
+
+      // ===== 2) 카드 뒤집기: 뒷면 카드가 섞인 뒤 터치(또는 자동)로 한 장씩 뒤집힘 =====
+      function runCards(target) {
+        var sl = slotsOf(), n = sl.length, flipped = {}, front = [], cnt = 0, skipped = false, F = fx.fast ? 0.3 : 1;
+        deskEls.forEach(function (d, k) { d.textContent = '🂠'; d.className = 'ks-sdesk fx-card'; d.style.animationDelay = (Math.random() * 0.4).toFixed(2) + 's'; });
+        grid.classList.add('fx-shuffling'); showOv('🃏 카드를 섞는 중…', 'sus'); fxBeep(260, 0.5, 0.04);
+        var autoBtn = el('button', 'ks-btn big', '▶ 자동으로 뒤집기'); autoBtn.type = 'button'; autoBtn.hidden = true; ctl.appendChild(autoBtn);
+        function flip(k, quick) {
+          if (flipped[k] || skipped) return; flipped[k] = 1; var d = deskEls[k]; d.classList.add('fx-out'); fxBeep(440 + (cnt % 8) * 50, 0.08, 0.05);
+          later(function () { d.textContent = target[k]; d.className = 'ks-sdesk fx-land' + (sl[k].front ? ' fx-front' : ''); d.style.animationDelay = '0s'; cnt++;
+            if (sl[k].front) { front.push(target[k]); showOv('🎉 앞자리 당첨! ' + target[k], 'front'); later(function () { hideOv(); }, 900 * F + 200); }
+            if (cnt === n) later(end, 700); }, quick ? 40 : 190);
+        }
+        function end() { autoBtn.remove(); grid.classList.remove('fx-shuffling'); put(target); save(); finish(target, front); }
+        run = { skip: function () { skipped = true; resetTimers(); sl.forEach(function (x, k) { if (x.front) front.push(target[k]); }); end(); } };
+        later(function () {
+          grid.classList.remove('fx-shuffling'); deskEls.forEach(function (d, k) { d.style.animationDelay = '0s'; d.addEventListener('click', function () { if (run) flip(k); }); });
+          showOv('카드를 눌러 뒤집어 보세요! (또는 ▶ 자동)', 'sus'); autoBtn.hidden = false;
+        }, 1500 * F + 200);
+        autoBtn.addEventListener('click', function () {
+          autoBtn.hidden = true; hideOv(); var left = []; sl.forEach(function (x, k) { if (!flipped[k]) left.push(k); }); left.sort(function (p, q) { return sl[p].ri - sl[q].ri || sl[p].ci - sl[q].ci; });
+          (function step(i) { if (skipped || i >= left.length) return; flip(left[i]); later(function () { step(i + 1); }, (i >= left.length - 5 ? 600 : 380) * F + 40); })(0);
+        });
+      }
+
+      // ===== 3) 날아가기: 모두의 이름표가 옛 자리에서 새 자리로 날아감 (위치 이동 애니메이션만 사용) =====
+      function runFly(target) {
+        var sl = slotsOf(), cur = sl.map(function (x) { return x.name; }), rects = deskEls.map(function (d) { return d.getBoundingClientRect(); }), wr = wrap.getBoundingClientRect(), skipped = false, F = fx.fast ? 0.4 : 1;
+        var newIdx = {}; target.forEach(function (nm, i) { newIdx[nm] = i; });
+        var clones = [], far = { d: -1, nm: '' }, front = [], done = 0, total = cur.length;
+        deskEls.forEach(function (d) { d.style.visibility = 'hidden'; });
+        var order = shuffle(cur.map(function (x, i) { return i; }));
+        function end() { clones.forEach(function (c) { c.remove(); }); deskEls.forEach(function (d) { d.style.visibility = ''; }); put(target); save(); finish(target, front, far.d > 0 ? '최장거리 이동: ' + far.nm + ' · ' : ''); }
+        run = { skip: function () { skipped = true; resetTimers(); target.forEach(function (nm, i) { if (sl[i].front && front.indexOf(nm) < 0) front.push(nm); }); end(); } };
+        showOv('✈️ 이름표 출발!', 'go'); fxBeep(660, 0.25, 0.06); later(hideOv, 900 * F);
+        order.forEach(function (k, oi) {
+          var nm = cur[k], to = newIdx[nm], a = rects[k], b = rects[to], c = el('div', 'ks-sdesk fx-fly', nm);
+          c.style.left = (a.left - wr.left) + 'px'; c.style.top = (a.top - wr.top) + 'px'; c.style.width = a.width + 'px'; c.style.height = a.height + 'px'; wrap.appendChild(c); clones.push(c);
+          var dx = b.left - a.left, dy = b.top - a.top, dist = Math.hypot(dx, dy); if (dist > far.d) far = { d: dist, nm: nm };
+          var dur = (900 + Math.min(900, dist * 0.9)) * F + 150, delay = oi * 55 * F, arc = -Math.min(160, 40 + dist * 0.2) * (oi % 2 ? 1 : -1), rot = (Math.random() * 16 - 8);
+          var anim = c.animate([{ transform: 'translate(0,0) rotate(0deg) scale(1)', offset: 0 }, { transform: 'translate(' + dx * 0.5 + 'px,' + (dy * 0.5 + arc) + 'px) rotate(' + rot + 'deg) scale(1.15)', offset: 0.5 }, { transform: 'translate(' + dx + 'px,' + dy + 'px) rotate(0deg) scale(1)', offset: 1 }], { duration: dur, delay: delay, easing: 'cubic-bezier(.25,.8,.3,1)', fill: 'both' });
+          anim.onfinish = function () { if (skipped) return; c.classList.add('fx-landed'); fxBeep(500 + (done % 7) * 60, 0.05, 0.04); if (sl[to].front) { front.push(nm); } done++; if (done === total) { later(function () { if (front.length) showOv('🎉 앞자리 당첨! ' + front.join(' · '), 'front'); later(function () { end(); }, front.length ? 1400 * F + 300 : 300); }, 250); } };
+        });
+      }
+
+      function start() {
+        if (run) return; sel = null; note.textContent = '두근두근… 자리를 정하는 중!'; setBusy(true); showOv('', ''); hideOv(); var target = smartShuffle();
+        if (fx.mode === 'cards') runCards(target); else if (fx.mode === 'fly') runFly(target); else runShow(target);
+      }
+      var go = el('button', 'ks-btn big', '🎲 자리 섞기'), rs = el('button', 'ks-btn', '처음 배치로'), by = el('button', 'ks-btn', '번호순'), pic = el('button', 'ks-btn', '📷 사진 저장'), skipBtn = el('button', 'ks-btn', '⏭ 건너뛰기');
+      [go, rs, by, pic, skipBtn].forEach(function (b2) { b2.type = 'button'; }); skipBtn.hidden = true; busyBtns = [go, rs, by, pic];
+      go.addEventListener('click', start); skipBtn.addEventListener('click', function () { if (run) run.skip(); });
+      rs.addEventListener('click', function () { if (run) return; seats = JSON.parse(JSON.stringify(SEAT_DEF)); sel = null; save(); draw(true); note.textContent = '처음 배치로 돌아왔어요'; });
+      by.addEventListener('click', function () { if (run) return; getNames(function (all) { var a2 = all.slice().sort(function (p2, q2) { return p2.n - q2.n; }).map(function (x) { return x.name; }); if (a2.length === flat().length) { put(a2); save(); draw(true); note.textContent = '번호순으로 앉아 봤어요'; } else note.textContent = '학생 수가 달라서 번호순은 못 만들었어요'; }); });
+      pic.addEventListener('click', function () {   // 현재 자리표를 사진(PNG)으로 저장
+        var W2 = 1600, H2 = 900, cv2 = document.createElement('canvas'); cv2.width = W2; cv2.height = H2; var c2 = cv2.getContext('2d'); c2.fillStyle = '#0f1226'; c2.fillRect(0, 0, W2, H2);
+        c2.fillStyle = '#fff'; c2.font = '800 44px system-ui,sans-serif'; c2.textAlign = 'center'; var d0 = kst(); c2.fillText('2학년 6반 자리표 · ' + (d0.getUTCMonth() + 1) + '/' + d0.getUTCDate(), W2 / 2, 70);
+        var cw = 118, ch2 = 78, gap = 10, colGap = 60, widths = seats.map(function (c3) { return Math.max.apply(null, c3.map(function (r) { return r.length; })) * (cw + gap) - gap; }), totalW = widths.reduce(function (a3, b3) { return a3 + b3; }, 0) + colGap * (seats.length - 1), x0 = (W2 - totalW) / 2, maxRows = Math.max.apply(null, seats.map(function (c3) { return c3.length; }));
+        var cx = x0; seats.forEach(function (c3, ci) { var y0 = 130 + (maxRows - c3.length) * (ch2 + gap); c3.forEach(function (r, ri) { r.forEach(function (v, si) { if (!v) return; var x = cx + si * (cw + gap), y = y0 + ri * (ch2 + gap); c2.fillStyle = 'rgba(255,255,255,.12)'; c2.strokeStyle = 'rgba(255,255,255,.4)'; c2.lineWidth = 2; c2.beginPath(); c2.roundRect ? c2.roundRect(x, y, cw, ch2, 14) : c2.rect(x, y, cw, ch2); c2.fill(); c2.stroke(); c2.fillStyle = '#fff'; c2.font = '800 30px system-ui,sans-serif'; c2.fillText(v, x + cw / 2, y + ch2 / 2 + 11); }); }); cx += widths[ci] + colGap; });
+        c2.fillStyle = 'rgba(255,255,255,.18)'; c2.fillRect(W2 / 2 - 110, H2 - 90, 220, 54); c2.fillStyle = '#fff'; c2.font = '800 28px system-ui,sans-serif'; c2.fillText('교탁', W2 / 2, H2 - 54);
+        cv2.toBlob(function (bl) { if (!bl) return; var a3 = document.createElement('a'); a3.href = URL.createObjectURL(bl); a3.download = 'seats-' + (d0.getUTCMonth() + 1) + '-' + d0.getUTCDate() + '.png'; document.body.appendChild(a3); a3.click(); setTimeout(function () { a3.remove(); URL.revokeObjectURL(a3.href); }, 800); note.textContent = '📷 자리표를 사진으로 저장했어요'; }, 'image/png');
+      });
+      // 연출 선택 줄
+      var opt = el('div', 'ks-row ks-fxopt');
+      function chipGroup(items, get, set) { var g3 = el('div', 'ks-fxg'); items.forEach(function (it) { var b4 = el('button', 'ks-chip' + (get() === it[0] ? ' on' : ''), it[1]); b4.type = 'button'; b4.addEventListener('click', function () { if (run) return; set(it[0]); saveFx(); Array.prototype.forEach.call(g3.children, function (x) { x.classList.remove('on'); }); b4.classList.add('on'); }); g3.appendChild(b4); }); return g3; }
+      opt.appendChild(chipGroup([['show', '🎰 추첨 쇼'], ['cards', '🃏 카드 뒤집기'], ['fly', '✈️ 날아가기']], function () { return fx.mode; }, function (v) { fx.mode = v; }));
+      opt.appendChild(chipGroup([[false, '🎬 풀 연출'], [true, '⚡ 빠르게']], function () { return fx.fast; }, function (v) { fx.fast = v; }));
+      var snd = el('button', 'ks-chip' + (fx.sound ? ' on' : ''), fx.sound ? '🔊 소리' : '🔇 소리'); snd.type = 'button'; snd.addEventListener('click', function () { fx.sound = !fx.sound; saveFx(); snd.classList.toggle('on', fx.sound); snd.textContent = fx.sound ? '🔊 소리' : '🔇 소리'; fxBeep(660, 0.1, 0.05); });
+      var av = el('button', 'ks-chip' + (fx.avoid ? ' on' : ''), fx.avoid ? '👥 지난 짝 피하기 ✓' : '👥 지난 짝 피하기'); av.type = 'button'; av.addEventListener('click', function () { fx.avoid = !fx.avoid; saveFx(); av.classList.toggle('on', fx.avoid); av.textContent = fx.avoid ? '👥 지난 짝 피하기 ✓' : '👥 지난 짝 피하기'; });
+      opt.appendChild(snd); opt.appendChild(av);
+      KAPI.seat = { shuffle: function () { go.click(); }, reset: function () { rs.click(); }, num: function () { by.click(); }, state: function () { return { seats: seats, mode: fx.mode }; } };
+      [go, rs, by, pic, skipBtn].forEach(function (x) { ctl.appendChild(x); }); note.textContent = '연출을 고르고 🎲 자리 섞기! · 자리를 누르고 다른 자리를 누르면 서로 바뀌어요 · 배치는 이 전자칠판에 저장돼요';
+      wrap.appendChild(grid); wrap.appendChild(el('div', 'ks-podium', '교탁')); wrap.appendChild(ov);
+      box.appendChild(opt); box.appendChild(ctl); box.appendChild(wrap); box.appendChild(note); main.appendChild(box); draw();
     }
 
     var cleanups = [];
