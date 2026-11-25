@@ -432,7 +432,7 @@
         function startSeg() {
           var chunks = [], rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined), seg = { t0: Date.now(), loud: 0, quietSince: 0, rec: rec }; aiSeg = seg; aiRec = rec;
           rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
-          rec.onstop = function () { var loud = seg.loud; if (dictOn && aiStream) startSeg(); if (loud > 0.012 * 6 && chunks.length) aiUpload(new Blob(chunks, { type: rec.mimeType || 'audio/webm' })); };   // 말소리가 있었던 조각만 전송
+          rec.onstop = function () { var loud = seg.loud; if (loud > 0.012 * 3 && chunks.length) aiUpload(new Blob(chunks, { type: rec.mimeType || 'audio/webm' })); };   // 말소리가 있었던 조각만 전송
           rec.start();
         }
         aiTimer = setInterval(function () {   // 소리 크기 감시: 5초 이상 쌓였고 0.7초 이상 조용하면 그 자리에서 자름(말 중간을 덜 자르려고), 12초 넘으면 무조건 자름
@@ -440,7 +440,7 @@
           if (rms > 0.012) { aiSeg.loud += rms; aiSeg.quietSince = 0; } else if (!aiSeg.quietSince) aiSeg.quietSince = now;
           var age = now - aiSeg.t0;
           dictInterim = aiSeg.loud > 0.012 * 3 ? '🎙 듣는 중 ●●●' : ''; if (jrLive && jrLive.isConnected && dictInterim.indexOf('🎙') === 0) jrLive.textContent = dictInterim; else if (jrLive && jrLive.isConnected && aiQBusy === 0) jrLive.textContent = '';
-          if ((age > 2200 && aiSeg.loud > 0.012 * 4 && aiSeg.quietSince && now - aiSeg.quietSince > 450) || age > 7000 || (age > 4000 && !aiSeg.loud)) { var r = aiSeg.rec; aiSeg = null; try { r.stop(); } catch (e) {} }
+          if ((age > 2200 && aiSeg.loud > 0.012 * 4 && aiSeg.quietSince && now - aiSeg.quietSince > 450) || age > 7000 || (age > 4000 && !aiSeg.loud)) { var r = aiSeg.rec; startSeg(); try { r.stop(); } catch (e) {} }   // 새 조각을 먼저 시작하고 이전 조각을 멈춰서, 끊기는 순간에 한 말도 빠지지 않게 겹쳐 녹음
         }, 100);
         startSeg();
       }).catch(function () { dictStop('마이크 사용을 허용해 주세요 (주소창 왼쪽 자물쇠)'); });
