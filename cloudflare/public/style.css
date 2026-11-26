@@ -1541,3 +1541,7 @@ body.lite .gm-root *{backdrop-filter:none !important}
 .ks-ann-m{font-size:3.2vmin; opacity:.8}
 .ks-ann .ks-btn{margin-top:2vmin; font-size:4vmin}
 @keyframes annIn{from{opacity:0; transform:scale(1.04)}to{opacity:1; transform:none}}
+
+/* ===== 알림 방송 (위쪽 노란 띠, 글이 오른쪽으로 흐름) ===== */
+.ks-ntc{position:fixed; left:0; right:0; top:0; z-index:70; height:9vmin; overflow:hidden; background:linear-gradient(180deg,#FFE066,#FFC83D); color:#2b1f00; box-shadow:0 8px 24px rgba(0,0,0,.35); border-bottom:.5vmin solid #E0A100}
+.ks-ntc-t{position:absolute; left:0; top:0; height:100%; display:flex; align-items:center; white-space:nowrap; font-size:5.2vmin; font-weight:900; will-change:transform; padding:0 2vmin}

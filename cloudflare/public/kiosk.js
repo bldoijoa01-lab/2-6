@@ -987,6 +987,17 @@
       if (a.secs > 0) annTimer = setTimeout(function () { annClose(a.id); }, a.secs * 1000);
     }
     function annSync(a) { if (!a) { if (annEl) annClose(annSeen); return; } if (a.id !== annSeen) annShow(a); }   // 방송이 서버에서 사라지면(교사가 내림) 칠판에서도 닫음
+    // ---- 알림 방송: 위쪽 노란 띠에 글이 오른쪽으로 흘러가며(기본 2분) 처음에 딩동 소리 후 한 번만 읽어 줌. 긴급 방송과 별개 ----
+    var ntcEl = null, ntcRaf = 0, ntcTimer = 0, ntcSeen = 0; try { ntcSeen = parseInt(load('ks_ntc') || '0', 10) || 0; } catch (e) {}
+    function ntcClose(id) { if (ntcEl) { ntcEl.remove(); ntcEl = null; } cancelAnimationFrame(ntcRaf); clearTimeout(ntcTimer); try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {} if (id) { ntcSeen = id; store('ks_ntc', String(id)); } }
+    function ntcShow(n) {
+      ntcClose(0); ntcSeen = n.id; store('ks_ntc', String(n.id)); ntcEl = el('div', 'ks-ntc'); var tx = el('div', 'ks-ntc-t', '🔔 ' + n.text); ntcEl.appendChild(tx); root.appendChild(ntcEl);
+      var W = function () { return ntcEl ? ntcEl.clientWidth : 1920; }, tw = tx.offsetWidth, x = -tw, last = 0, end = Date.now() + (n.secs || 120) * 1000, spd = Math.max(120, W() / 9);   // 화면 폭을 약 9초에 건넘 (px/초)
+      (function step(t) { if (!ntcEl) return; if (Date.now() >= end) { ntcClose(n.id); return; } var dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t; x += spd * dt; if (x > W()) x = -tw - 40; tx.style.transform = 'translateX(' + x + 'px)'; ntcRaf = requestAnimationFrame(step); })(0);
+      chime(); if (n.tts !== false) later2(function () { try { if (window.speechSynthesis) { speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance(n.text); u.lang = 'ko-KR'; u.rate = 0.95; speechSynthesis.speak(u); } } catch (e) {} }, 1700);
+    }
+    function later2(fn, ms) { ntcTimer = setTimeout(fn, ms); }
+    function ntcSync(n) { if (!n) { if (ntcEl) ntcClose(ntcSeen); return; } if (n.id !== ntcSeen) ntcShow(n); }
     function runCmd(c) {
       var a = c.args || {};
       if (c.cmd === 'mode' && a.m) { if (a.m === 'board') return; if (a.m === 'jongrye' && (a.view === 'jo' || a.view === 'jong')) { jView = a.view; setMode('jongrye'); } else if (a.m !== mode) setMode(a.m); }
@@ -1003,7 +1014,7 @@
     }
     var rSince = null, rBusy = false;
     function remoteState() {
-      var st = { mode: mode, at: Date.now(), alert: alertText, annSeen: annSeen, annOpen: !!annEl };
+      var st = { mode: mode, at: Date.now(), alert: alertText, annSeen: annSeen, annOpen: !!annEl, ntcSeen: ntcSeen };
       try { Object.keys(KAPI).forEach(function (k) { st[k] = KAPI[k].state(); }); } catch (e) {}
       if (mode === 'clean') { var all = {}; chips.forEach(function (b) { all[b.dataset.name] = !!CL[b.dataset.name]; }); st.clean = all; }
       return st;
@@ -1012,7 +1023,7 @@
       var hr = kst().getUTCHours(), delay = mode === 'jongrye' ? (lite ? 1500 : 800) : (hr >= 7 && hr < 22 ? 3000 : 15000);
       if (!rBusy) { rBusy = true;
         fetch('/api/kiosk/poll', { method: 'POST', headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: JSON.stringify({ since: rSince, state: remoteState() }), cache: 'no-store' })
-          .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { rBusy = false; if (!j) return; rSince = j.last; annSync(j.ann); (j.cmds || []).forEach(function (c) { try { runCmd(c); } catch (e) {} }); }).catch(function () { rBusy = false; });
+          .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { rBusy = false; if (!j) return; rSince = j.last; annSync(j.ann); ntcSync(j.ntc); (j.cmds || []).forEach(function (c) { try { runCmd(c); } catch (e) {} }); }).catch(function () { rBusy = false; });
       }
       setTimeout(rpoll, delay);
     }

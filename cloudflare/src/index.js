@@ -291,18 +291,25 @@ export class Board {
           return out({ ok: true, id: k.id });
         }
         if (cmd === 'annclear') { k.ann = null; k.annClearAt = Date.now(); return out({ ok: true }); }
+        if (cmd === 'notice') {   // 알림 방송: 위쪽 노란 띠로 흐르는 글 + 한 번 읽어 주기(기본 2분). 긴급 방송과 따로 보관
+          const text = String(ar.text || '').trim().slice(0, 300); if (!text) return out({ error: 'bad' }, 400);
+          const secs = Math.max(20, Math.min(600, parseInt(ar.secs, 10) || 120));
+          k.ntc = { id: k.id, text, secs, tts: ar.tts !== false, by: me.name, at: Date.now(), exp: Date.now() + Math.max(secs, 1800) * 1000 };
+          return out({ ok: true, id: k.id });
+        }
+        if (cmd === 'ntcclear') { k.ntc = null; return out({ ok: true }); }
         k.q.push({ id: k.id, cmd, args: ar, by: me.name, at: Date.now() }); if (k.q.length > 20) k.q.shift();
         return out({ ok: true, id: k.id });
       }
       if (b.op === 'kpoll') {
         if (me.role !== 'board') return out({ error: 'forbidden' }, 403);
         if (b.state && typeof b.state === 'object') { k.st = b.state; k.ts = Date.now(); }
-        const ann = k.ann && k.ann.exp > Date.now() ? k.ann : null;
-        if (b.since == null) return out({ last: k.id, cmds: [], ann });
-        return out({ last: k.id, cmds: k.q.filter((c) => c.id > b.since && Date.now() - c.at < 120000), ann });
+        const ann = k.ann && k.ann.exp > Date.now() ? k.ann : null, ntc = k.ntc && k.ntc.exp > Date.now() ? k.ntc : null;
+        if (b.since == null) return out({ last: k.id, cmds: [], ann, ntc });
+        return out({ last: k.id, cmds: k.q.filter((c) => c.id > b.since && Date.now() - c.at < 120000), ann, ntc });
       }
       if (!ctl) return out({ error: 'forbidden' }, 403);
-      return out({ online: Date.now() - k.ts < 20000, state: k.st, age: k.ts ? Date.now() - k.ts : null, ann: k.ann && k.ann.exp > Date.now() ? k.ann : null });
+      return out({ online: Date.now() - k.ts < 20000, state: k.st, age: k.ts ? Date.now() - k.ts : null, ann: k.ann && k.ann.exp > Date.now() ? k.ann : null, ntc: k.ntc && k.ntc.exp > Date.now() ? k.ntc : null });
     }
     if (b.op === 'clean_post') {
       const key = 'clean:' + b.date;
