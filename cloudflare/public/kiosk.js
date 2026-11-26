@@ -463,6 +463,49 @@
       if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) { dictMsg = '이 브라우저는 받아쓰기를 지원하지 않아요 (크롬을 써 주세요)'; paintJrNote(); return; }
       dictOn = true; dictFail = 0; dictMsg = ''; dictBase = (JR && JR.text) || ''; dictSent = []; dictRun(); paintJrNote(); paintBadge();
     }
+    // ---- 지난 조회/종례: 가장 최근 기록 1개를 기본으로 보여 주고, 버튼으로 최근 45일을 더 봄 ----
+    var pastCache = null, pastAt = 0, pastBox = null;
+    function loadPast(cb) {
+      if (pastCache && Date.now() - pastAt < 60000) { cb(pastCache); return; }
+      fetch('/api/jongrye?days=45', { headers: { authorization: 'Bearer ' + tok() }, cache: 'no-store' }).then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { if (j && j.logs) { pastCache = j; pastAt = Date.now(); cb(j); } else cb(pastCache); }).catch(function () { cb(pastCache); });
+    }
+    function pastEntries(j, skipToday) {   // 날짜 최신순 → 같은 날은 늦게 끝낸 것부터. {iso, kind, at, text, lines}
+      var out = []; if (!j || !j.logs) return out;
+      Object.keys(j.logs).sort().reverse().forEach(function (iso) {
+        if (skipToday && iso === j.today) return;
+        var r = j.logs[iso], list = [];
+        (r.hist || []).forEach(function (e) { list.push({ iso: iso, kind: e.kind, at: e.at, text: e.text || '', lines: (e.summary && e.summary.lines) || [] }); });
+        if (r.text) list.push({ iso: iso, kind: r.kind || null, at: r.at, text: r.text, lines: (r.summary && r.summary.lines) || [] });
+        list.sort(function (p, q) { return (q.at || 0) - (p.at || 0); }); out = out.concat(list);
+      });
+      return out;
+    }
+    function dayLabel(iso) { var p = iso.split('-'), d = new Date(Date.UTC(+p[0], +p[1] - 1, +p[2])); return (+p[1]) + '월 ' + (+p[2]) + '일 ' + '일월화수목금토'.charAt(d.getUTCDay()) + '요일'; }
+    function entryCard(e, open) {
+      var KL = { jo: '🌅 조회', jong: '📣 종례' }, d = el('details', 'ks-hcard'); d.open = !!open;
+      var sm = el('summary'); sm.appendChild(el('b', null, dayLabel(e.iso) + ' · ' + (KL[e.kind] || '📢 안내'))); if (e.at) sm.appendChild(el('small', null, ' · ' + hm(e.at))); d.appendChild(sm);
+      var lines = e.lines.length ? e.lines : (e.text ? e.text.split(/\n+/).filter(Boolean).slice(0, 6) : []), ul = el('ul', 'ks-suml'); lines.forEach(function (t) { ul.appendChild(el('li', null, t)); }); d.appendChild(ul);
+      if (e.text && e.lines.length) { var rb = el('button', 'ks-chip', '원문 보기'), raw = el('div', 'ks-hraw', e.text); raw.hidden = true; rb.type = 'button'; rb.addEventListener('click', function () { raw.hidden = !raw.hidden; rb.textContent = raw.hidden ? '원문 보기' : '원문 접기'; }); d.appendChild(rb); d.appendChild(raw); }
+      return d;
+    }
+    function openPastModal() {
+      var ov = el('div', 'ks-modal'), card = el('div', 'ks-mcard ks-pastm'); card.appendChild(el('h2', null, '📜 지난 조회/종례')); var body = el('div', 'ks-pastl'); body.appendChild(el('div', 'ks-note', '불러오는 중…')); card.appendChild(body);
+      var close = el('button', 'ks-btn', '닫기'); close.type = 'button'; close.addEventListener('click', function () { ov.remove(); }); card.appendChild(close); ov.appendChild(card); ov.addEventListener('click', function (e) { if (e.target === ov) ov.remove(); }); root.appendChild(ov);
+      loadPast(function (j) {
+        clear(body); var list = pastEntries(j, false); if (!list.length) { body.appendChild(el('div', 'ks-note', '아직 저장된 조회/종례 기록이 없어요.')); return; }
+        var last = ''; list.forEach(function (e) { body.appendChild(entryCard(e, e === list[0])); });
+      });
+    }
+    function paintPast() {
+      if (!pastBox) return; clear(pastBox);
+      var more = el('button', 'ks-btn', '📜 지난 조회/종례 더 보기'); more.type = 'button'; more.addEventListener('click', openPastModal);
+      var todayHas = !!(JR && JR.hist && JR.hist.length);   // 오늘 이미 끝낸 게 있으면 위 카드가 가장 최근 기록이라 따로 안 띄움
+      loadPast(function (j) {
+        if (!pastBox) return; clear(pastBox);
+        if (!todayHas) { var e = pastEntries(j, true)[0]; if (e) { pastBox.appendChild(el('div', 'ks-sec', '가장 최근 기록')); pastBox.appendChild(entryCard(e, true)); } }
+        pastBox.appendChild(more);
+      });
+    }
     function paintHist() {   // 이미 끝낸 조회/종례의 요약본(접을 수 있는 카드)
       if (!histBox) return; clear(histBox);
       var KL = { jo: '오늘 조회 요약', jong: '오늘 종례 요약' };
@@ -545,7 +588,8 @@
       if (jo) box.appendChild(banner('jong', 'announce', '조회 시간', SC.hs + ' ~ ' + SC.he, SC.he, '조회 끝까지'));
       else box.appendChild(banner('jong', 'announce', '종례 시간', SCe().js + ' ~ ' + SCe().ee, SCe().ee, '종례 끝까지'));
       histBox = el('div', 'ks-jhist'); box.appendChild(histBox);
-      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { jrBox = null; histBox = null; });
+      pastBox = el('div', 'ks-jpast'); box.appendChild(pastBox); paintPast();
+      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { jrBox = null; histBox = null; pastBox = null; });
    // 받아쓰기는 다른 화면으로 가도 계속 듣고, 끄기 버튼을 눌러야 멈춤
       var cols = el('div', 'ks-jcols'), iso = isoOf(kst()), daily = (D.daily || {})[iso];
       var c1 = card('오늘의 알림장', 'notice'), ul = el('ul', 'ks-list');

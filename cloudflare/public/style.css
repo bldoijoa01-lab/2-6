@@ -1548,3 +1548,7 @@ body.lite .gm-root *{backdrop-filter:none !important}
 .ks-ntc-u{display:inline-block; padding:0 .3em}
 
 .ks-ann .ks-btn.big{font-family:inherit; cursor:pointer; border:0; border-radius:1em; padding:.5em 1.6em; background:linear-gradient(135deg,#9E7BFF,#7355E8); color:#fff; font-weight:800}
+
+/* ===== 칠판: 지난 조회/종례 ===== */
+.ks-jpast{display:flex; flex-direction:column; gap:.6em; margin:.6em 0}
+.ks-pastm{max-height:86vh; overflow:auto; min-width:min(46em,92vw)} .ks-pastl{display:flex; flex-direction:column; gap:.6em; margin:.8em 0}
