@@ -518,6 +518,8 @@
   }
 
   // ---------- 홈 ----------
+  function pvEmpty() { return PREVIEW && PREVIEW.shared ? '이 학생은 아직 선택과목을 고르지 않았어요' : '이 학생의 정보가 아직 공유되지 않았어요'; }   // 공유는 학생이 앱을 열면 자동으로 됨: 공유는 됐는데 과목이 비면 '안 골랐다', 공유 자체가 없으면 '아직 공유 전'
+  function pvEmptyDesc() { return PREVIEW && PREVIEW.shared ? '학생이 선택과목을 고르면 여기서 볼 수 있어요. (미리보기: 읽기 전용)' : '학생이 앱을 한 번 열면 자동으로 공유돼요. (미리보기: 읽기 전용)'; }
   function goTab(name) { if (PREVIEW && name === 'me') return;   // 교사 미리보기에서는 '내 정보'로 보낼 수 없음(그 학생의 화면을 보는 중)
     if (name === 'exam' && examView !== 'main') { examView = 'main'; renderExamSeg(); } selectTab(name); window.scrollTo({ top: 0, behavior: 'smooth' }); }
   function renderHome() {
@@ -571,7 +573,7 @@
       nb.addEventListener('click', function () { goTab('today'); });
       p.appendChild(nb);
     });
-    if (PREVIEW && myElectives().length < 5) p.appendChild(h('div', { class: 'note-sm', text: '이 학생은 아직 선택과목을 공유하지 않았어요' }));
+    if (PREVIEW && myElectives().length < 5) p.appendChild(h('div', { class: 'note-sm', text: pvEmpty() }));
     else if (myElectives().length < 5) {
       var nudge = h('button', { class: 'nudge', type: 'button' }, [h('b', { text: '📝 선택과목을 먼저 골라 주세요' }), h('small', { text: '고르면 등급컷과 기말 목표 계산기가 열려요 →' })]);
       nudge.addEventListener('click', function () { goTab('me'); });
@@ -1559,7 +1561,7 @@
     if (nPicked < 5) {   // 선택과목을 먼저 골라야 성적(내신)을 입력할 수 있음
       var go = h('button', { class: 'btn', type: 'button', text: '선택과목 고르러 가기 →' });
       go.addEventListener('click', function () { goTab('me'); });
-      if (PREVIEW) { p.appendChild(h('div', { class: 'card' }, [head('LOCKED', '이 학생은 아직 선택과목을 공유하지 않았어요'), h('div', { class: 'card-b' }, [h('div', { class: 'gate-ic', text: '🔐' }), h('div', { class: 'note-sm', text: '학생이 선택과목을 고르고 성적을 공유하면 여기서 볼 수 있어요. (미리보기: 읽기 전용)' })])])); return; }
+      if (PREVIEW) { p.appendChild(h('div', { class: 'card' }, [head('LOCKED', pvEmpty()), h('div', { class: 'card-b' }, [h('div', { class: 'gate-ic', text: '🔐' }), h('div', { class: 'note-sm', text: pvEmptyDesc() })])])); return; }
       p.appendChild(h('div', { class: 'card' }, [head('LOCKED', '먼저 선택과목을 골라 주세요'), h('div', { class: 'card-b' }, [
         h('div', { class: 'gate-ic', text: '🔐' }),
         h('div', { class: 'note-sm', text: '내신(학기별 성적)은 2학기 선택과목(택5)을 먼저 고른 뒤에 입력할 수 있어요. 지금 ' + nPicked + ' / 5 선택했어요.' }),
@@ -1916,7 +1918,7 @@
     var p = document.getElementById('panel-grade'); clear(p);
     var go = h('button', { class: 'btn', type: 'button', text: '선택과목 고르러 가기 →' });
     go.addEventListener('click', function () { goTab('me'); });
-    if (PREVIEW) { p.appendChild(h('div', { class: 'card' }, [head('LOCKED', '이 학생은 아직 선택과목을 공유하지 않았어요'), h('div', { class: 'card-b' }, [h('div', { class: 'gate-ic', text: '🔐' }), h('div', { class: 'note-sm', text: '학생이 선택과목을 고르고 공유하면 등급컷과 기말 목표를 볼 수 있어요. (미리보기: 읽기 전용)' })])])); if (GC_STATE === 'done') GC_STATE = 'dirty'; return true; }
+    if (PREVIEW) { p.appendChild(h('div', { class: 'card' }, [head('LOCKED', pvEmpty()), h('div', { class: 'card-b' }, [h('div', { class: 'gate-ic', text: '🔐' }), h('div', { class: 'note-sm', text: pvEmptyDesc() })])])); if (GC_STATE === 'done') GC_STATE = 'dirty'; return true; }
     p.appendChild(h('div', { class: 'card' }, [head('LOCKED', '먼저 선택과목을 골라 주세요'), h('div', { class: 'card-b' }, [
       h('div', { class: 'gate-ic', text: '🔐' }),
       h('div', { class: 'note-sm', text: '내가 듣는 과목의 등급컷과 기말 목표를 보려면, 2학기 선택과목(택5)을 먼저 골라야 해요. 지금 ' + n + ' / 5 선택했어요.' }),
