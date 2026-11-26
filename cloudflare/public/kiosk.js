@@ -913,6 +913,9 @@
       card.appendChild(field('자습 문구', 'text', SC.smsg, function (v) { SC.smsg = v || SCHED_DEF.smsg; }, '16em'));
       card.appendChild(el('div', 'ks-sec', '조회 시간')); card.appendChild(field('조회 시작', 'time', SC.hs, function (v) { SC.hs = v; })); card.appendChild(field('조회 끝', 'time', SC.he, function (v) { SC.he = v; }));
       var tg = el('div', 'ks-row left'); tg.appendChild(toggle('시간 되면 자동 전환', 'auto')); tg.appendChild(toggle('딩동 소리', 'chime')); card.appendChild(tg);
+      card.appendChild(el('div', 'ks-sec', '전자칠판 앱 (방송이 올 때 화면을 켜고 앞으로 올려 줘요)'));
+      var ap = el('a', 'ks-btn', '📱 앱 설치 파일 받기'); ap.href = '/app'; ap.setAttribute('download', 'class26-board.apk'); ap.style.textDecoration = 'none'; ap.style.display = 'inline-block';
+      var apr = el('div', 'ks-row left'); apr.appendChild(ap); apr.appendChild(el('span', 'ks-note', (/; wv\)/.test(navigator.userAgent) ? '지금 앱으로 실행 중이에요 · ' : '') + '주소로 직접 받으려면 ' + location.host + '/app')); card.appendChild(apr);
       var fs = el('button', 'ks-btn', '전체화면'); fs.type = 'button'; fs.addEventListener('click', function () { if (document.fullscreenElement) document.exitFullscreen(); else if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen().catch(function () {}); });
       var wl = el('div', 'ks-note', wakeLock ? '화면이 꺼지지 않게 유지 중이에요' : '이 브라우저는 화면 꺼짐 방지를 지원하지 않거나 아직 켜지지 않았어요');
       var out = el('button', 'ks-btn danger', '로그아웃'); out.type = 'button'; out.addEventListener('click', function () { if (window.confirm('전자칠판 계정을 로그아웃할까요? 다시 로그인하려면 비밀번호가 필요해요.')) { store('tok26', null); store('gk26', null); location.hash = ''; location.reload(); } });

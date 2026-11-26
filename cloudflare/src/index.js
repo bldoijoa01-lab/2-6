@@ -909,6 +909,7 @@ export default {
       return new Response(ICON, { headers: { 'content-type': 'image/png', 'cache-control': 'public, max-age=86400' } });
     if (url.pathname === '/fonts/pretendard-1.woff2')
       return new Response(FONT, { headers: { 'content-type': 'font/woff2', 'cache-control': 'public, max-age=31536000, immutable' } });
+    if (url.pathname === '/app') return Response.redirect('https://github.com/bldoijoa01-lab/2-6/releases/download/board-apk/class26-board.apk', 302);   // 전자칠판 앱(APK) 설치 파일: 짧은 주소로 받기
     if (url.pathname === '/api/version') return new Response(JSON.stringify({ v: BUILD }), { headers: { 'content-type': 'application/json', 'cache-control': 'no-store' } });   // 새 버전 배포 확인용
     if (url.pathname.startsWith('/api/')) return json({ error: 'not_found' }, 404);
     const a = ASSETS[url.pathname === '/' ? '/index.html' : url.pathname];
