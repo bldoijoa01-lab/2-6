@@ -9,7 +9,7 @@ import { parseSummary, ruleSummary, kstISO, addDaysISO, buildAutoDaily, pinnedIt
 import { sendPush } from './webpush.js';
 const enc = new TextEncoder();
 const TTL = 60 * 60 * 24 * 30, BOARD_TTL = 60 * 60 * 24 * 365;   // 전자칠판 계정은 1년 유지(교실 PC가 매번 로그아웃되지 않게)
-const isStu = (x) => x.role !== 'teacher' && x.role !== 'board';   // 학생 명단에서 교사·전자칠판 계정 제외
+const isStu = (x) => x.role !== 'teacher' && x.role !== 'board' && x.role !== 'manager';   // 학생 명단에서 교사·전자칠판·운영 전용 관리자 계정 제외
 const CUTS_URL = 'https://bldoijoa01-lab.github.io/gradecut/cuts.json'; // 등급컷 아카이브 저장소가 원본 (여기서 직접 가져옴)
 
 const b64u = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
@@ -704,7 +704,7 @@ export default {
       const auth = (request.headers.get('authorization') || '').replace(/^Bearer /, '');
       if (!await verifyToken(env, auth, 'full')) return json({ error: 'unauthorized' }, 401);
       const roster = JSON.parse(await env.CLASS_KV.get('roster') || '[]'), keys = [];
-      for (const t of roster.filter((x) => x.role === 'teacher')) {
+      for (const t of roster.filter((x) => x.role === 'teacher' && !x.noGrades)) {   // noGrades 표시된 교사 계정은 학생 성적 사본을 받을(복호화할) 키 목록에서 제외
         const rec = JSON.parse(await env.CLASS_KV.get('tkey:' + t.n) || 'null');
         if (rec && rec.pub) keys.push({ n: t.n, pub: rec.pub });
       }
