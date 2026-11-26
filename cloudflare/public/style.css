@@ -1532,3 +1532,12 @@ body.lite .gm-root *{backdrop-filter:none !important}
 .ks-sbar[hidden]{display:none !important}
 .ks-askov{position:fixed; inset:0; z-index:60; display:flex; align-items:center; justify-content:center; background:rgba(5,8,20,.6)}
 .ks-ask{display:flex; flex-direction:column; gap:.6em; padding:1.4em 1.8em; border-radius:20px; background:var(--k-card,#1d2347); border:1px solid rgba(255,255,255,.25); color:#fff; text-align:center; min-width:20em} .ks-ask p{margin:0; opacity:.8}
+
+/* ===== 긴급 방송 (전체 화면) ===== */
+.ks-ann{position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center; background:rgba(120,10,30,.94); color:#fff; padding:4vmin; animation:annIn .35s ease-out both}
+.ks-ann-b{display:flex; flex-direction:column; align-items:center; gap:1.2vmin; max-width:92vw; text-align:center}
+.ks-ann-h{font-size:4vmin; font-weight:900; letter-spacing:.05em; padding:.3em 1.2em; border-radius:99px; background:rgba(255,255,255,.18)}
+.ks-ann-t{font-size:11vmin; font-weight:900; line-height:1.25; word-break:keep-all; white-space:pre-wrap}
+.ks-ann-m{font-size:3.2vmin; opacity:.8}
+.ks-ann .ks-btn{margin-top:2vmin; font-size:4vmin}
+@keyframes annIn{from{opacity:0; transform:scale(1.04)}to{opacity:1; transform:none}}

@@ -283,17 +283,26 @@ export class Board {
       if (b.op === 'kcmd') {
         if (!ctl) return out({ error: 'forbidden' }, 403);
         const cmd = String(b.cmd || '').slice(0, 20); if (!/^[a-z]+$/.test(cmd)) return out({ error: 'bad' }, 400);
-        k.id++; k.q.push({ id: k.id, cmd, args: b.args && typeof b.args === 'object' ? b.args : {}, by: me.name, at: Date.now() }); if (k.q.length > 20) k.q.shift();
+        k.id++; const ar = b.args && typeof b.args === 'object' ? b.args : {};
+        if (cmd === 'announce') {   // 긴급 방송: 칠판이 꺼져 있다 켜져도 놓치지 않게 따로 보관(기본 30분)해 두고 칠판이 켜지면 받아 감
+          const text = String(ar.text || '').trim().slice(0, 300); if (!text) return out({ error: 'bad' }, 400);
+          const secs = Math.max(0, Math.min(600, parseInt(ar.secs, 10) || 0)), ttl = Math.max(1, Math.min(180, parseInt(ar.ttl, 10) || 30));
+          k.ann = { id: k.id, text, secs, sound: ar.sound !== false, by: me.name, at: Date.now(), exp: Date.now() + ttl * 60000 };
+          return out({ ok: true, id: k.id });
+        }
+        if (cmd === 'annclear') { k.ann = null; k.annClearAt = Date.now(); return out({ ok: true }); }
+        k.q.push({ id: k.id, cmd, args: ar, by: me.name, at: Date.now() }); if (k.q.length > 20) k.q.shift();
         return out({ ok: true, id: k.id });
       }
       if (b.op === 'kpoll') {
         if (me.role !== 'board') return out({ error: 'forbidden' }, 403);
         if (b.state && typeof b.state === 'object') { k.st = b.state; k.ts = Date.now(); }
-        if (b.since == null) return out({ last: k.id, cmds: [] });
-        return out({ last: k.id, cmds: k.q.filter((c) => c.id > b.since && Date.now() - c.at < 120000) });
+        const ann = k.ann && k.ann.exp > Date.now() ? k.ann : null;
+        if (b.since == null) return out({ last: k.id, cmds: [], ann });
+        return out({ last: k.id, cmds: k.q.filter((c) => c.id > b.since && Date.now() - c.at < 120000), ann });
       }
       if (!ctl) return out({ error: 'forbidden' }, 403);
-      return out({ online: Date.now() - k.ts < 20000, state: k.st, age: k.ts ? Date.now() - k.ts : null });
+      return out({ online: Date.now() - k.ts < 20000, state: k.st, age: k.ts ? Date.now() - k.ts : null, ann: k.ann && k.ann.exp > Date.now() ? k.ann : null });
     }
     if (b.op === 'clean_post') {
       const key = 'clean:' + b.date;

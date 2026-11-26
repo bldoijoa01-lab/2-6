@@ -973,12 +973,24 @@
       if (alertEl) { alertEl.remove(); alertEl = null; } alertText = text || ''; if (!alertText) return;
       alertEl = el('div', 'ks-alert'); alertEl.appendChild(el('div', 'ks-alert-t', alertText)); var x = el('button', 'ks-alert-x', '✕ 닫기'); x.addEventListener('click', function () { showAlert(''); }); alertEl.appendChild(x); root.appendChild(alertEl);
     }
+    // ---- 긴급 방송: 어떤 화면이든 전체 화면으로 크게 덮고 소리를 울림. 확인을 눌렀거나 정한 시간이 지나면 닫힘. 서버가 방송을 보관하므로 칠판이 늦게 켜져도 받아 옴 ----
+    var annEl = null, annTimer = 0, annSeen = 0, annSnd = 0; try { annSeen = parseInt(load('ks_ann') || '0', 10) || 0; } catch (e) {}
+    function annClose(id) { if (annEl) { annEl.remove(); annEl = null; } clearTimeout(annTimer); clearInterval(annSnd); annSnd = 0; if (id) { annSeen = id; store('ks_ann', String(id)); } }
+    function annShow(a) {
+      annClose(0); annSeen = a.id; store('ks_ann', String(a.id)); annEl = el('div', 'ks-ann'); var bx = el('div', 'ks-ann-b');
+      bx.appendChild(el('div', 'ks-ann-h', '📢 안내 방송')); bx.appendChild(el('div', 'ks-ann-t', a.text)); var meta = el('div', 'ks-ann-m', (a.by ? a.by + ' · ' : '') + hm(a.at)); bx.appendChild(meta);
+      var x = el('button', 'ks-btn big', '✓ 확인'); x.type = 'button'; x.addEventListener('click', function () { annClose(a.id); }); bx.appendChild(x); annEl.appendChild(bx); root.appendChild(annEl);
+      if (a.sound !== false) { var n = 0; chime(); annSnd = setInterval(function () { if (++n >= 3) { clearInterval(annSnd); annSnd = 0; return; } chime(); }, 2500); }
+      if (a.secs > 0) annTimer = setTimeout(function () { annClose(a.id); }, a.secs * 1000);
+    }
+    function annSync(a) { if (!a) { if (annEl) annClose(annSeen); return; } if (a.id !== annSeen) annShow(a); }   // 방송이 서버에서 사라지면(교사가 내림) 칠판에서도 닫음
     function runCmd(c) {
       var a = c.args || {};
       if (c.cmd === 'mode' && a.m) { if (a.m === 'board') return; if (a.m === 'jongrye' && (a.view === 'jo' || a.view === 'jong')) { jView = a.view; setMode('jongrye'); } else if (a.m !== mode) setMode(a.m); }
       else if (c.cmd === 'seat') { if (mode !== 'seat') setMode('seat'); var S = KAPI.seat; if (S && S[a.action]) S[a.action](); }
       else if (c.cmd === 'pick') { if (mode !== 'pick') setMode('pick'); if (KAPI.pick) (a.action === 'reset' ? KAPI.pick.reset : KAPI.pick.go)(); }
       else if (c.cmd === 'group') { if (mode !== 'group') setMode('group'); if (KAPI.group) KAPI.group.set(a.n); }
+      else if (c.cmd === 'annclear') annClose(0);
       else if (c.cmd === 'banner') showAlert(a.text ? String(a.text).slice(0, 120) : '');
       else if (c.cmd === 'cleansync') { if (mode === 'clean') pullLog(); else api('GET').then(function (j) { if (j && j.logs) CL = j.logs[j.today] || {}; }).catch(function () {}); }
       else if (c.cmd === 'jongryesync') { if (dictOn || jrPending) return; JR = a.rec || null; D.jongrye = JR; if (mode === 'jongrye') paintJrNote(true); paintSum(); }
@@ -988,7 +1000,7 @@
     }
     var rSince = null, rBusy = false;
     function remoteState() {
-      var st = { mode: mode, at: Date.now(), alert: alertText };
+      var st = { mode: mode, at: Date.now(), alert: alertText, annSeen: annSeen, annOpen: !!annEl };
       try { Object.keys(KAPI).forEach(function (k) { st[k] = KAPI[k].state(); }); } catch (e) {}
       if (mode === 'clean') { var all = {}; chips.forEach(function (b) { all[b.dataset.name] = !!CL[b.dataset.name]; }); st.clean = all; }
       return st;
@@ -997,7 +1009,7 @@
       var hr = kst().getUTCHours(), delay = mode === 'jongrye' ? (lite ? 1500 : 800) : (hr >= 7 && hr < 22 ? 3000 : 15000);
       if (!rBusy) { rBusy = true;
         fetch('/api/kiosk/poll', { method: 'POST', headers: { authorization: 'Bearer ' + tok(), 'content-type': 'application/json' }, body: JSON.stringify({ since: rSince, state: remoteState() }), cache: 'no-store' })
-          .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { rBusy = false; if (!j) return; rSince = j.last; (j.cmds || []).forEach(function (c) { try { runCmd(c); } catch (e) {} }); }).catch(function () { rBusy = false; });
+          .then(function (r) { return r.ok ? r.json() : null; }).then(function (j) { rBusy = false; if (!j) return; rSince = j.last; annSync(j.ann); (j.cmds || []).forEach(function (c) { try { runCmd(c); } catch (e) {} }); }).catch(function () { rBusy = false; });
       }
       setTimeout(rpoll, delay);
     }

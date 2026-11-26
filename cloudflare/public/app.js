@@ -2739,6 +2739,9 @@
     body.appendChild(sec('발표자 · 모둠', [btn('🎲 발표자 뽑기', function () { send('pick', { action: 'go' }, '발표자 뽑기'); }), btn('처음부터', function () { send('pick', { action: 'reset' }, '뽑기 초기화'); }), gn, h('span', { text: '모둠' }), btn('🔀 모둠 섞기', function () { send('group', { n: +gn.value || 6 }, '모둠 나누기'); })]));
     var msg = h('input', { type: 'text', class: 'rc-in wide', maxlength: '120', placeholder: '전자칠판에 크게 띄울 공지 (예: 조용히 해주세요)' });
     body.appendChild(sec('공지 띄우기', [msg, btn('📢 띄우기', function () { if (msg.value.trim()) send('banner', { text: msg.value.trim() }, '공지 띄움'); }), btn('✕ 내리기', function () { send('banner', { text: '' }, '공지 내림'); })]));
+    var annMsg = h('textarea', { class: 'rc-in wide', rows: '2', maxlength: '300', placeholder: '전자칠판 전체 화면에 크게 띄울 방송 (예: 지금 소방 훈련을 시작합니다. 복도로 이동하세요)' }), annSecs = h('select', { class: 'rc-in' }, [h('option', { value: '0', text: '확인 누를 때까지' }), h('option', { value: '30', text: '30초 뒤 닫힘' }), h('option', { value: '120', text: '2분 뒤 닫힘' })]), annSt = h('div', { class: 'note-sm', text: '' });
+    body.appendChild(sec('📢 긴급 방송 (전체 화면)', [annMsg, annSecs, btn('📢 방송하기', function () { var t = annMsg.value.trim(); if (!t) { toast.textContent = '방송 내용을 써 주세요'; return; } if (!confirm('전자칠판에 전체 화면으로 방송할까요?\n\n' + t)) return; send('announce', { text: t, secs: parseInt(annSecs.value, 10) || 0, ttl: 30 }, '방송을 보냈어요 — 칠판이 꺼져 있어도 켜지면 30분 안에 표시돼요').then(function () { annMsg.value = ''; }); }, 'rc-on'), btn('✕ 방송 내리기', function () { send('annclear', {}, '방송을 내렸어요'); })]));
+    body.appendChild(annSt);
     body.appendChild(sec('기타', [btn('🔔 딩동', function () { send('chime', {}, '딩동'); }), btn('🔄 화면 새로고침', function () { if (confirm('전자칠판 화면을 새로고침할까요?')) send('reload', {}, '새로고침'); })]));
     var outBox = h('div', { class: 'rc-out' }), outSel = h('select', { class: 'rc-in wide' }), outWhy = h('input', { type: 'text', class: 'rc-in wide', maxlength: '25', placeholder: '자세한 내용 (선택)' }), outRs = h('select', { class: 'rc-in wide' }, [h('option', { value: '📖 밖에서 공부', text: '📖 밖에서 공부' }), h('option', { value: '기타', text: '기타' })]), outList = [];
     function oapi(b) { return fetch('/api/out', { method: b ? 'POST' : 'GET', headers: { authorization: 'Bearer ' + tk(), 'content-type': 'application/json' }, body: b ? JSON.stringify(b) : undefined }).then(function (r) { return r.json(); }); }
@@ -2763,7 +2766,7 @@
     }
     function refresh() {
       if (!document.body.contains(box)) { clearInterval(iv); return; }
-      kapi('state').then(function (j) { if (j.error) { status.textContent = '권한이 없어요'; return; } status.textContent = j.online ? '🟢 전자칠판 연결됨' : '🔴 전자칠판이 꺼져 있거나 연결이 없어요 (전자칠판 계정으로 로그인된 화면이 켜져 있어야 해요)'; status.classList.toggle('off', !j.online); paintLive(j.online ? j.state : null); if (j.online && j.state && j.state.clean) { done = {}; Object.keys(j.state.clean).forEach(function (n) { if (j.state.clean[n]) done[n] = 1; }); paintClean(); } }).catch(function () {});
+      kapi('state').then(function (j) { if (j.error) { status.textContent = '권한이 없어요'; return; } annSt.textContent = j.ann ? ((j.state && j.state.annSeen === j.ann.id) ? '📢 최근 방송: 칠판에 표시됨 ✓ — ' : '📢 최근 방송: 아직 칠판이 받지 못했어요 (꺼져 있으면 켜질 때 표시돼요) — ') + j.ann.text.slice(0, 40) : ''; status.textContent = j.online ? '🟢 전자칠판 연결됨' : '🔴 전자칠판이 꺼져 있거나 연결이 없어요 (전자칠판 계정으로 로그인된 화면이 켜져 있어야 해요)'; status.classList.toggle('off', !j.online); paintLive(j.online ? j.state : null); if (j.online && j.state && j.state.clean) { done = {}; Object.keys(j.state.clean).forEach(function (n) { if (j.state.clean[n]) done[n] = 1; }); paintClean(); } }).catch(function () {});
     }
     var iv = setInterval(refresh, 3500); refresh(); loadClean(); loadOut();
     return box;
