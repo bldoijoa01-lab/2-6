@@ -399,13 +399,13 @@
     }
     // ---- 고정밀 받아쓰기(AI): 마이크 소리를 5~12초 조각으로 잘라 서버(Whisper)에 보내 글자로 받음. 무음 조각은 보내지 않음 ----
     var aiQBusy = 0, aiStream = null, aiRec = null, aiCtx = null, aiQ = Promise.resolve(), aiTimer = 0, aiSeg = null;
-    function engine() { return load('ks_stt') === 'chrome' ? 'chrome' : 'ai'; }
+    function engine() { return load('ks_stt2') === 'ai' ? 'ai' : 'chrome'; }   // 기본은 '기본 인식'(브라우저 음성 인식: 즉시 반영). AI 인식은 느리고 엉뚱한 말이 섞여서 원할 때만 켜는 방식
     function aiStopAll() { clearInterval(aiTimer); aiTimer = 0; try { if (aiRec && aiRec.state !== 'inactive') { aiSeg = null; aiRec.stop(); } } catch (e) {} aiRec = null; if (aiStream) { aiStream.getTracks().forEach(function (t) { t.stop(); }); aiStream = null; } if (aiCtx) { try { aiCtx.close(); } catch (e) {} aiCtx = null; } }
     function aiUpload(blob) {
       aiQ = aiQ.then(function () {
         if (!dictOn) return; aiQBusy++; dictInterim = '🎧 인식 중 …'; if (jrLive && jrLive.isConnected) jrLive.textContent = dictInterim;
         return fetch('/api/stt', { method: 'POST', headers: { authorization: 'Bearer ' + tok(), 'content-type': blob.type || 'audio/webm' }, body: blob }).then(function (r) { return r.json().then(function (j) { j._st = r.status; return j; }); })
-          .then(function (j) { aiQBusy = Math.max(0, aiQBusy - 1); dictInterim = ''; if (jrLive && jrLive.isConnected) jrLive.textContent = ''; if (j && j.ok) { dictMsg = ''; if (j.text) return aiReveal(j.text); } else if (j && (j.error === 'no_ai' || j.error === 'ai_fail')) { dictMsg = 'AI 받아쓰기를 쓸 수 없어요 → 기본(크롬) 방식으로 바꿔요'; store('ks_stt', 'chrome'); stopAiStartChrome(); } })
+          .then(function (j) { aiQBusy = Math.max(0, aiQBusy - 1); dictInterim = ''; if (jrLive && jrLive.isConnected) jrLive.textContent = ''; if (j && j.ok) { dictMsg = ''; if (j.text) return aiReveal(j.text); } else if (j && (j.error === 'no_ai' || j.error === 'ai_fail')) { dictMsg = 'AI 받아쓰기를 쓸 수 없어요 → 기본(크롬) 방식으로 바꿔요'; store('ks_stt2', 'chrome'); stopAiStartChrome(); } })
           .catch(function () { aiQBusy = Math.max(0, aiQBusy - 1); dictInterim = ''; dictMsg = '연결이 불안정해요 · 자동으로 다시 시도 중'; paintJrNote(); });
       });
     }
@@ -424,7 +424,7 @@
     }
     function stopAiStartChrome() { aiStopAll(); if (dictOn) dictRun(); paintJrNote(); }
     function aiRun() {
-      if (!navigator.mediaDevices || !window.MediaRecorder) { store('ks_stt', 'chrome'); dictMsg = '이 브라우저는 AI 받아쓰기를 지원하지 않아 기본 방식으로 바꿨어요'; dictRun(); return; }
+      if (!navigator.mediaDevices || !window.MediaRecorder) { store('ks_stt2', 'chrome'); dictMsg = '이 브라우저는 AI 받아쓰기를 지원하지 않아 기본 방식으로 바꿨어요'; dictRun(); return; }
       navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } }).then(function (stream) {
         if (!dictOn) { stream.getTracks().forEach(function (t) { t.stop(); }); return; }
         aiStream = stream; var C = window.AudioContext || window.webkitAudioContext; aiCtx = new C(); var an = aiCtx.createAnalyser(); an.fftSize = 1024; aiCtx.createMediaStreamSource(stream).connect(an); var data = new Uint8Array(an.fftSize);
@@ -447,14 +447,14 @@
     }
     function dictRun() {
       if (engine() === 'ai') { aiRun(); return; }
-      var SR = window.SpeechRecognition || window.webkitSpeechRecognition, r = new SR(); dictRec = r; r.lang = 'ko-KR'; r.continuous = true; r.interimResults = true; dictAt = Date.now();
+      var SR = window.SpeechRecognition || window.webkitSpeechRecognition, r = new SR(); dictRec = r; r.lang = 'ko-KR'; r.continuous = true; r.interimResults = true; r.maxAlternatives = 1; dictAt = Date.now();
       r.onresult = function (e) { var interim = ''; for (var i = e.resultIndex; i < e.results.length; i++) { var t = e.results[i][0].transcript; if (e.results[i].isFinal) { if (t.trim()) dictAppend(t.trim()); } else interim += t; } dictInterim = interim; paintJrNoteSoon(); };   // 말하는 대로 흐린 글자가 바로 문단 끝에 이어 보이고, 확정되면 진해짐
       r.onspeechstart = function () { if (jrLive && jrLive.isConnected && !dictInterim) jrLive.textContent = '🎙 듣는 중 ●●●'; };
       r.onerror = function (e) { if (e.error === 'not-allowed' || e.error === 'service-not-allowed') dictStop('마이크 사용을 허용해 주세요 (주소창 왼쪽 자물쇠)'); else if (e.error === 'network' || e.error === 'audio-capture') { dictMsg = '연결이 불안정해요 (' + (e.error === 'network' ? '인터넷' : '마이크') + ') · 자동으로 다시 시도 중'; paintJrNote(); } };
       r.onend = function () {   // 크롬은 말이 없으면 끊김 → 다시 이어 듣되, 금방 계속 끊기면(소리 나는 기기에서 반복음 방지) 멈춤
         if (!dictOn) return; if (dictInterim && dictInterim.trim() && dictInterim.indexOf('🎙') !== 0 && dictInterim.indexOf('🎧') !== 0) { dictAppend(dictInterim.trim()); } dictInterim = ''; var ran = Date.now() - dictAt;   // 끊기는 순간 아직 확정 안 된 말도 버리지 않고 저장
          dictFail = ran < 4000 ? Math.min(dictFail + 1, 6) : 0;   // 끄기 전까지는 계속 이어 듣되, 자꾸 끊기면 간격을 늘려 반복음을 줄임
-        setTimeout(function () { if (dictOn) { try { dictRun(); } catch (e2) { dictFail = 6; setTimeout(function () { if (dictOn) { try { dictRun(); } catch (e3) {} } }, 5000); } } }, ran < 4000 ? Math.min(1200 + dictFail * 1200, 8000) : 40);   // 정상적으로 듣다 끊긴 경우는 거의 바로 이어 들음
+        setTimeout(function () { if (dictOn) { try { dictRun(); } catch (e2) { dictFail = 6; setTimeout(function () { if (dictOn) { try { dictRun(); } catch (e3) {} } }, 5000); } } }, ran < 4000 ? Math.min(1200 + dictFail * 1200, 8000) : 0);   // 정상적으로 듣다 끊긴 경우는 거의 바로 이어 들음
       };
       try { r.start(); } catch (e) { dictStop('받아쓰기를 시작하지 못했어요'); }
     }
@@ -528,7 +528,7 @@
       if (JR && JR.text) { var meta = (JR.by ? JR.by + ' · ' : '') + (JR.at ? hm(JR.at) : ''); if (meta) hdr.appendChild(el('small', 'ks-jnote-m', meta)); }
       var tools = el('span', 'ks-jtools');
       var mic = el('button', 'ks-chip' + (dictOn ? ' on rec' : ''), dictOn ? '듣는 중 · 끝내기' : '받아쓰기'); mic.type = 'button'; mic.addEventListener('click', dictToggle); tools.appendChild(mic);
-      var eng = el('button', 'ks-chip', engine() === 'ai' ? 'AI 인식' : '기본 인식'); eng.type = 'button'; eng.title = '받아쓰기 방식 바꾸기'; eng.addEventListener('click', function () { store('ks_stt', engine() === 'ai' ? 'chrome' : 'ai'); var was = dictOn; if (was) { dictStop(); dictToggle(); } else paintJrNote(); }); tools.appendChild(eng);
+      var eng = el('button', 'ks-chip', engine() === 'ai' ? 'AI 인식' : '기본 인식'); eng.type = 'button'; eng.title = '받아쓰기 방식 바꾸기'; eng.addEventListener('click', function () { store('ks_stt2', engine() === 'ai' ? 'chrome' : 'ai'); var was = dictOn; if (was) { dictStop(); dictToggle(); } else paintJrNote(); }); tools.appendChild(eng);
       if (JR && JR.text) { var un = el('button', 'ks-chip', '마지막 줄 지우기'); un.type = 'button'; un.addEventListener('click', function () { if (dictSent.length) { dictSent.pop(); jrSet(dictText()); return; } var L = JR.text.split('\n'); L.pop(); dictBase = L.join('\n'); jrSet(dictBase); }); tools.appendChild(un);
         var all = el('button', 'ks-chip', '전체 지우기'), armed = null; all.type = 'button';
         all.addEventListener('click', function () { if (!armed) { all.textContent = '한 번 더 누르면 삭제'; all.classList.add('rec'); armed = setTimeout(function () { armed = null; all.textContent = '전체 지우기'; all.classList.remove('rec'); }, 3000); return; } clearTimeout(armed); armed = null; dictBase = ''; dictSent = []; jrSet(''); });   // 실수 방지: 3초 안에 한 번 더 누르면 삭제
