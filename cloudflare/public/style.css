@@ -1534,7 +1534,7 @@ body.lite .gm-root *{backdrop-filter:none !important}
 .ks-ask{display:flex; flex-direction:column; gap:.6em; padding:1.4em 1.8em; border-radius:20px; background:var(--k-card,#1d2347); border:1px solid rgba(255,255,255,.25); color:#fff; text-align:center; min-width:20em} .ks-ask p{margin:0; opacity:.8}
 
 /* ===== 긴급 방송 (전체 화면) ===== */
-.ks-ann{position:fixed; inset:0; z-index:90; display:flex; align-items:center; justify-content:center; background:rgba(120,10,30,.94); color:#fff; padding:4vmin; animation:annIn .35s ease-out both}
+.ks-ann{position:fixed; inset:0; z-index:9000; font-family:inherit; display:flex; align-items:center; justify-content:center; background:rgba(120,10,30,.94); color:#fff; padding:4vmin; animation:annIn .35s ease-out both}
 .ks-ann-b{display:flex; flex-direction:column; align-items:center; gap:1.2vmin; max-width:92vw; text-align:center}
 .ks-ann-h{font-size:4vmin; font-weight:900; letter-spacing:.05em; padding:.3em 1.2em; border-radius:99px; background:rgba(255,255,255,.18)}
 .ks-ann-t{font-size:11vmin; font-weight:900; line-height:1.25; word-break:keep-all; white-space:pre-wrap}
@@ -1543,5 +1543,7 @@ body.lite .gm-root *{backdrop-filter:none !important}
 @keyframes annIn{from{opacity:0; transform:scale(1.04)}to{opacity:1; transform:none}}
 
 /* ===== 알림 방송 (위쪽 노란 띠, 글이 오른쪽으로 흐름) ===== */
-.ks-ntc{position:fixed; left:0; right:0; top:0; z-index:70; height:9vmin; overflow:hidden; background:linear-gradient(180deg,#FFE066,#FFC83D); color:#2b1f00; box-shadow:0 8px 24px rgba(0,0,0,.35); border-bottom:.5vmin solid #E0A100}
+.ks-ntc{position:fixed; left:0; right:0; top:0; z-index:8900; height:9vmin; overflow:hidden; background:linear-gradient(180deg,#FFE066,#FFC83D); color:#2b1f00; box-shadow:0 8px 24px rgba(0,0,0,.35); border-bottom:.5vmin solid #E0A100}
 .ks-ntc-t{position:absolute; left:0; top:0; height:100%; display:flex; align-items:center; white-space:nowrap; font-size:5.2vmin; font-weight:900; will-change:transform; padding:0 2vmin}
+
+.ks-ann .ks-btn.big{font-family:inherit; cursor:pointer; border:0; border-radius:1em; padding:.5em 1.6em; background:linear-gradient(135deg,#9E7BFF,#7355E8); color:#fff; font-weight:800}

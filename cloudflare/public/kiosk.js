@@ -982,7 +982,7 @@
     function annShow(a) {
       annClose(0); annSeen = a.id; store('ks_ann', String(a.id)); annEl = el('div', 'ks-ann'); var bx = el('div', 'ks-ann-b');
       bx.appendChild(el('div', 'ks-ann-h', '📢 안내 방송')); bx.appendChild(el('div', 'ks-ann-t', a.text)); var meta = el('div', 'ks-ann-m', (a.by ? a.by + ' · ' : '') + hm(a.at)); bx.appendChild(meta);
-      var x = el('button', 'ks-btn big', '✓ 확인'); x.type = 'button'; x.addEventListener('click', function () { annClose(a.id); }); bx.appendChild(x); annEl.appendChild(bx); root.appendChild(annEl);
+      var x = el('button', 'ks-btn big', '✓ 확인'); x.type = 'button'; x.addEventListener('click', function () { annClose(a.id); }); bx.appendChild(x); annEl.appendChild(bx); document.body.appendChild(annEl);   // 미니게임·의견 보드 위에도 뜨도록 화면 맨 위(body)에 붙임
       if (a.sound !== false) { var n = 0; chime(); annSnd = setInterval(function () { if (++n >= 3) { clearInterval(annSnd); annSnd = 0; return; } chime(); }, 2500); }
       if (a.secs > 0) annTimer = setTimeout(function () { annClose(a.id); }, a.secs * 1000);
     }
@@ -991,7 +991,7 @@
     var ntcEl = null, ntcRaf = 0, ntcTimer = 0, ntcSeen = 0; try { ntcSeen = parseInt(load('ks_ntc') || '0', 10) || 0; } catch (e) {}
     function ntcClose(id) { if (ntcEl) { ntcEl.remove(); ntcEl = null; } cancelAnimationFrame(ntcRaf); clearTimeout(ntcTimer); try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {} if (id) { ntcSeen = id; store('ks_ntc', String(id)); } }
     function ntcShow(n) {
-      ntcClose(0); ntcSeen = n.id; store('ks_ntc', String(n.id)); ntcEl = el('div', 'ks-ntc'); var tx = el('div', 'ks-ntc-t', '🔔 ' + n.text); ntcEl.appendChild(tx); root.appendChild(ntcEl);
+      ntcClose(0); ntcSeen = n.id; store('ks_ntc', String(n.id)); ntcEl = el('div', 'ks-ntc'); var tx = el('div', 'ks-ntc-t', '🔔 ' + n.text); ntcEl.appendChild(tx); document.body.appendChild(ntcEl);
       var W = function () { return ntcEl ? ntcEl.clientWidth : 1920; }, tw = tx.offsetWidth, x = -tw, last = 0, end = Date.now() + (n.secs || 120) * 1000, spd = Math.max(120, W() / 9);   // 화면 폭을 약 9초에 건넘 (px/초)
       (function step(t) { if (!ntcEl) return; if (Date.now() >= end) { ntcClose(n.id); return; } var dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t; x += spd * dt; if (x > W()) x = -tw - 40; tx.style.transform = 'translateX(' + x + 'px)'; ntcRaf = requestAnimationFrame(step); })(0);
       chime(); if (n.tts !== false) later2(function () { try { if (window.speechSynthesis) { speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance(n.text); u.lang = 'ko-KR'; u.rate = 0.95; speechSynthesis.speak(u); } } catch (e) {} }, 1700);
