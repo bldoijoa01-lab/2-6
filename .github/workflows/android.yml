@@ -3,6 +3,8 @@ on:
   workflow_dispatch:
   push:
     paths: ['android/**', '.github/workflows/android.yml']
+permissions:
+  contents: write
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -14,10 +16,21 @@ jobs:
         run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses >/dev/null || true
       - uses: gradle/actions/setup-gradle@v4
         with: { gradle-version: '8.10.2' }
+      - name: Prepare signing key (from secrets)
+        env: { KS_B64: '${{ secrets.ANDROID_KEYSTORE_B64 }}' }
+        run: |
+          if [ -n "$KS_B64" ]; then echo "$KS_B64" | base64 -d > "$RUNNER_TEMP/class26.keystore"; echo "KS_FILE=$RUNNER_TEMP/class26.keystore" >> "$GITHUB_ENV"; echo "KS_PASS=${{ secrets.ANDROID_KEYSTORE_PASS }}" >> "$GITHUB_ENV"; else echo "::warning::서명 키 비밀값이 없어 임시 서명으로 빌드합니다(자동 업데이트 덮어쓰기 불가)"; fi
       - name: Build debug APK
         working-directory: android
-        run: gradle assembleDebug --no-daemon
+        run: gradle assembleDebug --no-daemon -PvCode=${{ github.run_number }}
       - uses: actions/upload-artifact@v4
         with:
           name: class26-board-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
+      - name: Publish latest APK to release (앱 자동 업데이트용 고정 주소)
+        env: { GH_TOKEN: '${{ github.token }}' }
+        run: |
+          cp android/app/build/outputs/apk/debug/app-debug.apk class26-board.apk
+          echo -n "${{ github.run_number }}" > version.txt
+          gh release view board-apk >/dev/null 2>&1 || gh release create board-apk --title "전자칠판 앱 (최신)" --notes "전자칠판 앱 최신 빌드. 앱이 이 주소에서 스스로 업데이트합니다." --target ${{ github.sha }}
+          gh release upload board-apk class26-board.apk version.txt --clobber

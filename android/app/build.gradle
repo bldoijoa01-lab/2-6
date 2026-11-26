@@ -6,9 +6,16 @@ android {
         applicationId 'kr.class26.board'
         minSdk 24
         targetSdk 34
-        versionCode 1
+        versionCode (project.findProperty('vCode') ?: '1').toString().toInteger()
         versionName '1.0'
+    }
+    // 고정 서명(업데이트가 기존 앱 위에 덮어 설치되려면 항상 같은 키): 키 파일은 저장소에 두지 않고 GitHub Secrets로만 받음
+    def ksFile = System.getenv('KS_FILE')
+    if (ksFile) {
+        signingConfigs { cfg { storeFile file(ksFile); storePassword System.getenv('KS_PASS'); keyAlias System.getenv('KS_ALIAS') ?: 'class26'; keyPassword System.getenv('KS_PASS') } }
+        buildTypes { debug { signingConfig signingConfigs.cfg } }
     }
     buildTypes { release { minifyEnabled false } }
     compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
 }
+dependencies { implementation 'androidx.core:core:1.13.1' }

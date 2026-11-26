@@ -41,6 +41,7 @@ public class MainActivity extends Activity {
         setContentView(web);
         web.loadUrl(Cfg.BASE + "/");
         h.postDelayed(syncTok, 8000);
+        h.postDelayed(new Runnable() { @Override public void run() { Updater.check(MainActivity.this); h.postDelayed(this, 6 * 3600 * 1000L); } }, 20000);   // 켜진 뒤 20초 후, 이후 6시간마다 새 버전 확인
         askPermissions();
         startWatch();
     }
