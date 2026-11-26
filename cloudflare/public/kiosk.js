@@ -991,9 +991,12 @@
     var ntcEl = null, ntcRaf = 0, ntcTimer = 0, ntcSeen = 0; try { ntcSeen = parseInt(load('ks_ntc') || '0', 10) || 0; } catch (e) {}
     function ntcClose(id) { if (ntcEl) { ntcEl.remove(); ntcEl = null; } cancelAnimationFrame(ntcRaf); clearTimeout(ntcTimer); try { if (window.speechSynthesis) speechSynthesis.cancel(); } catch (e) {} if (id) { ntcSeen = id; store('ks_ntc', String(id)); } }
     function ntcShow(n) {
-      ntcClose(0); ntcSeen = n.id; store('ks_ntc', String(n.id)); ntcEl = el('div', 'ks-ntc'); var tx = el('div', 'ks-ntc-t', '🔔 ' + n.text); ntcEl.appendChild(tx); document.body.appendChild(ntcEl);
-      var W = function () { return ntcEl ? ntcEl.clientWidth : 1920; }, tw = tx.offsetWidth, x = -tw, last = 0, end = Date.now() + (n.secs || 120) * 1000, spd = Math.max(120, W() / 9);   // 화면 폭을 약 9초에 건넘 (px/초)
-      (function step(t) { if (!ntcEl) return; if (Date.now() >= end) { ntcClose(n.id); return; } var dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t; x += spd * dt; if (x > W()) x = -tw - 40; tx.style.transform = 'translateX(' + x + 'px)'; ntcRaf = requestAnimationFrame(step); })(0);
+      ntcClose(0); ntcSeen = n.id; store('ks_ntc', String(n.id)); ntcEl = el('div', 'ks-ntc'); var tx = el('div', 'ks-ntc-t'); ntcEl.appendChild(tx); document.body.appendChild(ntcEl);
+      // 글을 이어 붙여 여러 번 깔아 두고 한 칸 폭만큼 돌려 쓰기 → 흐르는 동안 빈 구간 없이 항상 글이 보임
+      var unit = el('span', 'ks-ntc-u', '🔔 ' + n.text + '\u00A0\u00A0\u00A0●\u00A0\u00A0\u00A0'); tx.appendChild(unit); var uw = unit.offsetWidth || 400, Wd = ntcEl.clientWidth || 1920, copies = Math.ceil(Wd / uw) + 2;
+      for (var ci = 1; ci < copies; ci++) tx.appendChild(unit.cloneNode(true));
+      var x = -uw, last = 0, end = Date.now() + (n.secs || 120) * 1000, spd = Math.max(220, Wd / 6);   // 오른쪽으로 흐름: 화면 폭을 약 6초에 건넘 (px/초)
+      (function step(t) { if (!ntcEl) return; if (Date.now() >= end) { ntcClose(n.id); return; } var dt = last ? Math.min(0.1, (t - last) / 1000) : 0; last = t; x += spd * dt; if (x >= 0) x -= uw; tx.style.transform = 'translateX(' + x + 'px)'; ntcRaf = requestAnimationFrame(step); })(0);
       chime(); if (n.tts !== false) later2(function () { try { if (window.speechSynthesis) { speechSynthesis.cancel(); var u = new SpeechSynthesisUtterance(n.text); u.lang = 'ko-KR'; u.rate = 0.95; speechSynthesis.speak(u); } } catch (e) {} }, 1700);
     }
     function later2(fn, ms) { ntcTimer = setTimeout(fn, ms); }
