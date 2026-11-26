@@ -431,20 +431,20 @@
         var mime = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4'].filter(function (m) { return MediaRecorder.isTypeSupported(m); })[0] || '';
         var nf = 0.008;   // 주변 소음 크기(조용할 때 계속 갱신): 말소리 기준을 환경에 맞춰 자동으로 잡음
         function startSeg() {
-          var chunks = [], rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined), seg = { t0: Date.now(), sp: 0, quietSince: 0, rec: rec }; aiSeg = seg; aiRec = rec;
+          var chunks = [], rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined), seg = { t0: Date.now(), sp: 0, peak: 0, quietSince: 0, rec: rec }; aiSeg = seg; aiRec = rec;
           rec.ondataavailable = function (e) { if (e.data && e.data.size) chunks.push(e.data); };
-          rec.onstop = function () { if (seg.sp >= 6 && chunks.length) aiUpload(new Blob(chunks, { type: rec.mimeType || 'audio/webm' })); };   // 말소리가 0.6초 이상 있었던 조각만 전송(잡음만 있는 조각을 AI에 보내면 엉뚱한 말을 지어냄)
+          rec.onstop = function () { if ((seg.sp >= 6 || (seg.sp >= 2 && seg.peak > 0.06)) && chunks.length) aiUpload(new Blob(chunks, { type: rec.mimeType || 'audio/webm' })); };   // 말소리가 0.6초 이상 있었던 조각 + 0.2초 이상이면서 소리가 또렷하게 큰 짧은 한마디('네', '응')만 전송(잡음만 있는 조각을 AI에 보내면 엉뚱한 말을 지어냄)
           rec.start();
         }
         aiTimer = setInterval(function () {   // 0.1초마다 소리 크기 감시: 말이 1.5초 이상 쌓인 뒤 0.35초 쉬면 그 자리에서 자르고(문장 끝), 5초가 넘으면 무조건 자름 → 짧게 끊어 보내 빨리 반영
           if (!aiSeg) return; an.getByteTimeDomainData(data); var sum = 0; for (var i = 0; i < data.length; i++) { var v = (data[i] - 128) / 128; sum += v * v; } var rms = Math.sqrt(sum / data.length), now = Date.now();
           var thr = Math.max(0.018, nf * 2.8), talk = rms > thr;
           if (!talk) nf = nf * 0.97 + rms * 0.03;
-          if (talk) { aiSeg.sp++; aiSeg.quietSince = 0; } else if (!aiSeg.quietSince) aiSeg.quietSince = now;
+          if (talk) { aiSeg.sp++; aiSeg.quietSince = 0; if (rms > aiSeg.peak) aiSeg.peak = rms; } else if (!aiSeg.quietSince) aiSeg.quietSince = now;
           var age = now - aiSeg.t0;
           dictInterim = aiSeg.sp >= 3 ? '🎙 듣는 중 ●●●' : ''; if (jrLive && jrLive.isConnected && dictInterim.indexOf('🎙') === 0) jrLive.textContent = dictInterim; else if (jrLive && jrLive.isConnected && aiQBusy === 0) jrLive.textContent = '';
-          var sentenceEnd = age > 1500 && aiSeg.sp >= 6 && aiSeg.quietSince && now - aiSeg.quietSince > 350;
-          if (sentenceEnd || age > 5000 || (age > 3000 && aiSeg.sp < 3)) { var r = aiSeg.rec; startSeg(); try { r.stop(); } catch (e) {} }   // 새 조각을 먼저 시작하고 이전 조각을 멈춰서 끊기는 순간의 말도 겹쳐 녹음
+          var sentenceEnd = (age > 1500 && aiSeg.sp >= 6 && aiSeg.quietSince && now - aiSeg.quietSince > 350) || (age > 900 && aiSeg.sp >= 2 && aiSeg.sp < 6 && aiSeg.peak > 0.06 && aiSeg.quietSince && now - aiSeg.quietSince > 650);   // 짧은 한마디는 0.65초 쉬면 바로 보냄
+          if (sentenceEnd || age > 5000 || (age > 3000 && aiSeg.sp < 2)) { var r = aiSeg.rec; startSeg(); try { r.stop(); } catch (e) {} }   // 새 조각을 먼저 시작하고 이전 조각을 멈춰서 끊기는 순간의 말도 겹쳐 녹음
         }, 100);
         startSeg();
       }).catch(function () { dictStop('마이크 사용을 허용해 주세요 (주소창 왼쪽 자물쇠)'); });

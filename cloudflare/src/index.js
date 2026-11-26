@@ -592,7 +592,7 @@ export default {
       if (!me0 || !(me0.role === 'board' || me0.role === 'teacher' || me0.admin)) return json({ error: 'forbidden' }, 403);
       if (!env.AI) return json({ error: 'no_ai' }, 501);
       const buf = new Uint8Array(await request.arrayBuffer());
-      if (buf.length < 1500 || buf.length > 1.6e6) return json({ error: 'size' }, 400);
+      if (buf.length < 600 || buf.length > 1.6e6) return json({ error: 'size' }, 400);
       try {
         let bin = ''; for (let i = 0; i < buf.length; i += 0x8000) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 0x8000));
         // 프롬프트(initial_prompt)에 단어를 넣으면 조용하거나 잡음일 때 그 단어를 그대로 되풀이하는 일이 있어서 넣지 않음. 대신 무음 구간 제거·반복 억제 옵션을 켬
@@ -600,7 +600,7 @@ export default {
         let r; try { r = await env.AI.run('@cf/openai/whisper-large-v3-turbo', { ...base, vad_filter: true, condition_on_previous_text: false, no_speech_threshold: 0.6, compression_ratio_threshold: 2.2 }); }
         catch (e1) { r = await env.AI.run('@cf/openai/whisper-large-v3-turbo', base); }   // 옵션을 못 받는 경우 기본으로 다시
         let text = String((r && r.text) || '').replace(/\s+/g, ' ').trim();
-        if (text.length < 40 && /(시청해 ?주셔서|구독|좋아요|알림 ?설정|자막|한글자막|번역|MBC|SBS|KBS|뉴스입니다|다음 영상|이 영상|영상 시청|^감사합니다\.?$|^네\.?$|^아\.?$|^음\.?$)/.test(text)) text = '';   // 조용할 때 Whisper가 지어내는 대표 문구 제거   // 무음에서 Whisper가 지어내는 문구 제거
+        if (text.length < 40 && /(시청해 ?주셔서|구독|좋아요|알림 ?설정|자막|한글자막|번역|MBC|SBS|KBS|뉴스입니다|다음 영상|이 영상|영상 시청|^감사합니다\.?$|^아\.?$|^음\.?$)/.test(text)) text = '';   // 조용할 때 Whisper가 지어내는 대표 문구 제거   // 무음에서 Whisper가 지어내는 문구 제거
         { const w = text.split(' ').filter(Boolean); if (w.length >= 4) { const u = new Set(w); if (u.size / w.length < 0.5) text = ''; } }   // 같은 말만 반복되는 문장은 환각으로 보고 버림
         { const sents = text.split(/(?<=[.?!])\s+/).filter(Boolean); if (sents.length >= 3 && new Set(sents).size === 1) text = ''; }
         return json({ ok: true, text });
