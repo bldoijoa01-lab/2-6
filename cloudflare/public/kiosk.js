@@ -498,11 +498,12 @@
     }
     function paintPast() {
       if (!pastBox) return; clear(pastBox);
-      var more = el('button', 'ks-btn', '📜 지난 조회/종례 더 보기'); more.type = 'button'; more.addEventListener('click', openPastModal);
+      var more = el('button', 'ks-btn', '더 보기 · 최근 45일 →'); more.type = 'button'; more.addEventListener('click', openPastModal);
       var todayHas = !!(JR && JR.hist && JR.hist.length);   // 오늘 이미 끝낸 게 있으면 위 카드가 가장 최근 기록이라 따로 안 띄움
       loadPast(function (j) {
         if (!pastBox) return; clear(pastBox);
-        if (!todayHas) { var e = pastEntries(j, true)[0]; if (e) { pastBox.appendChild(el('div', 'ks-sec', '가장 최근 기록')); pastBox.appendChild(entryCard(e, true)); } }
+        if (todayHas) pastBox.appendChild(el('div', 'ks-pasth', '📜 지난 기록'));
+        if (!todayHas) { var e = pastEntries(j, true)[0]; if (!e) pastBox.appendChild(el('div', 'ks-note', '아직 지난 조회/종례 기록이 없어요')); if (e) { pastBox.appendChild(el('div', 'ks-pasth', '📜 가장 최근 기록')); pastBox.appendChild(entryCard(e, true)); } }
         pastBox.appendChild(more);
       });
     }
@@ -587,9 +588,10 @@
       }); tg.appendChild(fin); box.appendChild(tg);   // 일찍 끝나면 눌러서 오늘 화면으로
       if (jo) box.appendChild(banner('jong', 'announce', '조회 시간', SC.hs + ' ~ ' + SC.he, SC.he, '조회 끝까지'));
       else box.appendChild(banner('jong', 'announce', '종례 시간', SCe().js + ' ~ ' + SCe().ee, SCe().ee, '종례 끝까지'));
-      histBox = el('div', 'ks-jhist'); box.appendChild(histBox);
-      pastBox = el('div', 'ks-jpast'); box.appendChild(pastBox); paintPast();
-      jrBox = el('div', 'ks-jnote'); box.appendChild(jrBox); paintJrNote(); cleanups.push(function () { jrBox = null; histBox = null; pastBox = null; });
+      var jrow = el('div', 'ks-jrow'), jleft = el('div', 'ks-jleft');   // 왼쪽: 오늘의 안내사항(받아쓰기) · 오른쪽: 지난 기록 → 글줄이 너무 길어지지 않게 나눔
+      histBox = el('div', 'ks-jhist'); jleft.appendChild(histBox);
+      jrBox = el('div', 'ks-jnote'); jleft.appendChild(jrBox); jrow.appendChild(jleft);
+      pastBox = el('div', 'ks-jpast'); jrow.appendChild(pastBox); box.appendChild(jrow); paintPast(); paintJrNote(); cleanups.push(function () { jrBox = null; histBox = null; pastBox = null; });
    // 받아쓰기는 다른 화면으로 가도 계속 듣고, 끄기 버튼을 눌러야 멈춤
       var cols = el('div', 'ks-jcols'), iso = isoOf(kst()), daily = (D.daily || {})[iso];
       var c1 = card('오늘의 알림장', 'notice'), ul = el('ul', 'ks-list');

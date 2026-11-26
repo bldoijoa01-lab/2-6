@@ -1552,3 +1552,12 @@ body.lite .gm-root *{backdrop-filter:none !important}
 /* ===== 칠판: 지난 조회/종례 ===== */
 .ks-jpast{display:flex; flex-direction:column; gap:.6em; margin:.6em 0}
 .ks-pastm{max-height:86vh; overflow:auto; min-width:min(46em,92vw)} .ks-pastl{display:flex; flex-direction:column; gap:.6em; margin:.8em 0}
+
+.ks-jrow{display:grid; grid-template-columns:minmax(0,1.45fr) minmax(0,1fr); gap:1em; align-items:start; margin:.3em 0}
+.ks-jleft{display:flex; flex-direction:column; gap:.6em; min-width:0}
+.ks-jrow .ks-jnote,.ks-jrow .ks-jhist{margin:0}
+.ks-jpast{margin:0; padding:.2em 0; position:sticky; top:.5em}
+.ks-pasth{font-size:1.05em; font-weight:800; color:var(--k-mute); letter-spacing:.02em}
+.ks-jpast .ks-suml,.ks-pastm .ks-suml{columns:1; font-size:1.18em; line-height:1.55; max-width:34em}
+.ks-jpast .ks-btn{align-self:flex-start}
+@media (max-width:1100px){ .ks-jrow{grid-template-columns:1fr} .ks-jpast{position:static} }
