@@ -6,7 +6,7 @@ android {
         applicationId 'kr.class26.board'
         minSdk 24
         targetSdk 34
-        versionCode (project.findProperty('vCode') ?: '1').toString().toInteger()
+        versionCode = Integer.parseInt(project.hasProperty('vCode') ? project.property('vCode').toString() : '1')
         versionName '1.0'
     }
     // 고정 서명(업데이트가 기존 앱 위에 덮어 설치되려면 항상 같은 키): 키 파일은 저장소에 두지 않고 GitHub Secrets로만 받음
